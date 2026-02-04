@@ -1,10 +1,13 @@
 # Claude Skills Registry
 
+> **Core repo:** metadata + index + site.  
+> **Data repo (skills archive):** https://github.com/majiayu000/claude-skill-registry-data
+
 <p align="center">
-  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fskills-registry-web.vercel.app%2Fstats.json&query=%24.total_skills&label=Skills&color=purple&style=flat-square" alt="Skills">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry-core%2Fstats.json&query=%24.total_skills&label=Skills&color=purple&style=flat-square" alt="Skills">
   <img src="https://img.shields.io/badge/Updated-Daily-green?style=flat-square" alt="Updated">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License">
-  <a href="https://skills-registry-web.vercel.app"><img src="https://img.shields.io/badge/Web-Search-blue?style=flat-square" alt="Web Search"></a>
+  <a href="https://majiayu000.github.io/claude-skill-registry-core/"><img src="https://img.shields.io/badge/Web-Search-blue?style=flat-square" alt="Web Search"></a>
 </p>
 
 > The most comprehensive Claude Code skills registry — updated daily with the latest skills
@@ -14,11 +17,11 @@
 The largest searchable index of Claude Code skills, aggregated from GitHub and community sources.
 
 **Three ways to use:**
-1. **[Web Search](https://skills-registry-web.vercel.app/)** - Fast browser-based search
+1. **[Web Search](https://majiayu000.github.io/claude-skill-registry-core/)** - Fast browser-based search
 2. **[sk CLI](https://github.com/majiayu000/caude-skill-manager)** - Terminal package manager
 3. **API** - Direct JSON access
 
-**Repo layout note:** the browsable `skills/**` archive is designed to live in a separate **data repo** (Scheme 2). See `SCHEME2_SPLIT.md`.
+**Repo layout note:** the browsable `skills/**` archive lives in the **data repo** (Scheme 2). See `SCHEME2_SPLIT.md`.
 
 ## Highlights
 
@@ -32,7 +35,7 @@ The largest searchable index of Claude Code skills, aggregated from GitHub and c
 
 ### Option 1: Web Search
 
-Visit [https://skills-registry-web.vercel.app/](https://skills-registry-web.vercel.app/)
+Visit [https://majiayu000.github.io/claude-skill-registry-core/](https://majiayu000.github.io/claude-skill-registry-core/)
 
 ### Option 2: CLI (sk)
 
@@ -46,20 +49,20 @@ sk search pdf
 sk search --popular
 
 # Install a skill
-sk install anthropics/skills/docx
+sk install anthropics/skills/skills/docx
 ```
 
 ### Option 3: Direct API
 
 ```bash
 # Lightweight search index (~1MB gzip)
-curl https://skills-registry-web.vercel.app/search-index.json
+curl https://majiayu000.github.io/claude-skill-registry-core/search-index.json
 
 # Full registry
-curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry/main/registry.json
+curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry-core/main/registry.json
 
 # Specific category
-curl https://skills-registry-web.vercel.app/categories/development.json
+curl https://majiayu000.github.io/claude-skill-registry-core/categories/development.json
 ```
 
 ---
@@ -159,7 +162,7 @@ claude-skill-registry/
 
 ### Current Status
 
-- [x] **90,000+ unique skills indexed** (deduplicated, growing daily)
+- [x] **74,648 unique skills indexed** (deduplicated; see badge for live count)
 - [x] **Daily auto-update** via GitHub Actions
 - [x] **Security scanning** for all skills
 - [x] **sk CLI** for installation
@@ -168,7 +171,7 @@ claude-skill-registry/
 
 - [x] **Lightweight search index** (~1MB vs 17MB)
 - [x] **Web search UI** (GitHub Pages)
-- [ ] **GitHub Pages deployment** (pending)
+- [x] **GitHub Pages deployment** (https://majiayu000.github.io/claude-skill-registry-core/)
 
 ### Planned
 
@@ -185,7 +188,7 @@ claude-skill-registry/
 ### Add Your Skill
 
 **Option 1: Submit via Issue**
-1. Open an [issue](https://github.com/majiayu000/claude-skill-registry/issues/new)
+1. Open an [issue](https://github.com/majiayu000/claude-skill-registry-core/issues/new)
 2. Use the "Add Skill" template
 3. Provide: repo URL, name, description, category
 
@@ -214,7 +217,7 @@ We welcome feedback! Please open an issue for:
 - **UX improvements** - Web UI, CLI enhancements
 - **Data quality** - Duplicate skills, wrong categories
 
-👉 [Open an Issue](https://github.com/majiayu000/claude-skill-registry/issues/new)
+👉 [Open an Issue](https://github.com/majiayu000/claude-skill-registry-core/issues/new)
 
 ### Contribute Code
 
