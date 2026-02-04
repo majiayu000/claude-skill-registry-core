@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Claude Agent Skill Schema",
+  "description": "JSON Schema for validating SKILL.md frontmatter",
+  "type": "object",
+  "required": ["name", "description"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+      "description": "Skill name (lowercase, alphanumeric, hyphens only, max 64 chars)"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 500,
+      "description": "Brief description of what the skill does"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version (e.g., 1.0.0)"
+    },
+    "author": {
+      "type": "string",
+      "maxLength": 100,
+      "description": "Author name or GitHub username"
+    },
+    "license": {
+      "type": "string",
+      "description": "Software license (any SPDX license or custom text)"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+$",
+        "maxLength": 30
+      },
+      "maxItems": 10,
+      "uniqueItems": true,
+      "description": "Tags for categorization"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "development", "testing", "data", "design",
+        "documents", "productivity", "devops", "security",
+        "marketing", "product", "communication", "creative"
+      ],
+      "description": "Primary category"
+    },
+    "model": {
+      "type": "string",
+      "enum": ["sonnet", "opus", "haiku"],
+      "description": "Recommended Claude model"
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "read", "write", "edit", "bash", "grep", "glob",
+          "webfetch", "websearch", "ask", "lsp"
+        ]
+      },
+      "maxItems": 20,
+      "uniqueItems": true,
+      "description": "Required tools/capabilities"
+    },
+    "requires_network": {
+      "type": "boolean",
+      "description": "Whether skill needs network access"
+    },
+    "requires_approval": {
+      "type": "boolean",
+      "description": "Whether operations need user approval"
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 500,
+      "description": "Project homepage URL"
+    },
+    "repository": {
+      "type": "string",
+      "pattern": "^https://github\\.com/[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+$",
+      "description": "GitHub repository URL"
+    },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 50
+      },
+      "maxItems": 15,
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": true
+}

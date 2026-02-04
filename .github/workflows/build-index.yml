@@ -1,0 +1,68 @@
+name: Build Search Index
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+
+  # Run when registry or site sources change
+  push:
+    branches: [main]
+    paths:
+      - 'registry.json'
+      - 'scripts/build_search_index.py'
+      - 'docs/**'
+      - '.github/workflows/build-index.yml'
+
+permissions:
+  pages: write
+  id-token: write
+
+jobs:
+  build-index:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Build search index
+        run: |
+          echo "Building search index from registry.json (deduplicated)..."
+          python scripts/build_search_index.py --use-registry --registry registry.json --output docs
+
+          echo ""
+          echo "Index files generated:"
+          ls -la docs/
+          ls -la docs/categories/ || true
+
+          echo ""
+          echo "Index sizes:"
+          du -sh docs/*.json docs/*.gz 2>/dev/null || true
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'docs'
+
+  deploy-pages:
+    needs: build-index
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
