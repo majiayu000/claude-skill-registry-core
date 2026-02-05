@@ -145,6 +145,10 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
             # Get skill name (from metadata or directory)
             name = metadata.get("name", dir_name)
 
+            # If dir_name uses case-conflict suffix, strip it for display
+            if name == dir_name and "__dup-" in dir_name:
+                name = dir_name.split("__dup-", 1)[0]
+
             # Remove repo suffix from name if present
             if "-" in dir_name and name == dir_name:
                 # Try to extract base name
