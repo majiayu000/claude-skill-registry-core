@@ -3,8 +3,8 @@
 > **Core repo:** logic + index + site.  
 > **Main repo (merged artifact):** https://github.com/majiayu000/claude-skill-registry  
 > **Data repo (skills archive):** https://github.com/majiayu000/claude-skill-registry-data  
-> **Counts (2026‑02‑05):** badge shows live index count; data repo **162,168** `SKILL.md`; main repo **162,168**.  
-> **Count gaps are expected:** index counts deduplicated entries; archive counts are raw files.
+> **Counts (2026‑02‑05):** badge shows live index count; data repo **162,170** `SKILL.md`; main repo **162,170**.  
+> **Note:** `registry.json` is deduplicated (**82,569** entries); archive counts are raw files.
 
 <p align="center">
   <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry-core%2Fstats.json&query=%24.total_skills&label=Skills&color=purple&style=flat-square" alt="Skills">
@@ -168,7 +168,7 @@ Category counts are published in the index (`categories/*.json`). Here are the s
 ### Current Status
 
 - [x] **Index count** tracked by the badge (core `registry.json`)
-- [x] **Archive size:** 74,213 `SKILL.md` files (data repo, 2026‑02‑05)
+- [x] **Archive size:** 162,170 `SKILL.md` files (data repo, 2026‑02‑05)
 - [x] **Daily auto-update** via GitHub Actions
 - [x] **Security scanning** for all skills
 - [x] **sk CLI** for installation
