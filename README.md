@@ -3,7 +3,7 @@
 > **Core repo:** metadata + index + site.  
 > **Main repo (full archive + scripts):** https://github.com/majiayu000/claude-skill-registry  
 > **Data repo (dedup archive):** https://github.com/majiayu000/claude-skill-registry-data  
-> **Counts (2026‑02‑05):** badge shows live index count; data repo **74,219** `SKILL.md`; main repo **104,172** (legacy + new layout); main `skills/data` **48,636**.  
+> **Counts (2026‑02‑05):** badge shows live index count; data repo **74,219** `SKILL.md`; main repo **104,172** (统一到 `skills/data`).  
 > **Count gaps are expected:** index includes discovered entries; data repo is deduplicated; main retains legacy copies.
 
 <p align="center">
