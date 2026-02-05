@@ -121,6 +121,7 @@ def import_skills(clone_dir: Path, skills_dir: Path) -> dict:
             # Get repo name from path
             rel_path = skill_file.relative_to(clone_dir)
             repo_name = str(rel_path.parts[0]) if rel_path.parts else "unknown"
+            repo_slug = repo_name.replace("_", "/")
 
             # Parse metadata
             metadata = parse_skill_frontmatter(content)
@@ -140,8 +141,8 @@ def import_skills(clone_dir: Path, skills_dir: Path) -> dict:
                 category = guess_category(str(skill_file) + content[:500])
 
             # Target path (case-safe)
-            key = build_skill_key(repo_name.replace("_", "/"), str(skill_file), name=skill_name, category=category)
-            target_dir = ensure_unique_dir(skills_dir / category, skill_name, key)
+            key = build_skill_key(repo_slug, str(skill_file), name=skill_name, category=category)
+            target_dir = ensure_unique_dir(skills_dir / category, skill_name, key, repo=repo_slug)
             target_file = target_dir / "SKILL.md"
 
             if target_file.exists():
@@ -157,7 +158,8 @@ def import_skills(clone_dir: Path, skills_dir: Path) -> dict:
                 "name": skill_name,
                 "description": metadata.get("description", "")[:200],
                 "category": category,
-                "source": f"github.com/{repo_name.replace('_', '/')}",
+                "repo": repo_slug,
+                "source": f"github.com/{repo_slug}",
                 "dir_name": target_dir.name,
                 "imported_at": datetime.utcnow().isoformat() + "Z",
             }

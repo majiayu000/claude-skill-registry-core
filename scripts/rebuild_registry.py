@@ -107,9 +107,7 @@ def scan_skills(skills_dir: Path) -> list:
     """
     Scan archived skills and build index.
 
-    Supports mixed layouts seen in the archive:
-    - <root>/<skill>/SKILL.md
-    - <root>/data/<skill>/SKILL.md
+    Supports category layout:
     - <root>/<category>/<skill>/SKILL.md
 
     We detect a "skill directory" by the presence of both SKILL.md and metadata.json

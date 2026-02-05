@@ -22,7 +22,7 @@ from collections import defaultdict
 import time
 import logging
 
-from utils import normalize_name, ensure_unique_dir, build_skill_key
+from utils import normalize_name, normalize_category, ensure_unique_dir, build_skill_key
 
 
 # Configuration
@@ -311,7 +311,7 @@ async def download_skill(
     """Download a single skill with comprehensive fallback."""
 
     name = skill["name"]
-    category = skill.get("category", "uncategorized")
+    category = normalize_category(skill.get("category", "other")) or "other"
     repo = skill.get("repo", skill.get("install", ""))
     path = skill.get("path", "")
 
@@ -331,7 +331,7 @@ async def download_skill(
     repo = repo.rstrip("/")
 
     key = build_skill_key(repo, path, name=name, category=category)
-    skill_dir = ensure_unique_dir(output_dir / "data", name, key)
+    skill_dir = ensure_unique_dir(output_dir / category, name, key, repo=repo)
     skill_file = skill_dir / "SKILL.md"
 
     if skill_file.exists():
@@ -468,7 +468,7 @@ async def main():
 
     # Check existing
     output_dir.mkdir(exist_ok=True)
-    existing = sum(1 for _ in (output_dir / "data").rglob("SKILL.md")) if (output_dir / "data").exists() else 0
+    existing = sum(1 for _ in output_dir.rglob("SKILL.md")) if output_dir.exists() else 0
     logger.info(f"Already downloaded: {existing}")
 
     # Initialize trackers
@@ -477,10 +477,12 @@ async def main():
     repo_cache = RepoStructureCache()
 
     # Pre-populate downloaded set
-    if (output_dir / "data").exists():
-        for skill_md in (output_dir / "data").rglob("SKILL.md"):
-            name = skill_md.parent.name
-            downloaded_set.add(f"data/{name}")
+    if output_dir.exists():
+        for skill_md in output_dir.rglob("SKILL.md"):
+            skill_dir = skill_md.parent
+            category = skill_dir.parent.name
+            name = skill_dir.name
+            downloaded_set.add(f"{category}/{name}")
 
     # Semaphores
     semaphore = asyncio.Semaphore(MAX_CONCURRENT)
@@ -544,7 +546,7 @@ async def main():
 
     # Final stats
     elapsed = time.time() - start_time
-    final_count = sum(1 for _ in (output_dir / "data").rglob("SKILL.md"))
+    final_count = sum(1 for _ in output_dir.rglob("SKILL.md"))
 
     print()
     print("=" * 60)

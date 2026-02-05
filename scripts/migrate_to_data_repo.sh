@@ -38,9 +38,9 @@ fi
 mkdir -p "$dest_dir"
 
 echo "Copying skills/* -> $dest_dir/* (this may take a while)..."
-# Data repo root should contain category folders (data/, development/, ...),
+# Data repo root should contain category folders (development/, documents/, ...),
 # so the core repo can check it out into ./skills and keep paths stable:
-# ./skills/data/<skill>/SKILL.md
+# ./skills/<category>/<skill>/SKILL.md
 (cd "$skills_dir" && tar -cf - .) | (cd "$dest_dir" && tar -xf -)
 
 cat > "$dest_dir/README.md" <<'EOF'

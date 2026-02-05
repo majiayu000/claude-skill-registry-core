@@ -210,8 +210,9 @@ class GitHubTopicDiscovery:
                         continue
 
                     # Save skill (case-safe)
-                    key = build_skill_key(repo, path, name=skill_dir)
-                    skill_path = ensure_unique_dir(output_dir, skill_dir, key)
+                    category = "other"
+                    key = build_skill_key(repo, path, name=skill_dir, category=category)
+                    skill_path = ensure_unique_dir(output_dir / category, skill_dir, key, repo=repo)
                     skill_path.mkdir(parents=True, exist_ok=True)
 
                     (skill_path / 'SKILL.md').write_text(content, encoding='utf-8')
@@ -221,6 +222,7 @@ class GitHubTopicDiscovery:
                         'name': skill_dir,
                         'repo': repo,
                         'path': path,
+                        'category': category,
                         'source': f'github.com/{repo}',
                         'dir_name': skill_path.name,
                         'downloaded_at': datetime.utcnow().isoformat() + 'Z',

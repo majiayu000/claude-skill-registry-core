@@ -2,9 +2,8 @@
 """
 Build Search Index v2.0 - Generate lightweight search index
 
-Supports two directory structures:
-1. New: skills/{category}/{skill-name}/SKILL.md  (preferred)
-2. Legacy: skills/data/{skill-name}/SKILL.md
+Supports directory structure:
+- skills/{category}/{skill-name}/SKILL.md
 
 Output files:
 - search-index.json - Minimal index (~1-2MB gzip)
@@ -21,6 +20,8 @@ import argparse
 import logging
 import re
 import yaml
+
+from utils import get_repo_suffix
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -100,11 +101,7 @@ def extract_description(skill_content: str) -> str:
 
 
 def scan_skills_v2(skills_dir: Path) -> List[Dict]:
-    """
-    Scan skills directory with new structure: skills/{category}/{skill-name}/
-
-    Also supports legacy structure: skills/data/{skill-name}/
-    """
+    """Scan skills directory with structure: skills/{category}/{skill-name}/"""
     skills = []
 
     if not skills_dir.exists():
@@ -118,9 +115,6 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
             continue
 
         category_name = category_dir.name
-
-        # Handle legacy 'data' directory (flat structure)
-        is_legacy = category_name == "data"
 
         for skill_dir in category_dir.iterdir():
             if not skill_dir.is_dir():
@@ -143,16 +137,14 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
                     pass
 
             # Get skill name (from metadata or directory)
-            name = metadata.get("name", dir_name)
+            name = metadata.get("name") or dir_name
 
-            # If dir_name uses case-conflict suffix, strip it for display
-            if name == dir_name and "__dup-" in dir_name:
-                name = dir_name.split("__dup-", 1)[0]
-
-            # Remove repo suffix from name if present
-            if "-" in dir_name and name == dir_name:
-                # Try to extract base name
-                name = dir_name.split("-")[0]
+            # Remove repo suffix from dir_name if metadata repo is available
+            if name == dir_name:
+                repo = metadata.get("repo", "")
+                suffix = get_repo_suffix(repo)
+                if suffix and dir_name.endswith(f"-{suffix}"):
+                    name = dir_name[: -(len(suffix) + 1)]
 
             # Get description
             description = metadata.get("description", "")
@@ -166,10 +158,7 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
                 description = f"Skill: {name}"
 
             # Get category
-            if is_legacy:
-                category = metadata.get("category", "other")
-            else:
-                category = metadata.get("category", category_name)
+            category = metadata.get("category", category_name)
 
             # Build install path
             repo = metadata.get("repo", "")

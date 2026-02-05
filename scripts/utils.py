@@ -61,6 +61,41 @@ def _short_hash(value: str) -> str:
     return hashlib.sha1(value.encode("utf-8", errors="ignore")).hexdigest()[:8]
 
 
+def short_hash(value: str) -> str:
+    """Public short hash helper."""
+    return _short_hash(value)
+
+
+def normalize_repo(repo: str) -> str:
+    """Normalize GitHub repo to owner/repo format."""
+    repo = (repo or "").strip()
+    if repo.startswith("https://github.com/"):
+        repo = repo[len("https://github.com/"):]
+    return repo.strip("/")
+
+
+def get_repo_suffix(repo: str) -> str:
+    """Get a short suffix from repo: owner-repo."""
+    repo = normalize_repo(repo)
+    if not repo or "/" not in repo:
+        return ""
+    owner, repo_name = repo.split("/", 1)
+    owner = normalize_name(owner)[:20]
+    repo_name = normalize_name(repo_name)[:20]
+    if not owner and not repo_name:
+        return ""
+    if not repo_name:
+        return owner
+    return f"{owner}-{repo_name}"
+
+
+def build_dir_name(base_name: str, repo: str = "") -> str:
+    """Build directory name using repo suffix when provided."""
+    base = normalize_name(base_name)
+    suffix = get_repo_suffix(repo)
+    return f"{base}-{suffix}" if suffix else base
+
+
 def _metadata_key(metadata_path: Path) -> str:
     if not metadata_path.exists():
         return ""
@@ -76,36 +111,45 @@ def _metadata_key(metadata_path: Path) -> str:
     )
 
 
-def ensure_unique_dir(parent: Path, base_name: str, key: str = "") -> Path:
+def ensure_unique_dir(parent: Path, base_name: str, key: str = "", repo: str = "") -> Path:
     """
     Ensure directory name is unique on case-insensitive filesystems.
-    If a conflict exists, append a stable suffix based on the skill key.
+    If a conflict exists, prefer repo suffix (name-owner-repo).
     """
     parent = Path(parent)
     base = normalize_name(base_name)
     parent.mkdir(parents=True, exist_ok=True)
 
     existing = {}
+    matched_by_key = None
     for d in parent.iterdir():
         if d.is_dir():
             existing.setdefault(d.name.lower(), []).append(d)
+            if key and not matched_by_key:
+                meta_key = _metadata_key(d / "metadata.json")
+                if meta_key == key:
+                    matched_by_key = d
 
     # No conflict
     if base.lower() not in existing:
         return parent / base
 
     # Reuse existing dir if it matches the same skill key
-    for d in existing.get(base.lower(), []):
-        meta_key = _metadata_key(d / "metadata.json")
-        if key and meta_key == key:
-            return d
+    if matched_by_key:
+        return matched_by_key
 
     # Create a unique suffixed directory name
-    suffix = f"__dup-{_short_hash(key or base)}"
-    candidate = f"{base}{suffix}"
+    suffix = get_repo_suffix(repo)
+    if suffix and not base.endswith(f"-{suffix}"):
+        candidate_base = f"{base}-{suffix}"
+    elif suffix:
+        candidate_base = base
+    else:
+        candidate_base = f"{base}-{_short_hash(key or base)}"
+    candidate = candidate_base
     counter = 2
     while candidate.lower() in existing:
-        candidate = f"{base}{suffix}-{counter}"
+        candidate = f"{candidate_base}-{counter}"
         counter += 1
 
     return parent / candidate

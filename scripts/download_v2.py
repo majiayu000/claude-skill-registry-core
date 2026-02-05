@@ -31,7 +31,7 @@ from collections import defaultdict
 import time
 import logging
 
-from utils import normalize_name, ensure_unique_dir, build_skill_key
+from utils import normalize_name, ensure_unique_dir, build_skill_key, get_repo_suffix, short_hash
 
 # Configuration
 MAX_CONCURRENT = 50
@@ -55,18 +55,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-
-def get_repo_suffix(repo: str) -> str:
-    """Get a short suffix from repo: owner-repo."""
-    if not repo:
-        return "unknown"
-    parts = repo.replace("https://github.com/", "").split("/")
-    if len(parts) >= 2:
-        owner = normalize_name(parts[0])[:20]
-        repo_name = normalize_name(parts[1])[:20]
-        return f"{owner}-{repo_name}"
-    return normalize_name(repo)[:40]
 
 
 class SkillRegistry:
@@ -123,18 +111,19 @@ class SkillRegistry:
 
     def _extract_base_name(self, dir_name: str, metadata_file: Path) -> str:
         """Extract base name from directory name."""
-        # Try to get original name from metadata
         if metadata_file.exists():
             try:
                 metadata = json.loads(metadata_file.read_text())
                 if metadata.get("name"):
                     return normalize_name(metadata["name"])
+                repo = metadata.get("repo", "")
+                suffix = get_repo_suffix(repo)
+                if suffix and dir_name.endswith(f"-{suffix}"):
+                    return dir_name[: -(len(suffix) + 1)]
             except Exception:
                 pass
 
-        # Fallback: assume dir_name is base_name or has suffix
-        # This is a heuristic - may not be perfect
-        return dir_name.split("-")[0] if "-" in dir_name else dir_name
+        return dir_name
 
     def get_dir_name(self, name: str, repo: str, category: str, stars: int) -> str:
         """
@@ -179,6 +168,8 @@ class SkillRegistry:
                 # Rename existing to have suffix
                 old_path = Path(existing_info["path"])
                 existing_suffix = get_repo_suffix(existing_info.get("repo", ""))
+                if not existing_suffix:
+                    existing_suffix = short_hash(existing_info.get("repo", "") or base_name)
                 new_dir_name = f"{base_name}-{existing_suffix}"
                 new_path = old_path.parent / new_dir_name
 
@@ -194,7 +185,7 @@ class SkillRegistry:
                 return base_name  # New skill gets base name
 
         # This skill gets a suffix
-        suffix = get_repo_suffix(repo)
+        suffix = get_repo_suffix(repo) or short_hash(repo or base_name)
         return f"{base_name}-{suffix}"
 
     def register(self, name: str, repo: str, category: str, stars: int, dir_name: str, path: Path):
@@ -303,7 +294,7 @@ async def download_skill(
     dir_name = registry.get_dir_name(name, repo, category_normalized, stars)
 
     key = build_skill_key(repo, path, name=name, category=category_normalized)
-    case_safe_dir = ensure_unique_dir(skills_dir / category_normalized, dir_name, key)
+    case_safe_dir = ensure_unique_dir(skills_dir / category_normalized, dir_name, key, repo=repo)
 
     # Target path (case-safe)
     dir_name = case_safe_dir.name

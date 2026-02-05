@@ -12,7 +12,6 @@ Handles conflicts with smart suffix (Option A):
 """
 
 import json
-import re
 import shutil
 from pathlib import Path
 from collections import defaultdict
@@ -22,29 +21,11 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+from utils import normalize_name, get_repo_suffix
+
+
 # Official repos get priority
 OFFICIAL_REPOS = {"anthropics/skills", "anthropics/claude-code"}
-
-
-def normalize_name(name: str) -> str:
-    """Normalize skill name."""
-    if not name:
-        return "unknown"
-    name = re.sub(r'[^a-z0-9]+', '-', name.lower())
-    name = re.sub(r'-+', '-', name).strip('-')
-    return name[:64] if name else "unknown"
-
-
-def get_repo_suffix(repo: str) -> str:
-    """Get suffix from repo: owner-repo."""
-    if not repo:
-        return "unknown"
-    parts = repo.replace("https://github.com/", "").split("/")
-    if len(parts) >= 2:
-        owner = normalize_name(parts[0])[:20]
-        repo_name = normalize_name(parts[1])[:20]
-        return f"{owner}-{repo_name}"
-    return normalize_name(repo)[:40]
 
 
 KNOWN_CATEGORIES = {

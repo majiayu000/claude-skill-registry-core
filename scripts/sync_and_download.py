@@ -38,9 +38,9 @@ from scripts.utils import normalize_name, ensure_unique_dir, build_skill_key
 
 
 def sanitize_category(category: str) -> str:
-    category = (category or "data").strip()
+    category = (category or "other").strip()
     if not category:
-        category = "data"
+        category = "other"
     return category.replace("/", "-").replace("\\", "-").replace(":", "-")
 
 
@@ -52,7 +52,7 @@ def skill_key(skill: dict) -> str:
     if repo:
         return repo
     name = skill.get("name") or ""
-    category = skill.get("category") or "data"
+    category = skill.get("category") or "other"
     return f"{category}:{name}"
 
 logging.basicConfig(
@@ -229,11 +229,11 @@ async def download_skills(registry_path: Path, output_dir: Path, github_token: s
                             content = await resp.text()
                             if content and len(content) > 50 and ("---" in content[:50] or "#" in content[:100]):
                                 # Valid content - save under category with normalized name
-                                category = sanitize_category(skill.get("category", "data"))
+                                category = sanitize_category(skill.get("category", "other"))
                                 category_dir = output_dir / category
                                 category_dir.mkdir(parents=True, exist_ok=True)
                                 key = build_skill_key(repo, path, name=name, category=category)
-                                skill_dir = ensure_unique_dir(category_dir, normalized_name, key)
+                                skill_dir = ensure_unique_dir(category_dir, normalized_name, key, repo=repo)
                                 skill_dir.mkdir(parents=True, exist_ok=True)
                                 (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
                                 (skill_dir / "metadata.json").write_text(

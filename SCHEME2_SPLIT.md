@@ -19,13 +19,13 @@ Does **not** contain:
 ### 2) `registry-data` (new repo)
 
 Contains:
-- archived skill contents (category folders like `data/`, `development/`, etc.)
+- archived skill contents (category folders like `development/`, `documents/`, `data/`, etc.)
 
 This is the repo you’ll browse on GitHub to view a skill.
 
 ## How sync works
 
-This repo’s GitHub Actions workflow checks out the data repo into `./skills/` (as a separate checkout). That keeps paths stable (e.g. `./skills/data/<skill>/SKILL.md`) while the core repo stays small.
+This repo’s GitHub Actions workflow checks out the data repo into `./skills/` (as a separate checkout). That keeps paths stable (e.g. `./skills/<category>/<skill>/SKILL.md`) while the core repo stays small.
 
 You’ll need:
 - A GitHub repository variable: `REGISTRY_DATA_REPO` (e.g. `yourname/claude-skill-registry-data`)

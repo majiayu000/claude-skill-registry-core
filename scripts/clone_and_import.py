@@ -13,7 +13,7 @@ from pathlib import Path
 from datetime import datetime
 import logging
 
-from utils import normalize_name, ensure_unique_dir, build_skill_key
+from utils import normalize_name, ensure_unique_dir, build_skill_key, normalize_repo
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -37,6 +37,15 @@ REPOS_TO_CLONE = [
     # Skill factories
     "https://github.com/alirezarezvani/claude-code-skill-factory.git",
 ]
+
+
+def _repo_slug(repo_url: str) -> str:
+    repo_url = repo_url.replace(".git", "")
+    repo_url = repo_url.replace("https://github.com/", "")
+    return normalize_repo(repo_url)
+
+
+REPO_BY_DIR = {url.split("/")[-1].replace(".git", ""): _repo_slug(url) for url in REPOS_TO_CLONE}
 
 # Category mapping based on keywords
 CATEGORY_KEYWORDS = {
@@ -131,7 +140,7 @@ def find_skill_files(repo_dir: Path) -> list:
     return skills
 
 
-def import_skill(skill_file: Path, skills_dir: Path, repo_name: str, stats: dict) -> bool:
+def import_skill(skill_file: Path, skills_dir: Path, repo_slug: str, stats: dict) -> bool:
     """Import a single SKILL.md file."""
     try:
         content = skill_file.read_text(encoding="utf-8")
@@ -170,8 +179,8 @@ def import_skill(skill_file: Path, skills_dir: Path, repo_name: str, stats: dict
         rel_path = str(skill_file.relative_to(skill_file.parents[2])).replace("\\", "/")
     except Exception:
         rel_path = str(skill_file.name)
-    key = build_skill_key(repo_name, rel_path, name=skill_name, category=category)
-    target_dir = ensure_unique_dir(skills_dir / category, skill_name, key)
+    key = build_skill_key(repo_slug, rel_path, name=skill_name, category=category)
+    target_dir = ensure_unique_dir(skills_dir / category, skill_name, key, repo=repo_slug)
     target_file = target_dir / "SKILL.md"
 
     if target_file.exists():
@@ -188,7 +197,8 @@ def import_skill(skill_file: Path, skills_dir: Path, repo_name: str, stats: dict
         "description": metadata.get("description", "")[:200],
         "category": category,
         "tags": metadata.get("tags", []),
-        "source": f"github.com/{repo_name}",
+        "repo": repo_slug,
+        "source": f"github.com/{repo_slug}",
         "source_path": rel_path,
         "dir_name": target_dir.name,
         "imported_at": datetime.utcnow().isoformat() + "Z",
@@ -245,13 +255,14 @@ def main():
             continue
 
         repo_name = repo_dir.name
+        repo_slug = REPO_BY_DIR.get(repo_name, repo_name)
         skill_files = find_skill_files(repo_dir)
         stats["skills_found"] += len(skill_files)
 
         logger.info(f"  {repo_name}: {len(skill_files)} SKILL.md files")
 
         for skill_file in skill_files:
-            import_skill(skill_file, skills_dir, repo_name, stats)
+            import_skill(skill_file, skills_dir, repo_slug, stats)
 
     # Count total skills
     total_skills = sum(1 for _ in skills_dir.rglob("SKILL.md"))
