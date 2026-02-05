@@ -1,7 +1,6 @@
-# GitHub Skills Crawler
-# Crawls GitHub for SKILL.md files and aggregates them into registry
+# SkillsMP crawler helpers
+# Parses SkillsMP listings into normalized skill metadata.
 
-from .github_crawler import GitHubSkillsCrawler
 from .skill_parser import SkillParser
 
-__all__ = ['GitHubSkillsCrawler', 'SkillParser']
+__all__ = ['SkillParser']

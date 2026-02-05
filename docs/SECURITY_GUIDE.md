@@ -14,21 +14,15 @@
 
 ### For Registry Maintainers
 
-1. **Review security scan results** in PR comments
-2. **Check reputation score** for new skills
-3. **Merge if**: No errors, trust score ≥ 50
+1. **Run security scan** for changed skills
+2. **Review findings** and fix/flag issues
+3. **Merge if**: No errors (or accepted risk with justification)
 
 ### For Users
 
-1. **Filter by trust level**:
-   - 🌟 Excellent (85-100): Safe to use
-   - ✅ Good (70-84): Recommended
-   - ⚠️ Moderate (50-69): Review first
-   - ❌ Low (<50): Avoid
-
-2. **Check badges**:
-   - `official` - Anthropic/OpenAI
-   - `verified` - Trusted community authors
+1. **Check source** (repo owner / stars / activity)
+2. **Review frontmatter** (license, requires_network, requires_approval)
+3. **Scan locally** if you’re unsure
 
 ## Components
 
@@ -99,68 +93,17 @@ python scripts/security_scanner.py skills/ --strict
   - network_access: Imports requests module
 ```
 
-### 3. Reputation System (`scripts/reputation_system.py`)
-
-Calculates trust scores for skills.
-
-**Usage**:
-```bash
-# Update registry with reputation scores
-python scripts/reputation_system.py \
-  --registry registry.json \
-  --security security-report.json
-
-# Generate reputation report
-python scripts/reputation_system.py --report reputation-report.json
-```
-
-**Score calculation**:
-```python
-overall_score = (
-    star_score      * 0.25 +  # GitHub stars
-    security_score  * 0.30 +  # Security scan
-    author_score    * 0.20 +  # Author reputation
-    age_score       * 0.10 +  # Skill age
-    update_score    * 0.15    # Recent updates
-)
-```
-
-**Example output**:
-```json
-{
-  "name": "pdf",
-  "repo": "anthropics/skills",
-  "reputation": {
-    "overall_score": 95.8,
-    "trust_level": "excellent",
-    "emoji": "🌟",
-    "verified": true,
-    "author_badge": "official",
-    "components": {
-      "stars": 92.0,
-      "security": 100.0,
-      "author": 100.0,
-      "age": 85.0,
-      "updates": 100.0
-    }
-  }
-}
-```
-
-### 4. GitHub Actions Workflow
+### 3. GitHub Actions Workflow
 
 Automatically runs on:
-- Every pull request
-- Pushes to main
-- Daily at 06:00 UTC
+- Daily schedule (sync-data)
+- Push to main (build-index)
 - Manual trigger
 
 **Features**:
-- Security scanning with detailed reports
-- PR comments with findings
-- CodeQL static analysis
-- Dependency vulnerability scanning
-- Blocks merges on security errors
+- Discover + sync data repo
+- Rebuild registry.json
+- Build search index + deploy Pages
 
 ## Common Issues
 
@@ -237,33 +180,6 @@ DANGEROUS_PATTERNS = {
 }
 ```
 
-### Adjust Reputation Weights
-
-Modify weights in `scripts/reputation_system.py`:
-
-```python
-WEIGHTS = {
-    'stars': 0.20,       # Reduce star importance
-    'security': 0.40,    # Increase security weight
-    'author': 0.20,
-    'age': 0.10,
-    'updates': 0.10,
-}
-```
-
-### Add Verified Authors
-
-Update the verified authors list:
-
-```python
-VERIFIED_AUTHORS = {
-    'your-org/your-repo': {
-        'trust': 90,
-        'badge': 'verified'
-    },
-}
-```
-
 ## Integration with CI/CD
 
 ### Pre-commit Hook
@@ -289,25 +205,7 @@ make security-check
 
 # Or manually
 python scripts/security_scanner.py skills/
-python scripts/reputation_system.py
 ```
-
-## Monitoring
-
-### View Security Status
-
-- **GitHub Security Tab**: https://github.com/[owner]/[repo]/security
-- **Security Advisories**: Published vulnerabilities
-- **Dependabot**: Dependency alerts
-- **Code Scanning**: CodeQL findings
-
-### Metrics
-
-Track security health:
-- **Pass rate**: % of skills passing security scans
-- **Average trust score**: Mean reputation score
-- **Verified ratio**: % of skills from verified authors
-- **Update frequency**: Skills updated in last 90 days
 
 ## Best Practices
 
@@ -327,35 +225,26 @@ Track security health:
 2. ✅ Review actual code, not just metadata
 3. ✅ Verify network access is justified
 4. ✅ Test skills in sandboxed environment
-5. ✅ Confirm author reputation
+5. ✅ Check repo owner and activity
 6. ✅ Check for recent maintenance
 
 ### For Users
 
-1. ✅ Prefer skills with 🌟 or ✅ badges
-2. ✅ Read the source code
+1. ✅ Read the source code
+2. ✅ Prefer well‑known repos
 3. ✅ Check last update date
 4. ✅ Review required permissions
-5. ✅ Start with official/verified skills
-6. ✅ Report suspicious behavior
+5. ✅ Report suspicious behavior
 
 ## FAQ
 
 **Q: What happens if my skill fails security scan?**
 
-A: Your PR will be blocked. Review the error messages, fix the issues, and push updates.
+A: Fix the issues locally and rerun the scanner before opening/merging PR.
 
 **Q: Can I appeal a security decision?**
 
 A: Yes. If you believe a scan result is a false positive, comment on the PR explaining why the code is safe.
-
-**Q: How do I become a verified author?**
-
-A: Contribute high-quality skills consistently. After 5+ excellent skills, request verification via GitHub issue.
-
-**Q: Are reputation scores permanent?**
-
-A: No. Scores are recalculated daily based on current metrics. Keep your skills updated to maintain high scores.
 
 **Q: What if I need to use network access?**
 

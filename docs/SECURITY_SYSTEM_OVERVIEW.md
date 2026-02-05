@@ -6,7 +6,7 @@
 
 ## 📊 实施方案
 
-我们采用了 **方案 2 (自动扫描) + 方案 5 (Schema 验证) + 方案 4 (声誉系统)** 的组合：
+我们采用 **Schema 验证 + 安全扫描脚本（可手动/可集成 CI）** 的组合：
 
 ### ✅ 已实施的功能
 
@@ -14,13 +14,10 @@
 |------|------|------|
 | JSON Schema | ✅ | 严格的 YAML frontmatter 验证 |
 | Security Scanner | ✅ | 检测恶意代码模式 |
-| Reputation System | ✅ | 基于多因素的信任评分 |
-| GitHub Actions | ✅ | PR 自动扫描 + 每日安全审计 |
-| CodeQL | ✅ | 静态代码分析 |
-| Trivy | ✅ | 依赖漏洞扫描 |
+| GitHub Actions | ✅ | 数据同步 + 索引构建 |
 | 文档 | ✅ | 完整的安全策略和使用指南 |
 
-## 🛡️ 三层防护架构
+## 🛡️ 两层防护架构
 
 ```
 ┌─────────────────────────────────────────┐
@@ -39,18 +36,8 @@
 │  ├─ Prompt injection detection          │
 │  └─ Sensitive file access               │
 └─────────────────────────────────────────┘
-              ↓ (Pass)
-┌─────────────────────────────────────────┐
-│  Layer 3: Reputation Score              │
-│  ├─ GitHub stars (25%)                  │
-│  ├─ Security scan (30%)                 │
-│  ├─ Author reputation (20%)             │
-│  ├─ Skill age (10%)                     │
-│  └─ Recent updates (15%)                │
-└─────────────────────────────────────────┘
               ↓
-         [Final Score]
-    🌟 ✅ ⚠️ ❌
+         [Manual Review]
 ```
 
 ## 🔍 检测能力
@@ -73,66 +60,28 @@
 | 文件删除 | `os.remove()` | 文档说明原因 |
 | 子进程 | `subprocess.run()` | 避免 `shell=True` |
 
-## 📈 声誉系统
-
-### 评分算法
-
-```python
-overall_score = (
-    star_score      × 0.25 +  # GitHub 人气
-    security_score  × 0.30 +  # 安全扫描结果
-    author_score    × 0.20 +  # 作者信誉
-    age_score       × 0.10 +  # 经过时间考验
-    update_score    × 0.15    # 持续维护
-)
-```
-
-### 信任等级
-
-| 分数 | 等级 | 图标 | 含义 | 行动建议 |
-|------|------|------|------|----------|
-| 85-100 | Excellent | 🌟 | 官方或高度可信 | 放心使用 |
-| 70-84 | Good | ✅ | 社区推荐 | 推荐使用 |
-| 50-69 | Moderate | ⚠️ | 需要谨慎 | 审查后使用 |
-| 0-49 | Low | ❌ | 存在问题 | 不推荐 |
-
-### 认证徽章
-
-| 徽章 | 含义 | 获取方式 |
-|------|------|----------|
-| `official` | 官方 | anthropics/skills, openai/skills |
-| `verified` | 已验证 | 知名社区贡献者 |
-| `organization` | 组织 | Microsoft, Google, Facebook 等 |
-
 ## 🤖 自动化工作流
 
 ### GitHub Actions 触发条件
 
 ```yaml
 触发事件:
-  - pull_request (skills/** 变更)
-  - push to main (skills/** 变更)
-  - schedule (每天 06:00 UTC)
+  - schedule (每天 00:00 UTC)
+  - push to main (build index)
   - workflow_dispatch (手动触发)
 ```
 
 ### 执行步骤
 
-1. **Security Scan** (Python)
-   - Schema 验证
-   - 模式匹配
-   - 生成报告
-   - PR 评论
+1. **Sync Data** (`sync-data.yml`)
+   - 发现新 skills
+   - 下载/更新归档
+   - 重建 registry.json
+   - 推送 data + core 变更
 
-2. **CodeQL** (GitHub)
-   - Python/JavaScript 静态分析
-   - 200+ 漏洞模式
-   - 上传到 Security tab
-
-3. **Trivy** (Aqua)
-   - 依赖漏洞扫描
-   - CVE 检测
-   - SARIF 报告
+2. **Build Index** (`build-index.yml`)
+   - 基于 registry.json 生成搜索索引
+   - 发布 GitHub Pages
 
 ## 📁 文件结构
 
@@ -142,13 +91,10 @@ skill-registry/
 │   └── skill.schema.json           # JSON Schema 定义
 ├── scripts/
 │   ├── security_scanner.py         # 安全扫描器
-│   ├── reputation_system.py        # 声誉系统
 │   └── test_discovery.py           # 测试脚本
 ├── .github/workflows/
-│   ├── security-scan.yml           # 安全扫描工作流
-│   ├── discover-topics.yml         # 发现新 skills
-│   ├── crawl-github.yml            # GitHub 爬取
-│   └── crawl.yml                   # SkillsMP 同步
+│   ├── sync-data.yml               # 数据同步
+│   └── build-index.yml             # 索引构建
 ├── docs/
 │   ├── SECURITY_GUIDE.md           # 使用指南
 │   └── SECURITY_SYSTEM_OVERVIEW.md # 系统概览
@@ -203,20 +149,6 @@ cat report.json | jq '.skills[] | select(.safe == false)'
 python scripts/security_scanner.py skills/ --strict
 ```
 
-### 计算声誉分数
-
-```bash
-# 更新 registry 中的声誉分数
-python scripts/reputation_system.py \
-  --registry registry.json \
-  --security security-report.json
-
-# 生成声誉报告
-python scripts/reputation_system.py --report reputation-report.json
-
-# 查看 Top 20
-cat reputation-report.json | jq '.top_skills'
-```
 
 ## 📊 监控指标
 

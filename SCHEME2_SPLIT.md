@@ -31,14 +31,13 @@ You’ll need:
 - A GitHub repository variable: `REGISTRY_DATA_REPO` (e.g. `yourname/claude-skill-registry-data`)
 - A secret: `DATA_REPO_TOKEN` (PAT with `repo` scope for private, or `public_repo` for public)
 
-## One-time migration (local)
+## Local sync (core + data → main)
 
-1) Create a new GitHub repo for the archive, e.g. `claude-skill-registry-data`
-2) From a clone that still has `skills/` on disk, run:
+Use the merge script to rebuild the main repo from core + data:
 
 ```bash
-bash scripts/migrate_to_data_repo.sh ../claude-skill-registry-data
+bash scripts/sync_main_repo.sh \
+  --core ../claude-skill-registry-core \
+  --data ../claude-skill-registry-data \
+  --main ../claude-skill-registry
 ```
-
-3) Push `../claude-skill-registry-data` to GitHub
-4) Set `REGISTRY_DATA_REPO` + `DATA_REPO_TOKEN` in this repo
