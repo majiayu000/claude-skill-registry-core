@@ -74,6 +74,10 @@ jobs:
           name: security-report
           path: security-report.json
 
+      - name: Copy security report to docs
+        run: |
+          cp security-report.json docs/security-report.json
+
       - name: Rebuild registry.json from archive
         run: |
           python scripts/rebuild_registry.py --skills-dir skills --registry registry.json --skip-categories

@@ -329,6 +329,23 @@ def build_search_index(skills: List[Dict], output_dir: Path, source_name: str = 
         "index_size_bytes": search_index_path.stat().st_size,
         "index_size_gzip_bytes": search_index_gz_path.stat().st_size,
     }
+    # Attach latest security scan summary if available
+    security_report_path = output_dir / "security-report.json"
+    if security_report_path.exists():
+        try:
+            with open(security_report_path, 'r', encoding='utf-8') as f:
+                security_report = json.load(f)
+            stats["security_scan"] = {
+                "total": security_report.get("total"),
+                "passed": security_report.get("passed"),
+                "failed": security_report.get("failed"),
+            }
+        except Exception:
+            stats["security_scan"] = {
+                "total": None,
+                "passed": None,
+                "failed": None,
+            }
     with open(output_dir / "stats.json", 'w', encoding='utf-8') as f:
         json.dump(stats, f, ensure_ascii=False, indent=2)
 

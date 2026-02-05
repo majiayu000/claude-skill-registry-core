@@ -284,7 +284,7 @@ class SecurityScanner:
         return '\n'.join(report)
 
 
-def scan_directory(skills_dir: Path, output_file: Path = None, quiet: bool = False):
+def scan_directory(skills_dir: Path, output_file: Path = None, quiet: bool = False) -> Dict:
     """Scan all skills in a directory"""
     scanner = SecurityScanner()
     results = {

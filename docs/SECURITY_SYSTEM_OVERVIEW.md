@@ -77,6 +77,7 @@
    - 发现新 skills
    - 下载/更新归档
    - 安全扫描（skills）
+   - 生成 `docs/security-report.json` + 写入 `docs/stats.json`
    - 重建 registry.json
    - 推送 data + core 变更
 

@@ -47,6 +47,7 @@ registry.json.tmp
 /docs/search-index.json.gz
 /docs/categories/
 /docs/featured.json
+/docs/security-report.json
 /docs/stats.json
 
 # Cache directories
