@@ -29,7 +29,7 @@ The largest searchable index of Claude Code skills, aggregated from GitHub and c
 - **12 Categories** - Development, Testing, DevOps, Design, and more
 - **Daily Updates** - Automated crawling and validation
 - **Quality Indexed** - Metadata, descriptions, and star counts
-- **Lightweight Search** - ~1MB index for fast client-side search
+- **Lightweight Search** - Gzip-compressed index for fast client-side search
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ sk install anthropics/skills/skills/docx
 ### Option 3: Direct API
 
 ```bash
-# Lightweight search index (~1MB gzip)
+# Lightweight search index (gzip-compressed)
 curl https://majiayu000.github.io/claude-skill-registry-core/search-index.json
 
 # Full registry
@@ -169,7 +169,7 @@ claude-skill-registry/
 
 ### In Progress
 
-- [x] **Lightweight search index** (~1MB vs 17MB)
+- [x] **Lightweight search index** (gzip-compressed; see stats.json)
 - [x] **Web search UI** (GitHub Pages)
 - [x] **GitHub Pages deployment** (https://majiayu000.github.io/claude-skill-registry-core/)
 

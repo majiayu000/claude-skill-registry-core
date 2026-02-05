@@ -36,6 +36,25 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from crawler.skillsmp_sync import SkillsMPSync
 from scripts.utils import normalize_name
 
+
+def sanitize_category(category: str) -> str:
+    category = (category or "data").strip()
+    if not category:
+        category = "data"
+    return category.replace("/", "-").replace("\\", "-").replace(":", "-")
+
+
+def skill_key(skill: dict) -> str:
+    repo = (skill.get("repo") or "").strip()
+    path = (skill.get("path") or skill.get("github_path") or "").strip()
+    if repo and path:
+        return f"{repo}:{path}"
+    if repo:
+        return repo
+    name = skill.get("name") or ""
+    category = skill.get("category") or "data"
+    return f"{category}:{name}"
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -139,18 +158,23 @@ async def download_skills(registry_path: Path, output_dir: Path, github_token: s
     skills = registry.get("skills", [])
     logger.info(f"Total skills in registry: {len(skills)}")
 
-    # Check existing
-    data_dir = output_dir / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
-
+    # Check existing (across all categories)
+    exclude = {".git", ".github-skills", ".template", ".templates", ".attic"}
     existing = set()
-    for skill_md in data_dir.rglob("SKILL.md"):
-        existing.add(skill_md.parent.name)
+    for dirpath, dirnames, filenames in os.walk(output_dir):
+        dirnames[:] = [d for d in dirnames if d not in exclude]
+        if "metadata.json" in filenames and "SKILL.md" in filenames:
+            meta_path = Path(dirpath) / "metadata.json"
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except Exception:
+                meta = {}
+            existing.add(skill_key(meta))
 
     logger.info(f"Already downloaded: {len(existing)}")
 
-    # Filter pending
-    pending = [s for s in skills if s["name"] not in existing]
+    # Filter pending by repo/path key
+    pending = [s for s in skills if skill_key(s) not in existing]
     logger.info(f"To download: {len(pending)}")
 
     if not pending:
@@ -204,15 +228,19 @@ async def download_skills(registry_path: Path, output_dir: Path, github_token: s
                         if resp.status == 200:
                             content = await resp.text()
                             if content and len(content) > 50 and ("---" in content[:50] or "#" in content[:100]):
-                                # Valid content - save with normalized name
-                                skill_dir = data_dir / normalized_name
+                                # Valid content - save under category with normalized name
+                                category = sanitize_category(skill.get("category", "data"))
+                                category_dir = output_dir / category
+                                category_dir.mkdir(parents=True, exist_ok=True)
+                                skill_dir = category_dir / normalized_name
                                 skill_dir.mkdir(parents=True, exist_ok=True)
                                 (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
                                 (skill_dir / "metadata.json").write_text(
                                     json.dumps({
-                                        "name": normalized_name,
+                                        "name": name,
                                         "description": skill.get("description", ""),
                                         "repo": repo,
+                                        "path": path,
                                         "category": skill.get("category", ""),
                                         "tags": skill.get("tags", []),
                                         "stars": skill.get("stars", 0),
@@ -260,7 +288,7 @@ async def download_skills(registry_path: Path, output_dir: Path, github_token: s
             await asyncio.sleep(0.2)
 
     # Final count
-    final_count = sum(1 for _ in data_dir.rglob("SKILL.md"))
+    final_count = sum(1 for _ in output_dir.rglob("SKILL.md"))
 
     logger.info("=" * 60)
     logger.info("DOWNLOAD COMPLETE")
