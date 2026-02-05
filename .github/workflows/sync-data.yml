@@ -53,7 +53,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "🔍 Discovering new skills via GitHub API..."
-          python scripts/discover_by_topic.py --output skills/data --json sources/discovered.json 2>&1 | tee discover.log
+          python scripts/discover_by_topic.py --output skills/other --json sources/discovered.json 2>&1 | tee discover.log
 
       - name: Download skills from registry
         env:

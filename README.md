@@ -1,7 +1,9 @@
 # Claude Skills Registry
 
 > **Core repo:** metadata + index + site.  
-> **Data repo (skills archive):** https://github.com/majiayu000/claude-skill-registry-data
+> **Data repo (skills archive):** https://github.com/majiayu000/claude-skill-registry-data  
+> **Counts:** Badge shows the live index count. The browsable archive currently has **74,213** `SKILL.md` files (data repo, 2026‑02‑05).  
+> **Count gap is expected:** registry entries include discovered skills; the archive is deduplicated and only includes downloaded files.
 
 <p align="center">
   <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry-core%2Fstats.json&query=%24.total_skills&label=Skills&color=purple&style=flat-square" alt="Skills">
@@ -143,18 +145,20 @@ claude-skill-registry/
 
 ## Categories
 
-| Category | Code | Count | Description |
-|----------|------|-------|-------------|
-| `development` | `dev` | 15,000+ | Development tools, frameworks |
-| `data` | `dat` | 8,000+ | Data processing, analysis |
-| `design` | `des` | 5,000+ | UI/UX design, frontend |
-| `testing` | `tst` | 4,000+ | Testing, QA, automation |
-| `devops` | `ops` | 3,000+ | DevOps, CI/CD, infrastructure |
-| `documents` | `doc` | 2,000+ | Document creation (docx, pdf) |
-| `productivity` | `pro` | 1,500+ | Productivity and automation |
-| `product` | `prd` | 1,000+ | Product management |
-| `security` | `sec` | 800+ | Security, auditing |
-| `marketing` | `mkt` | 500+ | Marketing, content, SEO |
+Category counts are published in the index (`categories/*.json`). Here are the standard codes:
+
+| Category | Code | Description |
+|----------|------|-------------|
+| `development` | `dev` | Development tools, frameworks |
+| `data` | `dat` | Data processing, analysis |
+| `design` | `des` | UI/UX design, frontend |
+| `testing` | `tst` | Testing, QA, automation |
+| `devops` | `ops` | DevOps, CI/CD, infrastructure |
+| `documents` | `doc` | Document creation (docx, pdf) |
+| `productivity` | `pro` | Productivity and automation |
+| `product` | `prd` | Product management |
+| `security` | `sec` | Security, auditing |
+| `marketing` | `mkt` | Marketing, content, SEO |
 
 ---
 
@@ -162,7 +166,8 @@ claude-skill-registry/
 
 ### Current Status
 
-- [x] **74,648 unique skills indexed** (deduplicated; see badge for live count)
+- [x] **Index count** tracked by the badge (core `registry.json`)
+- [x] **Archive size:** 74,213 `SKILL.md` files (data repo, 2026‑02‑05)
 - [x] **Daily auto-update** via GitHub Actions
 - [x] **Security scanning** for all skills
 - [x] **sk CLI** for installation
