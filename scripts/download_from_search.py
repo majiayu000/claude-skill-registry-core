@@ -7,10 +7,11 @@ import os
 import json
 import asyncio
 import aiohttp
-import re
 from pathlib import Path
 from datetime import datetime
 import logging
+
+from utils import normalize_name, ensure_unique_dir, build_skill_key
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -30,14 +31,6 @@ CATEGORY_KEYWORDS = {
     "product": ["product", "prd", "roadmap", "feature"],
     "marketing": ["marketing", "seo", "content", "social"],
 }
-
-
-def normalize_name(name):
-    if not name:
-        return "unknown"
-    name = re.sub(r'[^a-z0-9]+', '-', name.lower())
-    name = re.sub(r'-+', '-', name).strip('-')
-    return name[:64] if name else "unknown"
 
 
 def guess_category(text):
@@ -107,20 +100,14 @@ async def download_skill(session, skill, skills_dir, semaphore, stats):
                         if not category or category == "unknown":
                             category = guess_category(path + " " + content[:500])
 
-                        # Target path
-                        target_dir = skills_dir / category / skill_name
+                        # Target path (case-safe)
+                        key = build_skill_key(repo, path, name=skill_name, category=category)
+                        target_dir = ensure_unique_dir(skills_dir / category, skill_name, key)
                         target_file = target_dir / "SKILL.md"
 
-                        # Handle conflicts
                         if target_file.exists():
-                            suffix = normalize_name(repo.replace("/", "-"))[:30]
-                            skill_name = f"{skill_name}-{suffix}"
-                            target_dir = skills_dir / category / skill_name
-                            target_file = target_dir / "SKILL.md"
-
-                            if target_file.exists():
-                                stats["skipped"] += 1
-                                return
+                            stats["skipped"] += 1
+                            return
 
                         # Save
                         target_dir.mkdir(parents=True, exist_ok=True)
@@ -135,6 +122,7 @@ async def download_skill(session, skill, skills_dir, semaphore, stats):
                             "path": path,
                             "stars": stars,
                             "source": f"github.com/{repo}",
+                            "dir_name": target_dir.name,
                             "downloaded_at": datetime.utcnow().isoformat() + "Z",
                         }
                         (target_dir / "metadata.json").write_text(

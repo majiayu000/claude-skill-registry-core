@@ -14,7 +14,6 @@ import asyncio
 import aiohttp
 import json
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Optional, Dict, List, Set, Tuple
@@ -23,20 +22,8 @@ from collections import defaultdict
 import time
 import logging
 
+from utils import normalize_name, ensure_unique_dir, build_skill_key
 
-def normalize_name(name: str) -> str:
-    """Normalize skill name: lowercase, hyphens, max 64 chars.
-
-    This prevents case-sensitivity issues on macOS/Windows filesystems.
-    """
-    if not name:
-        return "unknown"
-    # Convert to lowercase, replace non-alphanumeric with hyphens
-    name = re.sub(r'[^a-z0-9]+', '-', name.lower())
-    # Strip leading/trailing hyphens, collapse consecutive hyphens
-    name = re.sub(r'-+', '-', name).strip('-')
-    # Max 64 chars
-    return name[:64] if name else "unknown"
 
 # Configuration
 MAX_CONCURRENT = 100
@@ -333,13 +320,6 @@ async def download_skill(
     if skill_key in downloaded_set:
         return False
 
-    skill_dir = output_dir / "data" / normalize_name(name)
-    skill_file = skill_dir / "SKILL.md"
-
-    if skill_file.exists():
-        downloaded_set.add(skill_key)
-        return False
-
     if not repo:
         failure_tracker.add(name, "", "no_repo", "Missing repo field")
         return False
@@ -349,6 +329,14 @@ async def download_skill(
     if repo.startswith("https://github.com/"):
         repo = repo.replace("https://github.com/", "")
     repo = repo.rstrip("/")
+
+    key = build_skill_key(repo, path, name=name, category=category)
+    skill_dir = ensure_unique_dir(output_dir / "data", name, key)
+    skill_file = skill_dir / "SKILL.md"
+
+    if skill_file.exists():
+        downloaded_set.add(skill_key)
+        return False
 
     # Try URL patterns first (fast)
     patterns = get_url_patterns(repo, name, path)
@@ -384,6 +372,7 @@ async def download_skill(
                 "stars": skill.get("stars", 0),
                 "source": skill.get("source", ""),
                 "github_path": github_path,  # Original GitHub path
+                "dir_name": skill_dir.name,
             }
             (skill_dir / "metadata.json").write_text(
                 json.dumps(metadata, indent=2, ensure_ascii=False),
@@ -427,6 +416,7 @@ async def download_skill(
                             "stars": skill.get("stars", 0),
                             "source": skill.get("source", ""),
                             "github_path": github_path,  # Original GitHub path
+                            "dir_name": skill_dir.name,
                         }
                         (skill_dir / "metadata.json").write_text(
                             json.dumps(metadata, indent=2, ensure_ascii=False),

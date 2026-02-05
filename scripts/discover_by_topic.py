@@ -12,7 +12,7 @@ import requests
 from datetime import datetime
 from pathlib import Path
 
-from utils import normalize_name
+from utils import normalize_name, ensure_unique_dir, build_skill_key
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -209,8 +209,9 @@ class GitHubTopicDiscovery:
                     if '---' not in content[:100] and 'name:' not in content[:500]:
                         continue
 
-                    # Save skill
-                    skill_path = output_dir / skill_dir
+                    # Save skill (case-safe)
+                    key = build_skill_key(repo, path, name=skill_dir)
+                    skill_path = ensure_unique_dir(output_dir, skill_dir, key)
                     skill_path.mkdir(parents=True, exist_ok=True)
 
                     (skill_path / 'SKILL.md').write_text(content, encoding='utf-8')
@@ -221,6 +222,7 @@ class GitHubTopicDiscovery:
                         'repo': repo,
                         'path': path,
                         'source': f'github.com/{repo}',
+                        'dir_name': skill_path.name,
                         'downloaded_at': datetime.utcnow().isoformat() + 'Z',
                     }
                     (skill_path / 'metadata.json').write_text(

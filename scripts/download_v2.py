@@ -24,13 +24,14 @@ import asyncio
 import aiohttp
 import json
 import os
-import re
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional
 from datetime import datetime
 from collections import defaultdict
 import time
 import logging
+
+from utils import normalize_name, ensure_unique_dir, build_skill_key
 
 # Configuration
 MAX_CONCURRENT = 50
@@ -54,18 +55,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-
-def normalize_name(name: str) -> str:
-    """Normalize skill name: lowercase, hyphens, max 64 chars."""
-    if not name:
-        return "unknown"
-    # Convert to lowercase, replace non-alphanumeric with hyphens
-    name = re.sub(r'[^a-z0-9]+', '-', name.lower())
-    # Strip leading/trailing hyphens, collapse consecutive hyphens
-    name = re.sub(r'-+', '-', name).strip('-')
-    # Max 64 chars
-    return name[:64] if name else "unknown"
 
 
 def get_repo_suffix(repo: str) -> str:
@@ -313,8 +302,12 @@ async def download_skill(
     category_normalized = normalize_name(category) or "other"
     dir_name = registry.get_dir_name(name, repo, category_normalized, stars)
 
-    # Target path
-    skill_dir = skills_dir / category_normalized / dir_name
+    key = build_skill_key(repo, path, name=name, category=category_normalized)
+    case_safe_dir = ensure_unique_dir(skills_dir / category_normalized, dir_name, key)
+
+    # Target path (case-safe)
+    dir_name = case_safe_dir.name
+    skill_dir = case_safe_dir
     skill_file = skill_dir / "SKILL.md"
 
     # Already exists?

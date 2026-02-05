@@ -1,9 +1,10 @@
 # Claude Skills Registry
 
 > **Core repo:** metadata + index + site.  
-> **Data repo (skills archive):** https://github.com/majiayu000/claude-skill-registry-data  
-> **Counts:** Badge shows the live index count. The browsable archive currently has **74,213** `SKILL.md` files (data repo, 2026‑02‑05).  
-> **Count gap is expected:** registry entries include discovered skills; the archive is deduplicated and only includes downloaded files.
+> **Main repo (full archive + scripts):** https://github.com/majiayu000/claude-skill-registry  
+> **Data repo (dedup archive):** https://github.com/majiayu000/claude-skill-registry-data  
+> **Counts (2026‑02‑05):** badge shows live index count; data repo **74,219** `SKILL.md`; main repo **104,172** (legacy + new layout); main `skills/data` **48,636**.  
+> **Count gaps are expected:** index includes discovered entries; data repo is deduplicated; main retains legacy copies.
 
 <p align="center">
   <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry-core%2Fstats.json&query=%24.total_skills&label=Skills&color=purple&style=flat-square" alt="Skills">
@@ -23,7 +24,7 @@ The largest searchable index of Claude Code skills, aggregated from GitHub and c
 2. **[sk CLI](https://github.com/majiayu000/caude-skill-manager)** - Terminal package manager
 3. **API** - Direct JSON access
 
-**Repo layout note:** the browsable `skills/**` archive lives in the **data repo** (Scheme 2). See `SCHEME2_SPLIT.md`.
+**Repo layout note:** the deduplicated `skills/**` archive lives in the **data repo**; the **main repo** keeps the full historical archive. See `SCHEME2_SPLIT.md`.
 
 ## Highlights
 

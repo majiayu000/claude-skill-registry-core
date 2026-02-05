@@ -34,7 +34,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from crawler.skillsmp_sync import SkillsMPSync
-from scripts.utils import normalize_name
+from scripts.utils import normalize_name, ensure_unique_dir, build_skill_key
 
 
 def sanitize_category(category: str) -> str:
@@ -232,7 +232,8 @@ async def download_skills(registry_path: Path, output_dir: Path, github_token: s
                                 category = sanitize_category(skill.get("category", "data"))
                                 category_dir = output_dir / category
                                 category_dir.mkdir(parents=True, exist_ok=True)
-                                skill_dir = category_dir / normalized_name
+                                key = build_skill_key(repo, path, name=name, category=category)
+                                skill_dir = ensure_unique_dir(category_dir, normalized_name, key)
                                 skill_dir.mkdir(parents=True, exist_ok=True)
                                 (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
                                 (skill_dir / "metadata.json").write_text(
@@ -245,6 +246,7 @@ async def download_skills(registry_path: Path, output_dir: Path, github_token: s
                                         "tags": skill.get("tags", []),
                                         "stars": skill.get("stars", 0),
                                         "source": skill.get("source", ""),
+                                        "dir_name": skill_dir.name,
                                     }, indent=2, ensure_ascii=False),
                                     encoding="utf-8"
                                 )

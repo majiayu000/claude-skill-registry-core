@@ -11,8 +11,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 from datetime import datetime
-import re
 import logging
+
+from utils import normalize_name, ensure_unique_dir, build_skill_key
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -50,15 +51,6 @@ CATEGORY_KEYWORDS = {
     "product": ["product", "prd", "roadmap", "feature", "backlog"],
     "marketing": ["marketing", "seo", "content", "social", "campaign"],
 }
-
-
-def normalize_name(name: str) -> str:
-    """Normalize skill name."""
-    if not name:
-        return "unknown"
-    name = re.sub(r'[^a-z0-9]+', '-', name.lower())
-    name = re.sub(r'-+', '-', name).strip('-')
-    return name[:64] if name else "unknown"
 
 
 def guess_category(skill_path: str, content: str) -> str:
@@ -172,20 +164,19 @@ def import_skill(skill_file: Path, skills_dir: Path, repo_name: str, stats: dict
     if not category or category == "unknown":
         category = guess_category(str(skill_file), content)
 
-    # Target directory
-    target_dir = skills_dir / category / skill_name
+    # Target directory (case-safe)
+    rel_path = ""
+    try:
+        rel_path = str(skill_file.relative_to(skill_file.parents[2])).replace("\\", "/")
+    except Exception:
+        rel_path = str(skill_file.name)
+    key = build_skill_key(repo_name, rel_path, name=skill_name, category=category)
+    target_dir = ensure_unique_dir(skills_dir / category, skill_name, key)
     target_file = target_dir / "SKILL.md"
 
-    # Check if already exists
     if target_file.exists():
-        # Try with repo suffix
-        suffixed_name = f"{skill_name}-{normalize_name(repo_name)}"
-        target_dir = skills_dir / category / suffixed_name
-        target_file = target_dir / "SKILL.md"
-
-        if target_file.exists():
-            stats["skipped"] += 1
-            return False
+        stats["skipped"] += 1
+        return False
 
     # Create directory and copy
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -198,7 +189,8 @@ def import_skill(skill_file: Path, skills_dir: Path, repo_name: str, stats: dict
         "category": category,
         "tags": metadata.get("tags", []),
         "source": f"github.com/{repo_name}",
-        "source_path": str(skill_file.relative_to(skill_file.parents[2])) if len(skill_file.parents) > 2 else str(skill_file.name),
+        "source_path": rel_path,
+        "dir_name": target_dir.name,
         "imported_at": datetime.utcnow().isoformat() + "Z",
     }
     (target_dir / "metadata.json").write_text(

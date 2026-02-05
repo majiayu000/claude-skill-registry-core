@@ -13,6 +13,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 
+from utils import normalize_name, ensure_unique_dir, build_skill_key
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -29,14 +31,6 @@ CATEGORY_KEYWORDS = {
     "product": ["product", "prd", "roadmap", "feature", "backlog"],
     "marketing": ["marketing", "seo", "content", "social", "campaign"],
 }
-
-
-def normalize_name(name: str) -> str:
-    if not name:
-        return "unknown"
-    name = re.sub(r'[^a-z0-9]+', '-', name.lower())
-    name = re.sub(r'-+', '-', name).strip('-')
-    return name[:64] if name else "unknown"
 
 
 def guess_category(text: str) -> str:
@@ -145,20 +139,14 @@ def import_skills(clone_dir: Path, skills_dir: Path) -> dict:
             if not category or category == "unknown":
                 category = guess_category(str(skill_file) + content[:500])
 
-            # Target path
-            target_dir = skills_dir / category / skill_name
+            # Target path (case-safe)
+            key = build_skill_key(repo_name.replace("_", "/"), str(skill_file), name=skill_name, category=category)
+            target_dir = ensure_unique_dir(skills_dir / category, skill_name, key)
             target_file = target_dir / "SKILL.md"
 
-            # Handle conflicts
             if target_file.exists():
-                suffix = normalize_name(repo_name)[:30]
-                skill_name = f"{skill_name}-{suffix}"
-                target_dir = skills_dir / category / skill_name
-                target_file = target_dir / "SKILL.md"
-
-                if target_file.exists():
-                    stats["skipped"] += 1
-                    continue
+                stats["skipped"] += 1
+                continue
 
             # Save
             target_dir.mkdir(parents=True, exist_ok=True)
@@ -170,6 +158,7 @@ def import_skills(clone_dir: Path, skills_dir: Path) -> dict:
                 "description": metadata.get("description", "")[:200],
                 "category": category,
                 "source": f"github.com/{repo_name.replace('_', '/')}",
+                "dir_name": target_dir.name,
                 "imported_at": datetime.utcnow().isoformat() + "Z",
             }
             (target_dir / "metadata.json").write_text(
