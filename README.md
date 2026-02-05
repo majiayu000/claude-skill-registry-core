@@ -29,7 +29,7 @@ The largest searchable index of Claude Code skills, aggregated from GitHub and c
 ## Highlights
 
 - **Massive Skill Index** - Deduplicated, quality collection (see badge for live count)
-- **12 Categories** - Development, Testing, DevOps, Design, and more
+- **Rich Categories** - Development, Testing, DevOps, Design, and more
 - **Daily Updates** - Automated crawling and validation
 - **Quality Indexed** - Metadata, descriptions, and star counts
 - **Lightweight Search** - Gzip-compressed index for fast client-side search
