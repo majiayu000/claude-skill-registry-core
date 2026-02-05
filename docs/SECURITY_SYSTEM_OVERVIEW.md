@@ -76,6 +76,7 @@
 1. **Sync Data** (`sync-data.yml`)
    - 发现新 skills
    - 下载/更新归档
+   - 安全扫描（skills）
    - 重建 registry.json
    - 推送 data + core 变更
 

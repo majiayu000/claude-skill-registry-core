@@ -284,7 +284,7 @@ class SecurityScanner:
         return '\n'.join(report)
 
 
-def scan_directory(skills_dir: Path, output_file: Path = None):
+def scan_directory(skills_dir: Path, output_file: Path = None, quiet: bool = False):
     """Scan all skills in a directory"""
     scanner = SecurityScanner()
     results = {
@@ -309,7 +309,8 @@ def scan_directory(skills_dir: Path, output_file: Path = None):
 
         if is_safe:
             results['passed'] += 1
-            print(f"✓ {skill_file.relative_to(skills_dir)}")
+            if not quiet:
+                print(f"✓ {skill_file.relative_to(skills_dir)}")
         else:
             results['failed'] += 1
             print(f"✗ {skill_file.relative_to(skills_dir)}")
@@ -330,6 +331,7 @@ def main():
     parser.add_argument('path', help='Path to SKILL.md file or skills directory')
     parser.add_argument('--output', '-o', help='Output JSON report file')
     parser.add_argument('--strict', action='store_true', help='Fail on warnings')
+    parser.add_argument('--quiet', action='store_true', help='Only print failures + summary')
 
     args = parser.parse_args()
 
@@ -350,7 +352,7 @@ def main():
 
     elif path.is_dir():
         # Scan directory
-        results = scan_directory(path, args.output)
+        results = scan_directory(path, args.output, quiet=args.quiet)
 
         print(f"\n{'='*60}")
         print(f"Total: {results['total']}")

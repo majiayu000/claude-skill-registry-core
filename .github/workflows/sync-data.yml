@@ -62,6 +62,11 @@ jobs:
           echo "⬇️ Downloading skills from existing registry..."
           python scripts/sync_and_download.py --download-only 2>&1 | tee download.log
 
+      - name: Security scan (skills)
+        run: |
+          echo "🔒 Running security scan on skills..."
+          python scripts/security_scanner.py skills/ --quiet
+
       - name: Rebuild registry.json from archive
         run: |
           python scripts/rebuild_registry.py --skills-dir skills --registry registry.json --skip-categories

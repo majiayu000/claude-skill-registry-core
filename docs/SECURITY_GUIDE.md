@@ -102,6 +102,7 @@ Automatically runs on:
 
 **Features**:
 - Discover + sync data repo
+- Security scan for skills
 - Rebuild registry.json
 - Build search index + deploy Pages
 
