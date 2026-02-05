@@ -65,7 +65,14 @@ jobs:
       - name: Security scan (skills)
         run: |
           echo "🔒 Running security scan on skills..."
-          python scripts/security_scanner.py skills/ --quiet
+          python scripts/security_scanner.py skills/ --quiet --output security-report.json
+
+      - name: Upload security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: security-report.json
 
       - name: Rebuild registry.json from archive
         run: |
