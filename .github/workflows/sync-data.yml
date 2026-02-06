@@ -110,3 +110,48 @@ jobs:
             git commit -m "chore: sync registry ($COUNT skills) $(date -u +%Y-%m-%d)"
             git push
           fi
+
+      - name: Capture source SHAs
+        id: refs
+        run: |
+          echo "core_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "data_sha=$(git -C skills rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Validate main publish config
+        id: maincfg
+        env:
+          REGISTRY_MAIN_REPO: ${{ vars.REGISTRY_MAIN_REPO }}
+          MAIN_REPO_TOKEN: ${{ secrets.MAIN_REPO_TOKEN }}
+        run: |
+          if [ -z "$REGISTRY_MAIN_REPO" ]; then
+            echo "::warning::Missing repo variable REGISTRY_MAIN_REPO; skipping main publish dispatch."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$MAIN_REPO_TOKEN" ]; then
+            echo "::warning::Missing secret MAIN_REPO_TOKEN; skipping main publish dispatch."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch main publish workflow
+        if: steps.maincfg.outputs.ready == 'true'
+        env:
+          REGISTRY_MAIN_REPO: ${{ vars.REGISTRY_MAIN_REPO }}
+          MAIN_REPO_TOKEN: ${{ secrets.MAIN_REPO_TOKEN }}
+          CORE_REPO: ${{ github.repository }}
+          CORE_SHA: ${{ steps.refs.outputs.core_sha }}
+          DATA_REPO: ${{ vars.REGISTRY_DATA_REPO }}
+          DATA_SHA: ${{ steps.refs.outputs.data_sha }}
+        run: |
+          PAYLOAD=$(cat <<JSON
+          {"event_type":"publish_from_core","client_payload":{"core_repo":"$CORE_REPO","core_sha":"$CORE_SHA","data_repo":"$DATA_REPO","data_sha":"$DATA_SHA"}}
+          JSON
+          )
+          curl --fail-with-body -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $MAIN_REPO_TOKEN" \
+            "https://api.github.com/repos/$REGISTRY_MAIN_REPO/dispatches" \
+            -d "$PAYLOAD"
+          echo "Dispatched publish: $REGISTRY_MAIN_REPO (core=$CORE_SHA data=$DATA_SHA)"

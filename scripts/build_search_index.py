@@ -15,7 +15,7 @@ import json
 import gzip
 from pathlib import Path
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import argparse
 import logging
 import re
@@ -191,7 +191,66 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
     return skills
 
 
-def build_search_index(skills: List[Dict], output_dir: Path, source_name: str = "skills") -> Dict[str, Any]:
+def load_registry_count(registry_path: Path) -> Optional[int]:
+    """Load deduplicated skill count from registry.json."""
+    if not registry_path.exists():
+        return None
+    try:
+        with open(registry_path, 'r', encoding='utf-8') as f:
+            registry = json.load(f)
+    except Exception:
+        return None
+
+    total = registry.get("total_count")
+    if isinstance(total, int):
+        return total
+
+    skills = registry.get("skills")
+    if isinstance(skills, list):
+        return len(skills)
+
+    return None
+
+
+def load_previous_raw_count(output_dir: Path) -> Optional[int]:
+    """Try to keep raw count stable when rebuilding from deduplicated registry only."""
+    stats_path = output_dir / "stats.json"
+    if not stats_path.exists():
+        return None
+    try:
+        with open(stats_path, 'r', encoding='utf-8') as f:
+            stats = json.load(f)
+    except Exception:
+        return None
+
+    raw_count = stats.get("raw_skill_count")
+    if isinstance(raw_count, int):
+        return raw_count
+
+    # Backward-compatible fallback for older stats format
+    total_skills = stats.get("total_skills")
+    if isinstance(total_skills, int):
+        return total_skills
+    return None
+
+
+def count_skill_files(skills_dir: Path) -> Optional[int]:
+    """Count SKILL.md files quickly without full metadata parse."""
+    if not skills_dir.exists():
+        return None
+    try:
+        return sum(1 for _ in skills_dir.rglob("SKILL.md"))
+    except Exception:
+        return None
+
+
+def build_search_index(
+    skills: List[Dict],
+    output_dir: Path,
+    source_name: str = "skills",
+    raw_skill_count: Optional[int] = None,
+    dedup_skill_count: Optional[int] = None,
+) -> Dict[str, Any]:
     """Build the lightweight search index."""
     logger.info(f"Building index from {len(skills)} {source_name}...")
 
@@ -324,6 +383,8 @@ def build_search_index(skills: List[Dict], output_dir: Path, source_name: str = 
     stats = {
         "updated_at": datetime.utcnow().isoformat() + "Z",
         "total_skills": len(skills),
+        "raw_skill_count": raw_skill_count,
+        "dedup_skill_count": dedup_skill_count,
         "categories": len(categories),
         "featured_count": len(featured_skills),
         "index_size_bytes": search_index_path.stat().st_size,
@@ -351,6 +412,10 @@ def build_search_index(skills: List[Dict], output_dir: Path, source_name: str = 
 
     logger.info(f"\nIndex build complete!")
     logger.info(f"  Total skills: {len(skills)}")
+    if raw_skill_count is not None:
+        logger.info(f"  Raw skill count: {raw_skill_count}")
+    if dedup_skill_count is not None:
+        logger.info(f"  Deduplicated skill count: {dedup_skill_count}")
     logger.info(f"  Categories: {len(categories)}")
 
     return stats
@@ -384,15 +449,28 @@ def main():
     registry_path = Path(args.registry)
     output_dir = Path(args.output)
 
+    raw_skill_count: Optional[int] = None
+    dedup_skill_count: Optional[int] = None
+
     # Prefer scanning skills directory
     if not args.use_registry and skills_dir.exists():
         logger.info(f"Scanning skills from {skills_dir}")
         skills = scan_skills_v2(skills_dir)
         source_name = "verified downloaded skills"
+        raw_skill_count = len(skills)
+        dedup_skill_count = load_registry_count(registry_path)
+        if dedup_skill_count is None:
+            dedup_skill_count = len(skills)
     elif registry_path.exists():
         logger.info(f"Loading from registry: {registry_path}")
         skills = load_from_registry(registry_path)
         source_name = "registry entries"
+        dedup_skill_count = len(skills)
+        raw_skill_count = count_skill_files(skills_dir)
+        if raw_skill_count is None:
+            raw_skill_count = load_previous_raw_count(output_dir)
+        if raw_skill_count is None:
+            raw_skill_count = dedup_skill_count
     else:
         logger.error("No skills source found!")
         exit(1)
@@ -401,7 +479,13 @@ def main():
         logger.error("No skills found!")
         exit(1)
 
-    build_search_index(skills, output_dir, source_name)
+    build_search_index(
+        skills,
+        output_dir,
+        source_name,
+        raw_skill_count=raw_skill_count,
+        dedup_skill_count=dedup_skill_count,
+    )
 
 
 if __name__ == '__main__':

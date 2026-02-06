@@ -42,10 +42,14 @@ data_dir="$(cd "$data_dir" && pwd)"
 main_dir="$(cd "$main_dir" && pwd)"
 
 echo "Sync core -> main (excluding skills)..."
+# Keep main-owned workflows so publish wiring stays stable.
 rsync -a --delete \
   --exclude '.git' \
   --exclude 'skills' \
   --exclude 'skills/**' \
+  --exclude '.github/workflows/sync-data.yml' \
+  --exclude '.github/workflows/build-index.yml' \
+  --exclude '.github/workflows/publish-from-core.yml' \
   "$core_dir/" "$main_dir/"
 
 echo "Sync data -> main/skills..."

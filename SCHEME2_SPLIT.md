@@ -1,37 +1,57 @@
-# Scheme 2: Core + Data Repo (Git-browsable archive)
+# Scheme 2: Core + Data Repo (Core-First)
 
-Goal: keep the **full `skills/**` archive browsable on GitHub**, while making this repo fast to `clone/pull` by moving the huge working tree into a separate **data repo**.
+Goal: keep the full `skills/**` archive browsable on GitHub, while keeping pipeline authority and automation in `registry-core`.
 
-## Repos
+## Repo Roles
 
-### 1) `registry-core` (this repo)
+### 1) `registry-core` (source of truth)
 
 Contains:
 - Crawlers + build scripts (`scripts/`, `crawler/`)
 - Source lists (`sources/`)
 - Schemas (`schema/`)
 - Published metadata (`registry.json`)
-- GitHub Pages site sources (`docs/` static assets)
+- GitHub Pages site sources (`docs/`)
+- Authoritative workflows and sync policy
 
-Does **not** contain:
-- The expanded skill archive `skills/**` (moved to the data repo)
+Does **not** commit:
+- The expanded skill archive `skills/**` (stored in `registry-data`)
 
-### 2) `registry-data` (new repo)
+### 2) `registry-data` (archive store)
 
 Contains:
 - archived skill contents (category folders like `development/`, `documents/`, `data/`, etc.)
 
-This is the repo you’ll browse on GitHub to view a skill.
+### 3) `registry-main` (publish artifact)
 
-## How sync works
+Contains:
+- merged tree built from `core + data` for browsing/compatibility consumers
 
-This repo’s GitHub Actions workflow checks out the data repo into `./skills/` (as a separate checkout). That keeps paths stable (e.g. `./skills/<category>/<skill>/SKILL.md`) while the core repo stays small.
+Policy:
+- `main` is not canonical for pipeline behavior.
+- If docs/workflows conflict between repos, `core` wins.
 
-You’ll need:
-- A GitHub repository variable: `REGISTRY_DATA_REPO` (e.g. `yourname/claude-skill-registry-data`)
-- A secret: `DATA_REPO_TOKEN` (PAT with `repo` scope for private, or `public_repo` for public)
+## Sync Model (Single Writer)
 
-## Local sync (core + data → main)
+1. Only `core` runs scheduled discovery/download/sync jobs.
+2. `core` checks out `registry-data` into `./skills/` during CI and updates archive/index outputs.
+3. `core` pushes archive changes to `registry-data` and index/site outputs in `core`.
+4. `core` can trigger a `main` publish workflow using pinned `core_sha` + `data_sha`.
+5. `main` rebuilds merged outputs from those SHAs for reproducibility.
+
+Avoid:
+- Running crawler/sync schedules in `main`
+- Letting `main` write to `data`
+- Publishing metrics without clear raw vs deduplicated labels
+
+## Required CI Configuration (Core Repo)
+
+- Repository variable: `REGISTRY_DATA_REPO` (e.g. `yourname/claude-skill-registry-data`)
+- Secret: `DATA_REPO_TOKEN` (PAT with `repo` scope for private or `public_repo` for public)
+- Repository variable: `REGISTRY_MAIN_REPO` (e.g. `yourname/claude-skill-registry`)
+- Secret: `MAIN_REPO_TOKEN` (token that can dispatch workflows in main repo)
+
+## Local Merge (core + data -> main)
 
 Use the merge script to rebuild the main repo from core + data:
 

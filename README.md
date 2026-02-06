@@ -3,6 +3,7 @@
 > **Core repo:** logic + index + site.  
 > **Main repo (merged artifact):** https://github.com/majiayu000/claude-skill-registry  
 > **Data repo (skills archive):** https://github.com/majiayu000/claude-skill-registry-data  
+> **Authority:** core workflows are canonical; main is a publish mirror.  
 > **Counts (2026‑02‑05):** badge shows live index count; data repo **162,170** `SKILL.md`; main repo **162,170**.  
 > **Note:** `registry.json` is deduplicated (**82,569** entries); archive counts are raw files.
 
@@ -24,15 +25,22 @@ The largest searchable index of Claude Code skills, aggregated from GitHub and c
 2. **[sk CLI](https://github.com/majiayu000/caude-skill-manager)** - Terminal package manager
 3. **API** - Direct JSON access
 
-**Repo layout note:** the `skills/**` archive lives in the **data repo**; the **main repo** is a merged artifact of core + data. See `SCHEME2_SPLIT.md`.
+**Repo layout note:** `core` owns workflows/pipeline logic, `data` stores `skills/**`, and `main` is generated from `core + data`. See `SCHEME2_SPLIT.md`.
 
 ## Highlights
 
 - **Massive Skill Index** - Deduplicated, quality collection (see badge for live count)
 - **Rich Categories** - Development, Testing, DevOps, Design, and more
-- **Daily Updates** - Automated crawling and validation
+- **Daily Updates** - Automated crawling/validation by core scheduled workflows
 - **Quality Indexed** - Metadata, descriptions, and star counts
 - **Lightweight Search** - Gzip-compressed index for fast client-side search
+
+## Operational Ownership
+
+- **Core**: source of truth for workflows, crawling, scanning, and index/site generation
+- **Data**: canonical archived skill tree (`skills/**`)
+- **Main**: publish artifact for merged browsing/compatibility consumers
+- **Publish contract**: core dispatches main publish with pinned `core_sha` + `data_sha`
 
 ## Quick Start
 
@@ -120,10 +128,10 @@ interface SkillMini {
 
 ---
 
-## Directory Structure
+## Directory Structure (Core)
 
 ```
-claude-skill-registry/
+claude-skill-registry-core/
 ├── registry.json           # Full registry (all skills)
 ├── docs/                   # GitHub Pages
 │   ├── index.html          # Web search UI
@@ -139,7 +147,7 @@ claude-skill-registry/
 │   ├── discover_by_topic.py
 │   ├── security_scanner.py
 │   └── ...
-└── skills/                 # Skill archive (moved to registry-data repo)
+└── (no committed skills/)  # skills/** lives in registry-data; mounted in CI when needed
 ```
 
 ---
@@ -228,11 +236,11 @@ We welcome feedback! Please open an issue for:
 ### Contribute Code
 
 ```bash
-# Clone the repo (recommended: partial + sparse checkout to avoid 200k+ files)
-git clone --filter=blob:none --sparse https://github.com/majiayu000/claude-skill-registry.git
-cd claude-skill-registry
+# Clone the core repo (authoritative pipeline repo)
+git clone --filter=blob:none --sparse https://github.com/majiayu000/claude-skill-registry-core.git
+cd claude-skill-registry-core
 
-# Pull only what you need (add more paths later if needed, e.g. skills/development)
+# Pull only what you need (add more paths later as needed)
 git sparse-checkout set --cone docs scripts sources schema
 
 # Install dependencies
