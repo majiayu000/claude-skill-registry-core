@@ -31,10 +31,13 @@ from datetime import datetime
 from pathlib import Path
 
 # Add parent to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = SCRIPT_DIR.parent
+sys.path.insert(0, str(ROOT_DIR))
+sys.path.insert(0, str(SCRIPT_DIR))
 
 from crawler.skillsmp_sync import SkillsMPSync
-from scripts.utils import normalize_name, ensure_unique_dir, build_skill_key
+from utils import normalize_name, ensure_unique_dir, build_skill_key
 
 
 def sanitize_category(category: str) -> str:
@@ -136,7 +139,12 @@ def build_unified_registry(sources_dir: Path, output_path: Path) -> int:
     return len(all_skills)
 
 
-async def download_skills(registry_path: Path, output_dir: Path, github_token: str = "") -> dict:
+async def download_skills(
+    registry_path: Path,
+    output_dir: Path,
+    github_token: str = "",
+    max_pending: int = 0,
+) -> dict:
     """Download skills using optimized downloader."""
     logger.info("=" * 60)
     logger.info("STEP 3: Downloading SKILL.md files")
@@ -176,6 +184,10 @@ async def download_skills(registry_path: Path, output_dir: Path, github_token: s
     # Filter pending by repo/path key
     pending = [s for s in skills if skill_key(s) not in existing]
     logger.info(f"To download: {len(pending)}")
+
+    if max_pending and max_pending > 0:
+        pending = pending[:max_pending]
+        logger.info(f"Applying pending cap: {len(pending)} (max_pending={max_pending})")
 
     if not pending:
         logger.info("Nothing to download!")
@@ -320,6 +332,12 @@ def main():
     parser.add_argument("--sync-only", action="store_true", help="Only sync index, don't download")
     parser.add_argument("--download-only", action="store_true", help="Only download, use existing index")
     parser.add_argument("--max-skills", type=int, default=50000, help="Max skills to sync from SkillsMP")
+    parser.add_argument(
+        "--max-pending",
+        type=int,
+        default=0,
+        help="Maximum pending skills to process during download (0 = no limit)",
+    )
     args = parser.parse_args()
 
     # Paths
@@ -344,7 +362,14 @@ def main():
 
     # Step 3: Download skills
     if not args.sync_only:
-        stats = asyncio.run(download_skills(registry_path, output_dir, github_token))
+        stats = asyncio.run(
+            download_skills(
+                registry_path,
+                output_dir,
+                github_token,
+                max_pending=args.max_pending,
+            )
+        )
 
     elapsed = time.time() - start_time
 

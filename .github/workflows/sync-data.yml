@@ -115,12 +115,42 @@ jobs:
           echo "Discovery profile: $PROFILE"
           echo "Discovery step outcome: ${outcome:-not-run}"
 
-      - name: Download skills from registry
+      - name: Download skills from registry (full)
+        if: steps.discovery.outputs.profile == 'full'
+        id: download_full
+        continue-on-error: true
+        timeout-minutes: 240
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "⬇️ Downloading skills from existing registry..."
+          echo "⬇️ Downloading skills from existing registry (full mode)..."
           python scripts/sync_and_download.py --download-only 2>&1 | tee download.log
+
+      - name: Download skills from registry (daily bounded)
+        if: steps.discovery.outputs.profile != 'full'
+        id: download_daily
+        continue-on-error: true
+        timeout-minutes: 120
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "⬇️ Downloading bounded set from registry (daily mode)..."
+          python scripts/sync_and_download.py --download-only --max-pending 3000 2>&1 | tee download.log
+
+      - name: Print download outcome
+        if: always()
+        env:
+          PROFILE: ${{ steps.discovery.outputs.profile }}
+          FULL_OUTCOME: ${{ steps.download_full.outcome }}
+          DAILY_OUTCOME: ${{ steps.download_daily.outcome }}
+        run: |
+          if [ "$PROFILE" = "full" ]; then
+            outcome="$FULL_OUTCOME"
+          else
+            outcome="$DAILY_OUTCOME"
+          fi
+          echo "Download profile: $PROFILE"
+          echo "Download step outcome: ${outcome:-not-run}"
 
       - name: Security scan (skills)
         run: |
