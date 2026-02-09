@@ -39,7 +39,15 @@ CODE_SEARCH_QUERIES = [
 class GitHubTopicDiscovery:
     """Discover skills using GitHub Topics and Code Search"""
 
-    def __init__(self, token=None):
+    def __init__(
+        self,
+        token=None,
+        max_repos=0,
+        max_topic_pages=10,
+        max_code_pages=10,
+        skip_code_search=False,
+        request_delay=2.0,
+    ):
         self.token = token or os.environ.get('GITHUB_TOKEN')
         self.session = requests.Session()
         self.session.headers['Accept'] = 'application/vnd.github.v3+json'
@@ -49,12 +57,19 @@ class GitHubTopicDiscovery:
         else:
             logger.warning("No token - rate limits will be strict (10 req/min)")
 
+        self.max_repos = max(0, int(max_repos or 0))
+        self.max_topic_pages = max(1, int(max_topic_pages or 1))
+        self.max_code_pages = max(1, int(max_code_pages or 1))
+        self.skip_code_search = bool(skip_code_search)
+        self.request_delay = max(0.0, float(request_delay or 0.0))
+
         self.discovered_repos = set()
         self.skills = []
 
     def _request(self, url, params=None):
         """Make rate-limited request"""
-        time.sleep(2)  # Be nice to API
+        if self.request_delay > 0:
+            time.sleep(self.request_delay)
         try:
             resp = self.session.get(url, params=params, timeout=30)
 
@@ -83,7 +98,7 @@ class GitHubTopicDiscovery:
             logger.info(f"Searching topic: {topic}")
 
             page = 1
-            while page <= 10:  # Max 1000 results
+            while page <= self.max_topic_pages:
                 url = f"{GITHUB_API}/search/repositories"
                 params = {
                     'q': f'topic:{topic}',
@@ -106,6 +121,11 @@ class GitHubTopicDiscovery:
                     if full_name not in self.discovered_repos:
                         self.discovered_repos.add(full_name)
                         logger.info(f"  Found: {full_name} ({repo.get('stargazers_count', 0)} stars)")
+                        if self.max_repos and len(self.discovered_repos) >= self.max_repos:
+                            logger.info(
+                                f"Reached max repos limit ({self.max_repos}) during topic discovery"
+                            )
+                            return list(self.discovered_repos)
 
                 total = result.get('total_count', 0)
                 if page * 100 >= total:
@@ -117,13 +137,17 @@ class GitHubTopicDiscovery:
 
     def discover_by_code_search(self, queries=None):
         """Discover SKILL.md files using GitHub Code Search"""
+        if self.skip_code_search:
+            logger.info("Skipping code search phase (--skip-code-search)")
+            return list(self.discovered_repos)
+
         queries = queries or CODE_SEARCH_QUERIES
 
         for query in queries:
             logger.info(f"Code search: {query}")
 
             page = 1
-            while page <= 10:
+            while page <= self.max_code_pages:
                 url = f"{GITHUB_API}/search/code"
                 params = {
                     'q': query,
@@ -146,6 +170,11 @@ class GitHubTopicDiscovery:
                     if repo not in self.discovered_repos:
                         self.discovered_repos.add(repo)
                         logger.info(f"  Found: {repo} - {path}")
+                        if self.max_repos and len(self.discovered_repos) >= self.max_repos:
+                            logger.info(
+                                f"Reached max repos limit ({self.max_repos}) during code search"
+                            )
+                            return list(self.discovered_repos)
 
                 total = result.get('total_count', 0)
                 if page * 100 >= total:
@@ -254,7 +283,13 @@ class GitHubTopicDiscovery:
         logger.info("\n=== Phase 3: Download Skills ===")
         downloaded = 0
 
-        for repo in self.discovered_repos:
+        repos_to_scan = sorted(self.discovered_repos)
+        if self.max_repos:
+            repos_to_scan = repos_to_scan[:self.max_repos]
+
+        logger.info(f"Scanning {len(repos_to_scan)} repositories for SKILL.md files")
+
+        for repo in repos_to_scan:
             logger.info(f"Scanning {repo}...")
             skill_files = self.get_skill_files_from_repo(repo)
 
@@ -274,7 +309,15 @@ class GitHubTopicDiscovery:
                 'discovered_at': datetime.utcnow().isoformat() + 'Z',
                 'total_repos': len(self.discovered_repos),
                 'total_skills': len(self.skills),
-                'repos': list(self.discovered_repos),
+                'scanned_repos': len(repos_to_scan),
+                'limits': {
+                    'max_repos': self.max_repos,
+                    'max_topic_pages': self.max_topic_pages,
+                    'max_code_pages': self.max_code_pages,
+                    'skip_code_search': self.skip_code_search,
+                    'request_delay': self.request_delay,
+                },
+                'repos': repos_to_scan,
                 'skills': self.skills,
             }, f, indent=2, ensure_ascii=False)
 
@@ -293,10 +336,46 @@ def main():
     parser.add_argument('--token', help='GitHub token (or set GITHUB_TOKEN env)')
     parser.add_argument('--output', default='skills', help='Output directory')
     parser.add_argument('--json', default='sources/discovered.json', help='JSON output')
+    parser.add_argument(
+        '--max-repos',
+        type=int,
+        default=0,
+        help='Maximum repositories to scan in download phase (0 = no limit)',
+    )
+    parser.add_argument(
+        '--max-topic-pages',
+        type=int,
+        default=10,
+        help='Maximum pages per topic query (default: 10)',
+    )
+    parser.add_argument(
+        '--max-code-pages',
+        type=int,
+        default=10,
+        help='Maximum pages per code search query (default: 10)',
+    )
+    parser.add_argument(
+        '--skip-code-search',
+        action='store_true',
+        help='Skip the global code search phase for faster runs',
+    )
+    parser.add_argument(
+        '--request-delay',
+        type=float,
+        default=2.0,
+        help='Delay (seconds) between GitHub API requests (default: 2.0)',
+    )
 
     args = parser.parse_args()
 
-    discoverer = GitHubTopicDiscovery(token=args.token)
+    discoverer = GitHubTopicDiscovery(
+        token=args.token,
+        max_repos=args.max_repos,
+        max_topic_pages=args.max_topic_pages,
+        max_code_pages=args.max_code_pages,
+        skip_code_search=args.skip_code_search,
+        request_delay=args.request_delay,
+    )
     discoverer.run(output_dir=args.output, output_json=args.json)
 
 
