@@ -4,7 +4,15 @@ on:
   schedule:
     # Run daily at 00:00 UTC
     - cron: '0 0 * * *'
+    # Run a full discovery weekly on Sunday
+    - cron: '30 2 * * 0'
   workflow_dispatch:
+    inputs:
+      full_scan:
+        description: Run full discovery (slower)
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -48,12 +56,64 @@ jobs:
       - name: Install dependencies
         run: pip install pyyaml aiohttp requests jsonschema
 
-      - name: Discover new skills from GitHub
+      - name: Resolve discovery profile
+        id: discovery
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          INPUT_FULL_SCAN: ${{ github.event.inputs.full_scan }}
+        run: |
+          profile="daily-bounded"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$INPUT_FULL_SCAN" = "true" ]; then
+            profile="full"
+          elif [ "$EVENT_NAME" = "schedule" ] && [ "$EVENT_SCHEDULE" = "30 2 * * 0" ]; then
+            profile="full"
+          fi
+          echo "profile=$profile" >> "$GITHUB_OUTPUT"
+          echo "Discovery profile: $profile (event=$EVENT_NAME schedule=$EVENT_SCHEDULE full_scan=$INPUT_FULL_SCAN)"
+
+      - name: Discover new skills from GitHub (full)
+        if: steps.discovery.outputs.profile == 'full'
+        id: discover_full
+        continue-on-error: true
+        timeout-minutes: 180
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "🔍 Discovering new skills via GitHub API..."
+          echo "🔍 Running full discovery via GitHub API..."
           python scripts/discover_by_topic.py --output skills/other --json sources/discovered.json 2>&1 | tee discover.log
+
+      - name: Discover new skills from GitHub (daily bounded)
+        if: steps.discovery.outputs.profile != 'full'
+        id: discover_daily
+        continue-on-error: true
+        timeout-minutes: 60
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔍 Running bounded daily discovery..."
+          python scripts/discover_by_topic.py \
+            --output skills/other \
+            --json sources/discovered.json \
+            --max-repos 300 \
+            --max-topic-pages 2 \
+            --skip-code-search \
+            --request-delay 1.0 2>&1 | tee discover.log
+
+      - name: Print discovery outcome
+        if: always()
+        env:
+          PROFILE: ${{ steps.discovery.outputs.profile }}
+          FULL_OUTCOME: ${{ steps.discover_full.outcome }}
+          DAILY_OUTCOME: ${{ steps.discover_daily.outcome }}
+        run: |
+          if [ "$PROFILE" = "full" ]; then
+            outcome="$FULL_OUTCOME"
+          else
+            outcome="$DAILY_OUTCOME"
+          fi
+          echo "Discovery profile: $PROFILE"
+          echo "Discovery step outcome: ${outcome:-not-run}"
 
       - name: Download skills from registry
         env:
