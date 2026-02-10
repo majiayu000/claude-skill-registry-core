@@ -8,6 +8,8 @@ import hashlib
 import json
 from pathlib import Path
 
+_DIR_CACHE = {}
+
 
 def normalize_name(name: str) -> str:
     """
@@ -120,23 +122,35 @@ def ensure_unique_dir(parent: Path, base_name: str, key: str = "", repo: str = "
     base = normalize_name(base_name)
     parent.mkdir(parents=True, exist_ok=True)
 
-    existing = {}
-    matched_by_key = None
-    for d in parent.iterdir():
-        if d.is_dir():
+    cache_key = str(parent.resolve())
+    state = _DIR_CACHE.get(cache_key)
+    if state is None:
+        existing = {}
+        key_to_dir = {}
+        for d in parent.iterdir():
+            if not d.is_dir():
+                continue
             existing.setdefault(d.name.lower(), []).append(d)
-            if key and not matched_by_key:
-                meta_key = _metadata_key(d / "metadata.json")
-                if meta_key == key:
-                    matched_by_key = d
+            meta_key = _metadata_key(d / "metadata.json")
+            if meta_key and meta_key not in key_to_dir:
+                key_to_dir[meta_key] = d
+        state = {"existing": existing, "key_to_dir": key_to_dir}
+        _DIR_CACHE[cache_key] = state
+
+    existing = state["existing"]
+    key_to_dir = state["key_to_dir"]
+
+    # Always reuse existing dir if it resolves to the same metadata key.
+    if key and key in key_to_dir:
+        return key_to_dir[key]
 
     # No conflict
     if base.lower() not in existing:
-        return parent / base
-
-    # Reuse existing dir if it matches the same skill key
-    if matched_by_key:
-        return matched_by_key
+        candidate = parent / base
+        existing.setdefault(base.lower(), []).append(candidate)
+        if key:
+            key_to_dir.setdefault(key, candidate)
+        return candidate
 
     # Create a unique suffixed directory name
     suffix = get_repo_suffix(repo)
@@ -152,4 +166,8 @@ def ensure_unique_dir(parent: Path, base_name: str, key: str = "", repo: str = "
         candidate = f"{candidate_base}-{counter}"
         counter += 1
 
-    return parent / candidate
+    selected = parent / candidate
+    existing.setdefault(candidate.lower(), []).append(selected)
+    if key:
+        key_to_dir.setdefault(key, selected)
+    return selected

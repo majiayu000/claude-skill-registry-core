@@ -48,10 +48,25 @@ DANGEROUS_PATTERNS = {
     'system_prompt': r'system[\s_-]?prompt',
 }
 
+COMPILED_DANGEROUS_PATTERNS = {
+    name: re.compile(pattern, re.IGNORECASE)
+    for name, pattern in DANGEROUS_PATTERNS.items()
+}
+
 # Sensitive file paths
 SENSITIVE_PATHS = [
     '/etc/passwd', '/etc/shadow', '~/.ssh', '~/.aws',
     '/proc/', '/sys/', '$HOME/.env', '.env',
+]
+
+INJECTION_PATTERNS = [
+    re.compile(r'ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts)', re.IGNORECASE),
+    re.compile(r'disregard\s+(everything|all)', re.IGNORECASE),
+    re.compile(r'forget\s+(previous|all)', re.IGNORECASE),
+    re.compile(r'new\s+instructions?:', re.IGNORECASE),
+    re.compile(r'system\s*:\s*you\s+are', re.IGNORECASE),
+    re.compile(r'</system>', re.IGNORECASE),
+    re.compile(r'<\|im_start\|>', re.IGNORECASE),
 ]
 
 
@@ -179,9 +194,9 @@ class SecurityScanner:
         """Scan for dangerous code patterns"""
         lines = content.split('\n')
 
-        for pattern_name, pattern in DANGEROUS_PATTERNS.items():
+        for pattern_name, pattern in COMPILED_DANGEROUS_PATTERNS.items():
             for line_num, line in enumerate(lines, 1):
-                if re.search(pattern, line, re.IGNORECASE):
+                if pattern.search(line):
                     critical_patterns = {
                         'eval',
                         'exec',
@@ -243,23 +258,12 @@ class SecurityScanner:
 
     def _detect_prompt_injection(self, content: str):
         """Detect potential prompt injection attempts"""
-        # Check for instructions that try to override system behavior
-        injection_indicators = [
-            r'ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts)',
-            r'disregard\s+(everything|all)',
-            r'forget\s+(previous|all)',
-            r'new\s+instructions?:',
-            r'system\s*:\s*you\s+are',
-            r'</system>',
-            r'<\|im_start\|>',
-        ]
-
-        for pattern in injection_indicators:
-            if re.search(pattern, content, re.IGNORECASE):
+        for pattern in INJECTION_PATTERNS:
+            if pattern.search(content):
                 self.issues.append({
                     'severity': 'warning',
                     'type': 'prompt_injection',
-                    'message': f'Potential prompt injection detected: {pattern}'
+                    'message': f'Potential prompt injection detected: {pattern.pattern}'
                 })
 
     def generate_report(self) -> str:
@@ -313,8 +317,9 @@ def scan_directory(skills_dir: Path, output_file: Path = None, quiet: bool = Fal
                 print(f"✓ {skill_file.relative_to(skills_dir)}")
         else:
             results['failed'] += 1
-            print(f"✗ {skill_file.relative_to(skills_dir)}")
-            print(scanner.generate_report())
+            if not quiet:
+                print(f"✗ {skill_file.relative_to(skills_dir)}")
+                print(scanner.generate_report())
 
     # Save results
     if output_file:
