@@ -17,6 +17,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: sync-data-pipeline
+  cancel-in-progress: true
+
 jobs:
   sync:
     runs-on: ubuntu-latest
