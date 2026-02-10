@@ -200,7 +200,24 @@ jobs:
             echo "No data repo changes"
           else
             git commit -m "chore: update skills archive $(date -u +%Y-%m-%d)"
-            git push
+            for attempt in 1 2 3; do
+              if git push; then
+                echo "Data push succeeded on attempt $attempt"
+                break
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                echo "Data push failed (attempt $attempt), rebasing and retrying..."
+                git fetch origin main
+                if ! git rebase origin/main; then
+                  git rebase --abort || true
+                  echo "Data rebase failed; aborting push."
+                  exit 1
+                fi
+              else
+                echo "Data push failed after 3 attempts."
+                exit 1
+              fi
+            done
           fi
 
       - name: Commit & push core metadata changes
@@ -215,7 +232,24 @@ jobs:
           else
             COUNT=$(python3 -c "import json; print(json.load(open('registry.json')).get('total_count', 0))")
             git commit -m "chore: sync registry ($COUNT skills) $(date -u +%Y-%m-%d)"
-            git push
+            for attempt in 1 2 3; do
+              if git push; then
+                echo "Core push succeeded on attempt $attempt"
+                break
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                echo "Core push failed (attempt $attempt), rebasing and retrying..."
+                git fetch origin main
+                if ! git rebase origin/main; then
+                  git rebase --abort || true
+                  echo "Core rebase failed; aborting push."
+                  exit 1
+                fi
+              else
+                echo "Core push failed after 3 attempts."
+                exit 1
+              fi
+            done
           fi
 
       - name: Capture source SHAs
