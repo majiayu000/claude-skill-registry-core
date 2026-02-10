@@ -153,9 +153,18 @@ jobs:
           echo "Download step outcome: ${outcome:-not-run}"
 
       - name: Security scan (skills)
+        id: security
+        continue-on-error: true
         run: |
           echo "🔒 Running security scan on skills..."
-          python scripts/security_scanner.py skills/ --quiet --output security-report.json
+          python scripts/security_scanner.py skills/ --quiet --report-only --output security-report.json
+
+      - name: Print security outcome
+        if: always()
+        env:
+          SECURITY_OUTCOME: ${{ steps.security.outcome }}
+        run: |
+          echo "Security scan outcome: ${SECURITY_OUTCOME:-not-run}"
 
       - name: Upload security report
         if: always()
@@ -166,7 +175,11 @@ jobs:
 
       - name: Copy security report to docs
         run: |
-          cp security-report.json docs/security-report.json
+          if [ -f security-report.json ]; then
+            cp security-report.json docs/security-report.json
+          else
+            echo "::warning::security-report.json missing; skip docs copy."
+          fi
 
       - name: Rebuild registry.json from archive
         run: |

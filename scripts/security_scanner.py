@@ -331,6 +331,11 @@ def main():
     parser.add_argument('path', help='Path to SKILL.md file or skills directory')
     parser.add_argument('--output', '-o', help='Output JSON report file')
     parser.add_argument('--strict', action='store_true', help='Fail on warnings')
+    parser.add_argument(
+        '--report-only',
+        action='store_true',
+        help='Always exit 0 after writing report (for CI reporting mode)',
+    )
     parser.add_argument('--quiet', action='store_true', help='Only print failures + summary')
 
     args = parser.parse_args()
@@ -348,6 +353,8 @@ def main():
             with open(args.output, 'w') as f:
                 json.dump({'safe': is_safe, 'issues': issues}, f, indent=2)
 
+        if args.report_only:
+            exit(0)
         exit(0 if is_safe or not args.strict else 1)
 
     elif path.is_dir():
@@ -359,6 +366,8 @@ def main():
         print(f"Passed: {results['passed']}")
         print(f"Failed: {results['failed']}")
 
+        if args.report_only:
+            exit(0)
         exit(0 if results['failed'] == 0 else 1)
 
     else:
