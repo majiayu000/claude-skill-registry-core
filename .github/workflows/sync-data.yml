@@ -156,19 +156,76 @@ jobs:
           echo "Download profile: $PROFILE"
           echo "Download step outcome: ${outcome:-not-run}"
 
-      - name: Security scan (skills)
-        id: security
+      - name: Resolve security scope
+        id: security_scope
+        env:
+          PROFILE: ${{ steps.discovery.outputs.profile }}
+        run: |
+          FILE_LIST="$RUNNER_TEMP/security-scan-files.txt"
+          : > "$FILE_LIST"
+
+          if [ "$PROFILE" = "full" ]; then
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+            echo "file_list=$FILE_LIST" >> "$GITHUB_OUTPUT"
+            echo "changed_count=0" >> "$GITHUB_OUTPUT"
+            echo "Security scope: full"
+            exit 0
+          fi
+
+          {
+            git -C skills diff --name-only --diff-filter=AM | grep '/SKILL.md$' || true
+            git -C skills ls-files --others --exclude-standard | grep '/SKILL.md$' || true
+          } | sort -u > "$FILE_LIST"
+
+          COUNT=$(wc -l < "$FILE_LIST" | tr -d '[:space:]')
+          if [ -z "$COUNT" ]; then
+            COUNT=0
+          fi
+
+          echo "mode=daily-incremental" >> "$GITHUB_OUTPUT"
+          echo "file_list=$FILE_LIST" >> "$GITHUB_OUTPUT"
+          echo "changed_count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Security scope: daily-incremental ($COUNT files)"
+
+      - name: Security scan (skills full)
+        if: steps.security_scope.outputs.mode == 'full'
+        id: security_full
         continue-on-error: true
         run: |
-          echo "🔒 Running security scan on skills..."
+          echo "🔒 Running full security scan on skills..."
           python scripts/security_scanner.py skills/ --quiet --report-only --output security-report.json
+
+      - name: Security scan (skills daily incremental)
+        if: steps.security_scope.outputs.mode != 'full'
+        id: security_daily
+        continue-on-error: true
+        run: |
+          echo "🔒 Running incremental security scan on changed skills..."
+          python scripts/security_scanner.py \
+            skills/ \
+            --quiet \
+            --report-only \
+            --output security-report.json \
+            --file-list "${{ steps.security_scope.outputs.file_list }}"
 
       - name: Print security outcome
         if: always()
         env:
-          SECURITY_OUTCOME: ${{ steps.security.outcome }}
+          MODE: ${{ steps.security_scope.outputs.mode }}
+          CHANGED_COUNT: ${{ steps.security_scope.outputs.changed_count }}
+          FULL_OUTCOME: ${{ steps.security_full.outcome }}
+          DAILY_OUTCOME: ${{ steps.security_daily.outcome }}
         run: |
-          echo "Security scan outcome: ${SECURITY_OUTCOME:-not-run}"
+          if [ "$MODE" = "full" ]; then
+            outcome="$FULL_OUTCOME"
+          else
+            outcome="$DAILY_OUTCOME"
+          fi
+          echo "Security mode: ${MODE:-unknown}"
+          if [ "$MODE" != "full" ]; then
+            echo "Security changed files: ${CHANGED_COUNT:-0}"
+          fi
+          echo "Security scan outcome: ${outcome:-not-run}"
 
       - name: Upload security report
         if: always()

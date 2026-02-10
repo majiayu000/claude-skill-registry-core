@@ -288,9 +288,57 @@ class SecurityScanner:
         return '\n'.join(report)
 
 
-def scan_directory(skills_dir: Path, output_file: Path = None, quiet: bool = False) -> Dict:
+def resolve_scan_file_list(skills_dir: Path, file_list_path: Path) -> List[Path]:
+    """
+    Resolve a newline-delimited file list into SKILL.md paths under skills_dir.
+    Lines may be absolute or relative paths.
+    """
+    if not file_list_path.exists():
+        return []
+
+    skills_root = skills_dir.resolve()
+    selected = []
+    seen = set()
+
+    for raw in file_list_path.read_text(encoding='utf-8', errors='ignore').splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+
+        candidate = Path(line)
+        if not candidate.is_absolute():
+            candidate = skills_dir / candidate
+        candidate = candidate.resolve()
+
+        try:
+            candidate.relative_to(skills_root)
+        except ValueError:
+            # Ignore paths outside scan root for safety.
+            continue
+
+        if candidate.name != "SKILL.md":
+            continue
+        if not candidate.exists() or not candidate.is_file():
+            continue
+
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        selected.append(candidate)
+
+    return selected
+
+
+def scan_directory(
+    skills_dir: Path,
+    output_file: Path = None,
+    quiet: bool = False,
+    selected_files: List[Path] = None,
+) -> Dict:
     """Scan all skills in a directory"""
     scanner = SecurityScanner()
+    skills_root = skills_dir.resolve()
     results = {
         'total': 0,
         'passed': 0,
@@ -298,13 +346,19 @@ def scan_directory(skills_dir: Path, output_file: Path = None, quiet: bool = Fal
         'skills': []
     }
 
-    for skill_file in skills_dir.rglob('SKILL.md'):
+    if selected_files is None:
+        scan_targets = skills_dir.rglob('SKILL.md')
+    else:
+        scan_targets = selected_files
+
+    for skill_file in scan_targets:
+        skill_file = skill_file.resolve()
         results['total'] += 1
 
         is_safe, issues = scanner.scan_file(skill_file)
 
         skill_result = {
-            'path': str(skill_file.relative_to(skills_dir)),
+            'path': str(skill_file.relative_to(skills_root)),
             'safe': is_safe,
             'issues': issues
         }
@@ -314,11 +368,11 @@ def scan_directory(skills_dir: Path, output_file: Path = None, quiet: bool = Fal
         if is_safe:
             results['passed'] += 1
             if not quiet:
-                print(f"✓ {skill_file.relative_to(skills_dir)}")
+                print(f"✓ {skill_file.relative_to(skills_root)}")
         else:
             results['failed'] += 1
             if not quiet:
-                print(f"✗ {skill_file.relative_to(skills_dir)}")
+                print(f"✗ {skill_file.relative_to(skills_root)}")
                 print(scanner.generate_report())
 
     # Save results
@@ -341,7 +395,11 @@ def main():
         action='store_true',
         help='Always exit 0 after writing report (for CI reporting mode)',
     )
-    parser.add_argument('--quiet', action='store_true', help='Only print failures + summary')
+    parser.add_argument('--quiet', action='store_true', help='Only print summary')
+    parser.add_argument(
+        '--file-list',
+        help='Optional newline-delimited list of SKILL.md paths to scan (absolute or relative to path)',
+    )
 
     args = parser.parse_args()
 
@@ -364,7 +422,13 @@ def main():
 
     elif path.is_dir():
         # Scan directory
-        results = scan_directory(path, args.output, quiet=args.quiet)
+        selected_files = None
+        if args.file_list:
+            selected_files = resolve_scan_file_list(path, Path(args.file_list))
+            if not args.quiet:
+                print(f"Using file list: {len(selected_files)} file(s)")
+
+        results = scan_directory(path, args.output, quiet=args.quiet, selected_files=selected_files)
 
         print(f"\n{'='*60}")
         print(f"Total: {results['total']}")
