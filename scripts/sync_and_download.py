@@ -155,6 +155,7 @@ async def download_skills(
     from collections import defaultdict
 
     GITHUB_RAW_BASE = "https://raw.githubusercontent.com"
+    BRANCHES = ("main", "master")
     MAX_CONCURRENT = 100
     TIMEOUT = 15
     BATCH_SIZE = 300
@@ -193,85 +194,152 @@ async def download_skills(
         logger.info("Nothing to download!")
         return {"downloaded": 0, "failed": 0, "total": len(existing)}
 
-    stats = {"downloaded": 0, "failed": 0, "skipped": len(existing)}
+    stats = {
+        "downloaded": 0,
+        "failed": 0,
+        "skipped": len(existing),
+        "url_attempts": 0,
+    }
     failures = defaultdict(list)
+    preferred_branch_by_repo = {}
 
     headers = {"User-Agent": "Claude-Skills-Registry/3.0"}
     if github_token:
         headers["Authorization"] = f"token {github_token}"
 
     semaphore = asyncio.Semaphore(MAX_CONCURRENT)
-    connector = aiohttp.TCPConnector(limit=MAX_CONCURRENT * 2)
+    connector = aiohttp.TCPConnector(limit=MAX_CONCURRENT * 2, ttl_dns_cache=300)
+    request_timeout = aiohttp.ClientTimeout(total=TIMEOUT)
+
+    def normalize_repo(repo: str) -> str:
+        repo = (repo or "").strip()
+        if repo.startswith("https://github.com/"):
+            repo = repo[len("https://github.com/"):]
+        repo = repo.split("/tree/")[0]
+        repo = repo.split("/blob/")[0]
+        return repo.rstrip("/")
+
+    def normalize_repo_path(path: str, repo: str) -> str:
+        path = (path or "").strip().replace("\\", "/").strip("/")
+        if not path:
+            return ""
+
+        # Convert full GitHub blob/tree URLs to repo-relative paths when possible.
+        if path.startswith("https://github.com/") and repo:
+            prefix = f"https://github.com/{repo}/"
+            if path.startswith(prefix):
+                rest = path[len(prefix):]
+                parts = rest.split("/", 2)
+                if len(parts) >= 3 and parts[0] in {"blob", "tree"}:
+                    return parts[2].strip("/")
+
+        parts = path.split("/", 2)
+        if len(parts) >= 3 and parts[0] in {"blob", "tree"}:
+            return parts[2].strip("/")
+
+        return path
+
+    def build_relative_candidates(path: str, name: str, normalized_name: str) -> list[str]:
+        ordered = []
+        seen = set()
+
+        def add(candidate: str):
+            candidate = (candidate or "").strip().strip("/")
+            if not candidate or candidate in seen:
+                return
+            seen.add(candidate)
+            ordered.append(candidate)
+
+        if path:
+            # Most source entries have path; try these first to avoid broad probing.
+            if path.lower().endswith("skill.md"):
+                add(path)
+            else:
+                add(f"{path}/SKILL.md")
+                add(path)
+
+        name_variants = []
+        for raw_name in (name, normalized_name):
+            candidate = (raw_name or "").strip().strip("/")
+            if candidate and candidate not in name_variants:
+                name_variants.append(candidate)
+
+        for variant in name_variants:
+            add(f".claude/skills/{variant}/SKILL.md")
+            add(f".claude/{variant}/SKILL.md")
+            add(f"skills/{variant}/SKILL.md")
+            add(f"{variant}/SKILL.md")
+
+        add("SKILL.md")
+        add(".claude/SKILL.md")
+        return ordered
+
+    def branch_order(repo: str) -> list[str]:
+        preferred = preferred_branch_by_repo.get(repo)
+        if preferred in BRANCHES:
+            return [preferred] + [b for b in BRANCHES if b != preferred]
+        return list(BRANCHES)
 
     async def try_download(session: aiohttp.ClientSession, skill: dict) -> bool:
-        name = skill["name"]
+        name = (skill.get("name") or "").strip() or "unknown"
         # Normalize name to prevent case conflicts on macOS/Windows
         normalized_name = normalize_name(name)
-        repo = skill.get("repo", "")
-        path = skill.get("path", "")
+        repo = normalize_repo(skill.get("repo", ""))
+        path = normalize_repo_path(skill.get("path", ""), repo)
 
         if not repo:
             failures["no_repo"].append(name)
             return False
 
-        # Clean repo
-        repo = repo.replace("https://github.com/", "").split("/tree/")[0].rstrip("/")
-
-        # URL patterns
-        patterns = []
-        for branch in ["main", "master"]:
-            if path:
-                patterns.append(f"{GITHUB_RAW_BASE}/{repo}/{branch}/{path}/SKILL.md")
-                patterns.append(f"{GITHUB_RAW_BASE}/{repo}/{branch}/{path}")
-
-            patterns.extend([
-                f"{GITHUB_RAW_BASE}/{repo}/{branch}/.claude/skills/{name}/SKILL.md",
-                f"{GITHUB_RAW_BASE}/{repo}/{branch}/.claude/{name}/SKILL.md",
-                f"{GITHUB_RAW_BASE}/{repo}/{branch}/skills/{name}/SKILL.md",
-                f"{GITHUB_RAW_BASE}/{repo}/{branch}/{name}/SKILL.md",
-                f"{GITHUB_RAW_BASE}/{repo}/{branch}/SKILL.md",
-                f"{GITHUB_RAW_BASE}/{repo}/{branch}/.claude/SKILL.md",
-            ])
+        relative_candidates = build_relative_candidates(path, name, normalized_name)
+        attempts = 0
 
         async with semaphore:
-            for url in patterns[:12]:
-                try:
-                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as resp:
-                        if resp.status == 200:
-                            content = await resp.text()
-                            if content and len(content) > 50 and ("---" in content[:50] or "#" in content[:100]):
-                                # Valid content - save under category with normalized name
-                                category = sanitize_category(skill.get("category", "other"))
-                                category_dir = output_dir / category
-                                category_dir.mkdir(parents=True, exist_ok=True)
-                                key = build_skill_key(repo, path, name=name, category=category)
-                                skill_dir = ensure_unique_dir(category_dir, normalized_name, key, repo=repo)
-                                skill_dir.mkdir(parents=True, exist_ok=True)
-                                (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
-                                (skill_dir / "metadata.json").write_text(
-                                    json.dumps({
-                                        "name": name,
-                                        "description": skill.get("description", ""),
-                                        "repo": repo,
-                                        "path": path,
-                                        "category": skill.get("category", ""),
-                                        "tags": skill.get("tags", []),
-                                        "stars": skill.get("stars", 0),
-                                        "source": skill.get("source", ""),
-                                        "dir_name": skill_dir.name,
-                                    }, indent=2, ensure_ascii=False),
-                                    encoding="utf-8"
-                                )
-                                return True
-                        elif resp.status == 403:
-                            failures["rate_limited"].append(name)
-                            return False
-                except asyncio.TimeoutError:
-                    continue
-                except Exception:
-                    continue
+            for branch in branch_order(repo):
+                for relative_path in relative_candidates:
+                    url = f"{GITHUB_RAW_BASE}/{repo}/{branch}/{relative_path}"
+                    attempts += 1
+                    try:
+                        async with session.get(url, timeout=request_timeout) as resp:
+                            if resp.status == 200:
+                                content = await resp.text()
+                                if content and len(content) > 50 and ("---" in content[:50] or "#" in content[:100]):
+                                    # Valid content - save under category with normalized name
+                                    category = sanitize_category(skill.get("category", "other"))
+                                    category_dir = output_dir / category
+                                    category_dir.mkdir(parents=True, exist_ok=True)
+                                    key = build_skill_key(repo, path, name=name, category=category)
+                                    skill_dir = ensure_unique_dir(category_dir, normalized_name, key, repo=repo)
+                                    skill_dir.mkdir(parents=True, exist_ok=True)
+                                    (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
+                                    (skill_dir / "metadata.json").write_text(
+                                        json.dumps({
+                                            "name": name,
+                                            "description": skill.get("description", ""),
+                                            "repo": repo,
+                                            "path": path,
+                                            "category": skill.get("category", ""),
+                                            "tags": skill.get("tags", []),
+                                            "stars": skill.get("stars", 0),
+                                            "source": skill.get("source", ""),
+                                            "dir_name": skill_dir.name,
+                                        }, indent=2, ensure_ascii=False),
+                                        encoding="utf-8"
+                                    )
+                                    preferred_branch_by_repo[repo] = branch
+                                    stats["url_attempts"] += attempts
+                                    return True
+                            elif resp.status == 403:
+                                failures["rate_limited"].append(name)
+                                stats["url_attempts"] += attempts
+                                return False
+                    except asyncio.TimeoutError:
+                        continue
+                    except Exception:
+                        continue
 
             failures["not_found"].append(name)
+            stats["url_attempts"] += attempts
             return False
 
     start_time = time.time()
@@ -309,6 +377,7 @@ async def download_skills(
     logger.info("=" * 60)
     logger.info(f"Downloaded: {stats['downloaded']}")
     logger.info(f"Failed: {stats['failed']}")
+    logger.info(f"URL attempts: {stats['url_attempts']}")
     logger.info(f"Total skills: {final_count}")
 
     # Save failure report
