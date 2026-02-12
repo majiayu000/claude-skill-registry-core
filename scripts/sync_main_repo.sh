@@ -45,6 +45,7 @@ echo "Sync core -> main (excluding skills)..."
 # Keep main-owned workflows so publish wiring stays stable.
 rsync -a --delete \
   --exclude '.git' \
+  --exclude '.gitignore' \
   --exclude 'skills' \
   --exclude 'skills/**' \
   --exclude '.github/workflows/sync-data.yml' \

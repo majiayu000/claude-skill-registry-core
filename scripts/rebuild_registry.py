@@ -87,13 +87,6 @@ def safe_write_registry(registry_path: Path, registry: dict) -> bool:
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(registry, f, indent=2, ensure_ascii=False)
 
-        # Backup original file
-        if registry_path.exists():
-            backup_path = registry_path.with_suffix('.json.bak')
-            if backup_path.exists():
-                backup_path.unlink()
-            registry_path.rename(backup_path)
-
         temp_path.rename(registry_path)
         return True
     except Exception as e:
