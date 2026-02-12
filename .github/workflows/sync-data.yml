@@ -353,3 +353,15 @@ jobs:
             "https://api.github.com/repos/$REGISTRY_MAIN_REPO/dispatches" \
             -d "$PAYLOAD"
           echo "Dispatched publish: $REGISTRY_MAIN_REPO (core=$CORE_SHA data=$DATA_SHA)"
+
+      - name: Dispatch build-index to refresh Pages
+        if: steps.maincfg.outputs.ready == 'true'
+        env:
+          MAIN_REPO_TOKEN: ${{ secrets.MAIN_REPO_TOKEN }}
+        run: |
+          curl --fail-with-body -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $MAIN_REPO_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/build-index.yml/dispatches" \
+            -d '{"ref":"main"}'
+          echo "Dispatched build-index for Pages refresh"
