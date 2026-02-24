@@ -26,6 +26,7 @@ from utils import (
     get_repo_suffix,
     short_hash,
     normalize_repo,
+    build_legal_metadata,
 )
 
 OFFICIAL_REPOS = {"anthropics/skills", "anthropics/claude-code"}
@@ -203,6 +204,18 @@ def apply_plan(plan: Dict[str, List[dict]], dry_run: bool = True) -> None:
             meta["category"] = category
             if not meta.get("name"):
                 meta["name"] = e["base_name"]
+            legal_meta = build_legal_metadata(
+                repo=normalize_repo(meta.get("repo", "")),
+                path=meta.get("github_path") or meta.get("path") or "",
+                branch=meta.get("github_branch") or meta.get("branch") or "main",
+                source_url=meta.get("source_url", ""),
+                author=meta.get("author", ""),
+                license_name=meta.get("license", ""),
+                copyright_text=meta.get("copyright", ""),
+                permission_note=meta.get("permission_note", ""),
+                distribution=meta.get("distribution", ""),
+            )
+            meta.update(legal_meta)
             meta_path = e["dir"] / "metadata.json"
             meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
 

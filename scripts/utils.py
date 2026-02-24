@@ -7,8 +7,182 @@ import re
 import hashlib
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 
 _DIR_CACHE = {}
+
+PERMISSIVE_LICENSES = {
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "Unlicense",
+}
+
+# License families that should not be merged into MIT-compatible distribution by default.
+RESTRICTED_LICENSE_PATTERNS = (
+    "AGPL",
+    "GPL",
+    "LGPL",
+    "MPL",
+    "CC-BY-NC",
+    "CC-BY-ND",
+    "NONCOMMERCIAL",
+    "NOASSERTION",
+    "PROPRIETARY",
+    "UNLICENSED",
+    "UNKNOWN",
+)
+
+PLACEHOLDER_AUTHOR_VALUES = {"", "n/a", "na", "none", "null", "tbd", "unknown"}
+
+
+def normalize_license(license_name: str) -> str:
+    """Normalize common license aliases to stable SPDX-like IDs where possible."""
+    text = (license_name or "").strip()
+    if not text:
+        return "NOASSERTION"
+
+    lowered = text.lower()
+    hyphenated = re.sub(r"[\s_]+", "-", lowered).strip("-")
+    hyphenated = re.sub(r"-+", "-", hyphenated)
+    if lowered in {"mit", "mit license"}:
+        return "MIT"
+    if lowered in {"apache-2.0", "apache 2.0", "apache license 2.0", "apache license version 2.0"}:
+        return "Apache-2.0"
+    if lowered in {"bsd-2-clause", "bsd 2-clause", "bsd 2 clause"}:
+        return "BSD-2-Clause"
+    if lowered in {"bsd-3-clause", "bsd 3-clause", "bsd 3 clause"}:
+        return "BSD-3-Clause"
+    if hyphenated in {"cc-by-nc-sa-4.0", "cc-by-nc-sa"}:
+        return "CC-BY-NC-SA-4.0"
+    if hyphenated in {"cc-by-nc-4.0", "cc-by-nc"}:
+        return "CC-BY-NC-4.0"
+    if hyphenated in {"cc-by-sa-4.0", "cc-by-sa"}:
+        return "CC-BY-SA-4.0"
+    if hyphenated in {"cc-by-4.0", "cc-by"}:
+        return "CC-BY-4.0"
+    return text
+
+
+def classify_license(license_name: str) -> str:
+    """
+    Classify license compatibility for main MIT-like artifact.
+    Returns: compatible | restricted | unknown
+    """
+    normalized = normalize_license(license_name)
+
+    if normalized in PERMISSIVE_LICENSES:
+        return "compatible"
+
+    upper = re.sub(r"[\s_]+", "-", normalized.upper())
+    for marker in RESTRICTED_LICENSE_PATTERNS:
+        if marker in upper:
+            return "restricted"
+
+    # SPDX-like Creative Commons variants that are not explicitly permissive.
+    if normalized.startswith("CC-") and normalized not in {"CC0-1.0"}:
+        return "restricted"
+
+    return "unknown"
+
+
+def build_source_url(repo: str = "", path: str = "", branch: str = "main") -> str:
+    """Build a canonical GitHub source URL for a skill entry."""
+    repo = normalize_repo(repo)
+    path = (path or "").strip().strip("/")
+
+    if path.startswith("http://") or path.startswith("https://"):
+        return path
+
+    if not repo:
+        return ""
+
+    if not path:
+        return f"https://github.com/{repo}"
+
+    # path may be folder or file path
+    if not path.lower().endswith("skill.md"):
+        path = f"{path}/SKILL.md"
+    return f"https://github.com/{repo}/blob/{branch}/{path}"
+
+
+def infer_author(repo: str = "", fallback: str = "") -> str:
+    """Infer author from repo owner when explicit author metadata is missing."""
+    fallback = (fallback or "").strip()
+    if fallback.lower() not in PLACEHOLDER_AUTHOR_VALUES:
+        return fallback
+
+    repo = normalize_repo(repo)
+    if "/" in repo:
+        owner = repo.split("/", 1)[0].strip()
+        if owner:
+            return owner
+    return "unknown"
+
+
+def build_legal_metadata(
+    repo: str = "",
+    path: str = "",
+    branch: str = "main",
+    source_url: str = "",
+    author: str = "",
+    license_name: str = "",
+    copyright_text: str = "",
+    permission_note: str = "",
+    distribution: str = "",
+) -> dict:
+    """
+    Build a normalized legal metadata block.
+
+    distribution:
+        compatible -> license is compatible with MIT-like redistribution
+        restricted -> non-compatible/unknown license, requires explicit handling
+    """
+    normalized_license = normalize_license(license_name)
+    license_class = classify_license(normalized_license)
+
+    source_url = (source_url or "").strip() or build_source_url(repo=repo, path=path, branch=branch)
+    author = infer_author(repo=repo, fallback=author)
+
+    if not distribution:
+        distribution = "compatible" if license_class == "compatible" else "restricted"
+
+    if not permission_note:
+        if distribution == "compatible":
+            permission_note = "Use according to upstream license terms and attribution requirements."
+        else:
+            permission_note = (
+                "Restricted or unknown license. Do not treat as MIT; verify upstream permission before reuse."
+            )
+
+    if not copyright_text:
+        if source_url:
+            copyright_text = f"Copyright belongs to upstream author(s); see {source_url}"
+        else:
+            copyright_text = "Copyright belongs to upstream author(s)."
+
+    return {
+        "author": author,
+        "source_url": source_url,
+        "license": normalized_license,
+        "copyright": copyright_text,
+        "permission_note": permission_note,
+        "distribution": distribution,
+        "license_class": license_class,
+    }
+
+
+def is_valid_https_url(url: str) -> bool:
+    """Return True if URL is a valid https URL."""
+    text = (url or "").strip()
+    if not text:
+        return False
+    parsed = urlparse(text)
+    return parsed.scheme == "https" and bool(parsed.netloc)
 
 
 def normalize_name(name: str) -> str:

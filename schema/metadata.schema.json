@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Skill Metadata Schema",
+  "description": "Required attribution and license metadata for each imported skill",
+  "type": "object",
+  "required": [
+    "name",
+    "repo",
+    "category",
+    "dir_name",
+    "author",
+    "source_url",
+    "license",
+    "copyright",
+    "permission_note",
+    "distribution"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "repo": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "dir_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "source_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "maxLength": 1000
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "copyright": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "permission_note": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 1000
+    },
+    "distribution": {
+      "type": "string",
+      "enum": ["compatible", "restricted"]
+    },
+    "license_class": {
+      "type": "string",
+      "enum": ["compatible", "restricted", "unknown"]
+    },
+    "github_branch": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    }
+  },
+  "additionalProperties": true
+}

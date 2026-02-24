@@ -13,7 +13,13 @@ from pathlib import Path
 from datetime import datetime
 import logging
 
-from utils import normalize_name, ensure_unique_dir, build_skill_key, normalize_repo
+from utils import (
+    normalize_name,
+    ensure_unique_dir,
+    build_skill_key,
+    normalize_repo,
+    build_legal_metadata,
+)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -192,6 +198,11 @@ def import_skill(skill_file: Path, skills_dir: Path, repo_slug: str, stats: dict
     target_file.write_text(content, encoding="utf-8")
 
     # Create metadata
+    legal_meta = build_legal_metadata(
+        repo=repo_slug,
+        path=rel_path,
+        branch="main",
+    )
     meta = {
         "name": skill_name,
         "description": metadata.get("description", "")[:200],
@@ -202,6 +213,7 @@ def import_skill(skill_file: Path, skills_dir: Path, repo_slug: str, stats: dict
         "source_path": rel_path,
         "dir_name": target_dir.name,
         "imported_at": datetime.utcnow().isoformat() + "Z",
+        **legal_meta,
     }
     (target_dir / "metadata.json").write_text(
         json.dumps(meta, indent=2, ensure_ascii=False),

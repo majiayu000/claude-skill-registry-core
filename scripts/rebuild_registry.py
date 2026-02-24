@@ -178,6 +178,11 @@ def scan_skills(skills_dir: Path) -> list:
             "stars": metadata.get("stars", 0),
             "install": install,
             "source": metadata.get("source", "local"),
+            "author": metadata.get("author", ""),
+            "source_url": metadata.get("source_url", ""),
+            "license": metadata.get("license", ""),
+            "distribution": metadata.get("distribution", ""),
+            "permission_note": metadata.get("permission_note", ""),
         }
 
         skills.append(skill_entry)

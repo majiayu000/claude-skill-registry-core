@@ -227,12 +227,52 @@ jobs:
           fi
           echo "Security scan outcome: ${outcome:-not-run}"
 
+      - name: Resolve metadata scope
+        id: metadata_scope
+        run: |
+          FILE_LIST="$RUNNER_TEMP/metadata-scan-files.txt"
+          : > "$FILE_LIST"
+
+          {
+            git -C skills diff --name-only --diff-filter=AM | grep -E '/(SKILL\.md|metadata\.json)$' || true
+            git -C skills ls-files --others --exclude-standard | grep -E '/(SKILL\.md|metadata\.json)$' || true
+          } | sed 's#^#skills/#' | sort -u > "$FILE_LIST"
+
+          COUNT=$(wc -l < "$FILE_LIST" | tr -d '[:space:]')
+          if [ -z "$COUNT" ]; then
+            COUNT=0
+          fi
+
+          echo "file_list=$FILE_LIST" >> "$GITHUB_OUTPUT"
+          echo "changed_count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Metadata scope changed files: $COUNT"
+
+      - name: Metadata compliance scan (changed skills)
+        run: |
+          echo "📜 Running metadata attribution/license compliance scan (advisory, non-blocking)..."
+          python scripts/check_metadata_compliance.py \
+            --skills-dir skills \
+            --metadata-schema schema/metadata.schema.json \
+            --file-list "${{ steps.metadata_scope.outputs.file_list }}" \
+            --output-json metadata-compliance-report.json \
+            --notices THIRD_PARTY_NOTICES.generated.md \
+            --report-only
+
       - name: Upload security report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: security-report
           path: security-report.json
+
+      - name: Upload metadata compliance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metadata-compliance-report
+          path: |
+            metadata-compliance-report.json
+            THIRD_PARTY_NOTICES.generated.md
 
       - name: Copy security report to docs
         run: |
@@ -282,7 +322,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-          git add registry.json sources/ CHANGELOG.md scripts/ schema/ README.md SECURITY.md LICENSE .github/workflows/sync-data.yml
+          git add registry.json sources/ CHANGELOG.md scripts/ schema/ README.md SECURITY.md LICENSE THIRD_PARTY_NOTICES.md .github/workflows/sync-data.yml .github/workflows/metadata-compliance.yml
 
           if git diff --staged --quiet; then
             echo "No core changes"

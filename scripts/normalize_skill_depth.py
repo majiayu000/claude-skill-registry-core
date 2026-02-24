@@ -19,6 +19,7 @@ from utils import (
     normalize_repo,
     build_skill_key,
     short_hash,
+    build_legal_metadata,
 )
 
 
@@ -111,6 +112,18 @@ def main() -> None:
             meta.setdefault("name", name)
             meta["category"] = category
             meta["dir_name"] = dest.name
+            legal_meta = build_legal_metadata(
+                repo=normalize_repo(meta.get("repo", "")),
+                path=meta.get("github_path") or meta.get("path") or "",
+                branch=meta.get("github_branch") or meta.get("branch") or "main",
+                source_url=meta.get("source_url", ""),
+                author=meta.get("author", ""),
+                license_name=meta.get("license", ""),
+                copyright_text=meta.get("copyright", ""),
+                permission_note=meta.get("permission_note", ""),
+                distribution=meta.get("distribution", ""),
+            )
+            meta.update(legal_meta)
             write_metadata(dest, meta)
 
     print("Depth normalization complete.")

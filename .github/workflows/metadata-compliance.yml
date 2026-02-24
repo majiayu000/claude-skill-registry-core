@@ -1,0 +1,115 @@
+name: Metadata Compliance
+
+on:
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "schema/**"
+      - "README.md"
+      - ".github/workflows/metadata-compliance.yml"
+  workflow_dispatch:
+    inputs:
+      scan_scope:
+        description: "Scan scope: changed (last commit) or full (all metadata)"
+        required: false
+        default: "changed"
+      strict_mode:
+        description: "Fail workflow on metadata compliance errors"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  metadata-compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout core
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout data repo to ./skills
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.REGISTRY_DATA_REPO }}
+          token: ${{ secrets.DATA_REPO_TOKEN || github.token }}
+          path: skills
+          fetch-depth: 0
+
+      - name: Ensure skills workspace exists
+        run: |
+          mkdir -p skills
+          if [ ! -d skills/.git ]; then
+            echo "::warning::skills data repo not available in this context; compliance scan will have zero targets."
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install jsonschema
+
+      - name: Build changed files list
+        if: github.event_name == 'pull_request' || github.event.inputs.scan_scope != 'full'
+        run: |
+          mkdir -p .tmp
+          if [ -d skills/.git ]; then
+            {
+              git -C skills diff --name-only --diff-filter=ACMR
+              git -C skills ls-files --others --exclude-standard
+            } | sed 's#^#skills/#' | sort -u > .tmp/changed-files.txt
+          else
+            : > .tmp/changed-files.txt
+          fi
+          echo "Changed skill files:"
+          cat .tmp/changed-files.txt || true
+
+      - name: Validate changed metadata
+        if: github.event_name == 'pull_request' || github.event.inputs.scan_scope != 'full'
+        run: |
+          MODE_FLAG="--report-only"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.strict_mode }}" = "true" ]; then
+            MODE_FLAG="--strict"
+          fi
+          python scripts/check_metadata_compliance.py \
+            --skills-dir skills \
+            --metadata-schema schema/metadata.schema.json \
+            --file-list .tmp/changed-files.txt \
+            --output-json metadata-compliance-report.json \
+            --notices THIRD_PARTY_NOTICES.generated.md \
+            $MODE_FLAG
+
+      - name: Validate full metadata
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.scan_scope == 'full'
+        run: |
+          MODE_FLAG="--report-only"
+          if [ "${{ github.event.inputs.strict_mode }}" = "true" ]; then
+            MODE_FLAG="--strict"
+          fi
+          python scripts/check_metadata_compliance.py \
+            --skills-dir skills \
+            --metadata-schema schema/metadata.schema.json \
+            --output-json metadata-compliance-report.json \
+            --notices THIRD_PARTY_NOTICES.generated.md \
+            $MODE_FLAG
+
+      - name: Check README legal disclaimer
+        run: |
+          grep -q "Third-Party License & Attribution" README.md
+
+      - name: Upload compliance artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metadata-compliance
+          path: |
+            metadata-compliance-report.json
+            THIRD_PARTY_NOTICES.generated.md

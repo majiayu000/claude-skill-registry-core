@@ -12,7 +12,7 @@ import requests
 from datetime import datetime
 from pathlib import Path
 
-from utils import normalize_name, ensure_unique_dir, build_skill_key
+from utils import normalize_name, ensure_unique_dir, build_skill_key, build_legal_metadata
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -247,14 +247,21 @@ class GitHubTopicDiscovery:
                     (skill_path / 'SKILL.md').write_text(content, encoding='utf-8')
 
                     # Save metadata
+                    legal_meta = build_legal_metadata(
+                        repo=repo,
+                        path=path,
+                        branch=branch,
+                    )
                     metadata = {
                         'name': skill_dir,
                         'repo': repo,
                         'path': path,
+                        'github_branch': branch,
                         'category': category,
                         'source': f'github.com/{repo}',
                         'dir_name': skill_path.name,
                         'downloaded_at': datetime.utcnow().isoformat() + 'Z',
+                        **legal_meta,
                     }
                     (skill_path / 'metadata.json').write_text(
                         json.dumps(metadata, indent=2), encoding='utf-8'

@@ -31,7 +31,14 @@ from collections import defaultdict
 import time
 import logging
 
-from utils import normalize_name, ensure_unique_dir, build_skill_key, get_repo_suffix, short_hash
+from utils import (
+    normalize_name,
+    ensure_unique_dir,
+    build_skill_key,
+    get_repo_suffix,
+    short_hash,
+    build_legal_metadata,
+)
 
 # Configuration
 MAX_CONCURRENT = 50
@@ -315,9 +322,11 @@ async def download_skill(
         if content and is_valid_skill_content(content):
             # Extract github_path from URL
             github_path = ""
+            github_branch = "main"
             try:
                 url_parts = url.replace(GITHUB_RAW_BASE + "/", "").split("/")
                 if len(url_parts) > 3:
+                    github_branch = url_parts[2]
                     github_path = "/".join(url_parts[3:])
                     if github_path.endswith("/SKILL.md"):
                         github_path = github_path[:-9]
@@ -331,6 +340,17 @@ async def download_skill(
             skill_file.write_text(content, encoding="utf-8")
 
             # Save metadata
+            legal_meta = build_legal_metadata(
+                repo=repo,
+                path=github_path or path,
+                branch=github_branch,
+                source_url=skill.get("source_url", ""),
+                author=skill.get("author", ""),
+                license_name=skill.get("license", ""),
+                copyright_text=skill.get("copyright", ""),
+                permission_note=skill.get("permission_note", ""),
+                distribution=skill.get("distribution", ""),
+            )
             metadata = {
                 "name": name,
                 "description": skill.get("description", "")[:200],
@@ -340,8 +360,10 @@ async def download_skill(
                 "stars": stars,
                 "source": skill.get("source", ""),
                 "github_path": github_path,
+                "github_branch": github_branch,
                 "dir_name": dir_name,
                 "downloaded_at": datetime.utcnow().isoformat() + "Z",
+                **legal_meta,
             }
             (skill_dir / "metadata.json").write_text(
                 json.dumps(metadata, indent=2, ensure_ascii=False),

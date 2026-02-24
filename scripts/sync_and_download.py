@@ -37,7 +37,7 @@ sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from crawler.skillsmp_sync import SkillsMPSync
-from utils import normalize_name, ensure_unique_dir, build_skill_key
+from utils import normalize_name, ensure_unique_dir, build_skill_key, build_legal_metadata
 
 
 def sanitize_category(category: str) -> str:
@@ -312,17 +312,31 @@ async def download_skills(
                                     skill_dir = ensure_unique_dir(category_dir, normalized_name, key, repo=repo)
                                     skill_dir.mkdir(parents=True, exist_ok=True)
                                     (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
+                                    resolved_path = path or relative_path
+                                    legal_meta = build_legal_metadata(
+                                        repo=repo,
+                                        path=resolved_path,
+                                        branch=branch,
+                                        source_url=skill.get("source_url", ""),
+                                        author=skill.get("author", ""),
+                                        license_name=skill.get("license", ""),
+                                        copyright_text=skill.get("copyright", ""),
+                                        permission_note=skill.get("permission_note", ""),
+                                        distribution=skill.get("distribution", ""),
+                                    )
                                     (skill_dir / "metadata.json").write_text(
                                         json.dumps({
                                             "name": name,
                                             "description": skill.get("description", ""),
                                             "repo": repo,
-                                            "path": path,
+                                            "path": resolved_path,
+                                            "github_branch": branch,
                                             "category": skill.get("category", ""),
                                             "tags": skill.get("tags", []),
                                             "stars": skill.get("stars", 0),
                                             "source": skill.get("source", ""),
                                             "dir_name": skill_dir.name,
+                                            **legal_meta,
                                         }, indent=2, ensure_ascii=False),
                                         encoding="utf-8"
                                     )

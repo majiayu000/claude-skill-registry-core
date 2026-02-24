@@ -24,6 +24,7 @@ from utils import (
     normalize_name,
     get_repo_suffix,
     short_hash,
+    build_legal_metadata,
 )
 
 
@@ -163,6 +164,18 @@ def main() -> None:
             meta_out["category"] = category
             if not meta_out.get("name"):
                 meta_out["name"] = name
+            legal_meta = build_legal_metadata(
+                repo=normalize_repo(meta_out.get("repo", "")),
+                path=meta_out.get("github_path") or meta_out.get("path") or "",
+                branch=meta_out.get("github_branch") or meta_out.get("branch") or "main",
+                source_url=meta_out.get("source_url", ""),
+                author=meta_out.get("author", ""),
+                license_name=meta_out.get("license", ""),
+                copyright_text=meta_out.get("copyright", ""),
+                permission_note=meta_out.get("permission_note", ""),
+                distribution=meta_out.get("distribution", ""),
+            )
+            meta_out.update(legal_meta)
             meta_path.write_text(json.dumps(meta_out, indent=2, ensure_ascii=False), encoding="utf-8")
 
         dest_index[key] = dest_dir
