@@ -51,6 +51,7 @@ rsync -a --delete \
   --exclude '.github/workflows/sync-data.yml' \
   --exclude '.github/workflows/build-index.yml' \
   --exclude '.github/workflows/publish-from-core.yml' \
+  --exclude '.github/workflows/metadata-compliance.yml' \
   "$core_dir/" "$main_dir/"
 
 echo "Sync data -> main/skills..."
