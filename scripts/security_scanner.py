@@ -46,7 +46,55 @@ DANGEROUS_PATTERNS = {
     'ignore_previous': r'ignore\s+(previous|prior|above)',
     'disregard': r'disregard\s+(all|previous|prior)',
     'system_prompt': r'system[\s_-]?prompt',
+
+    # Node.js dangerous patterns
+    'child_process': r'require\s*\(\s*[\'"]child_process[\'"]\s*\)',
+    'child_process_exec': r'child_process\.\w+\s*\(',
+    'new_function': r'new\s+Function\s*\(',
+
+    # Dangerous permissions & system modification
+    'chmod_dangerous': r'chmod\s+(?:777|666|4755|[ug]\+s)',
+    'sudo_shell': r'sudo\s+(?:sh|bash)\s+-c',
+
+    # Untrusted package sources
+    'pip_url_install': r'pip3?\s+install\s+(?:https?://|git\+)',
+    'npm_url_install': r'npm\s+install\s+(?:https?://|git\+)',
+
+    # Resource abuse
+    'fork_bomb': r':\(\)\{\s*:\|:\s*&\s*\}\s*;\s*:',
 }
+
+# Hardcoded credential format patterns (high severity)
+CREDENTIAL_PATTERNS = {
+    'aws_key': re.compile(
+        r'(?:AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}'
+    ),
+    'github_token': re.compile(r'gh[pousr]_[A-Za-z0-9]{36,}'),
+    'stripe_key': re.compile(r'(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{24,}'),
+    'google_api_key': re.compile(r'AIza[A-Za-z0-9_-]{35}'),
+    'jwt_token': re.compile(
+        r'eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+'
+    ),
+    'private_key_pem': re.compile(
+        r'-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'
+    ),
+    'db_connection_string': re.compile(
+        r'(?:mongodb|mysql|postgresql|postgres)://[^:\s]+:[^@\s]+@'
+    ),
+}
+
+# Base64-to-execution chain patterns
+OBFUSCATION_EXEC_PATTERNS = [
+    re.compile(
+        r'base64\s+(?:-d|--decode)\s*\|?\s*(?:bash|sh|python|eval)',
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r'echo\s+[A-Za-z0-9+/=]{20,}\s*\|\s*base64\s+(?:-d|--decode)'
+        r'\s*\|\s*(?:bash|sh)',
+        re.IGNORECASE,
+    ),
+]
 
 COMPILED_DANGEROUS_PATTERNS = {
     name: re.compile(pattern, re.IGNORECASE)
@@ -67,6 +115,11 @@ INJECTION_PATTERNS = [
     re.compile(r'system\s*:\s*you\s+are', re.IGNORECASE),
     re.compile(r'</system>', re.IGNORECASE),
     re.compile(r'<\|im_start\|>', re.IGNORECASE),
+    # Concealment patterns - skill tries to hide its actions from user
+    re.compile(r'do\s+not\s+(tell|inform|mention|notify)\s+(the\s+)?user', re.IGNORECASE),
+    re.compile(r'hide\s+(this|that)\s+(action|operation|step)', re.IGNORECASE),
+    re.compile(r'keep\s+(this|that)\s+(secret|hidden)', re.IGNORECASE),
+    re.compile(r"don'?t\s+mention\s+you\s+used\s+this\s+skill", re.IGNORECASE),
 ]
 
 
@@ -139,12 +192,19 @@ class SecurityScanner:
         # 6. Prompt injection detection
         self._detect_prompt_injection(content)
 
+        # 7. Hardcoded credentials detection
+        self._detect_credentials(content, skill_path)
+
+        # 8. Obfuscation-to-execution chains
+        self._detect_obfuscation_exec(content, skill_path)
+
         # Determine if safe (only fail on truly dangerous issues)
         critical_types = {
             'yaml_parse_error',
             'schema_error',
             'dangerous_pattern',
             'file_too_large',
+            'hardcoded_credential',
         }
         has_critical = any(
             i['severity'] == 'error' and i.get('type') in critical_types
@@ -255,6 +315,37 @@ class SecurityScanner:
                     self._scan_dangerous_patterns(content, script_file)
                 except (OSError, UnicodeDecodeError):
                     pass
+
+    def _detect_credentials(self, content: str, file_path: Path):
+        """Detect hardcoded credentials and secret key formats"""
+        lines = content.split('\n')
+        for cred_name, pattern in CREDENTIAL_PATTERNS.items():
+            for line_num, line in enumerate(lines, 1):
+                if pattern.search(line):
+                    self.issues.append({
+                        'severity': 'error',
+                        'type': 'hardcoded_credential',
+                        'pattern': cred_name,
+                        'file': str(file_path),
+                        'line': line_num,
+                        'message': f'Hardcoded credential "{cred_name}" detected',
+                        'code': line.strip()[:120],
+                    })
+
+    def _detect_obfuscation_exec(self, content: str, file_path: Path):
+        """Detect base64-decode-to-execution chains"""
+        lines = content.split('\n')
+        for pattern in OBFUSCATION_EXEC_PATTERNS:
+            for line_num, line in enumerate(lines, 1):
+                if pattern.search(line):
+                    self.issues.append({
+                        'severity': 'error',
+                        'type': 'obfuscation_exec',
+                        'file': str(file_path),
+                        'line': line_num,
+                        'message': 'Base64-decode-to-execution chain detected',
+                        'code': line.strip()[:120],
+                    })
 
     def _detect_prompt_injection(self, content: str):
         """Detect potential prompt injection attempts"""
