@@ -1,7 +1,7 @@
 {
-  "discovered_at": "2026-02-27T01:38:13.104271Z",
+  "discovered_at": "2026-02-28T01:32:06.060480Z",
   "total_repos": 300,
-  "total_skills": 3019,
+  "total_skills": 3049,
   "scanned_repos": 300,
   "limits": {
     "max_repos": 300,
@@ -148,6 +148,7 @@
     "echoVic/spec-flow",
     "edfenton/claude-skills",
     "elvismdev/claude-wordpress-skills",
+    "eth0izzle/security-skills",
     "evolsb/claude-legal-skill",
     "exchanet/method_enterprise_builder_planning",
     "fatmali/wormhole",
@@ -165,6 +166,7 @@
     "geekjourneyx/ai-daily-skill",
     "geekjourneyx/md2wechat-skill",
     "getdirekt/skills",
+    "giacomogaglione/claude-awesome-stack",
     "giuseppe-trisciuoglio/developer-kit",
     "glitternetwork/pinme",
     "haddock-development/claude-reflect-system",
@@ -210,7 +212,6 @@
     "lagameon/EFM",
     "launch52-ai/flutter-template",
     "lc-semba-ryuichiro/semba-claude-plugins",
-    "lee-fuhr/claude-session-index",
     "leemysw/feishu-docx",
     "leggiemint/legnext-skills",
     "levnikolaevich/claude-code-skills",
@@ -246,7 +247,7 @@
     "qwibitai/nanoclaw",
     "rokpiy/auto-commenter",
     "runkids/feature-radar",
-    "ruvnet/claude-flow",
+    "ruvnet/ruflo",
     "saadshahd/moo.md",
     "saskinosie/weaviate-claude-skills",
     "secondsky/claude-skills",
@@ -262,7 +263,6 @@
     "shipdeckai/image-gen",
     "sichengchen/esper",
     "simp-lee/domain-check-skill",
-    "solanabr/solana-claude-config",
     "solanabr/solana-game-skill",
     "sstklen/claude-api-cost-optimization",
     "sstklen/infinite-gratitude",
@@ -326,6 +326,50 @@
       "path": "skills/healthcare-audit-logger/SKILL.md"
     },
     {
+      "repo": "23blocks-OS/ai-maestro-plugins",
+      "path": "src/skills/planning/SKILL.md"
+    },
+    {
+      "repo": "23blocks-OS/ai-maestro-plugins",
+      "path": "src/skills/graph-query/SKILL.md"
+    },
+    {
+      "repo": "23blocks-OS/ai-maestro-plugins",
+      "path": "plugins/ai-maestro/skills/graph-query/SKILL.md"
+    },
+    {
+      "repo": "23blocks-OS/ai-maestro-plugins",
+      "path": "plugins/ai-maestro/skills/memory-search/SKILL.md"
+    },
+    {
+      "repo": "23blocks-OS/ai-maestro-plugins",
+      "path": "plugins/ai-maestro/skills/agent-messaging/SKILL.md"
+    },
+    {
+      "repo": "23blocks-OS/ai-maestro-plugins",
+      "path": "src/skills/docs-search/SKILL.md"
+    },
+    {
+      "repo": "23blocks-OS/ai-maestro-plugins",
+      "path": "plugins/ai-maestro/skills/docs-search/SKILL.md"
+    },
+    {
+      "repo": "23blocks-OS/ai-maestro-plugins",
+      "path": "src/skills/memory-search/SKILL.md"
+    },
+    {
+      "repo": "23blocks-OS/ai-maestro-plugins",
+      "path": "plugins/ai-maestro/skills/planning/SKILL.md"
+    },
+    {
+      "repo": "23blocks-OS/ai-maestro-plugins",
+      "path": "src/skills/ai-maestro-agents-management/SKILL.md"
+    },
+    {
+      "repo": "23blocks-OS/ai-maestro-plugins",
+      "path": "plugins/ai-maestro/skills/ai-maestro-agents-management/SKILL.md"
+    },
+    {
       "repo": "2dubu/liquid-glass",
       "path": "plugins/liquid-glass/skills/liquid-glass/SKILL.md"
     },
@@ -374,10 +418,6 @@
       "path": ".github/ISSUE_TEMPLATE/new_skill.md"
     },
     {
-      "repo": "Ark0N/Codeman",
-      "path": ".agents/skills/remotion-best-practices/SKILL.md"
-    },
-    {
       "repo": "BayramAnnakov/claude-reflect",
       "path": "SKILL.md"
     },
@@ -411,11 +451,23 @@
     },
     {
       "repo": "BrianRWagner/ai-marketing-claude-code-skills",
-      "path": "testimonial-collector/SKILL.md"
+      "path": "tweet-draft-reviewer/SKILL.md"
+    },
+    {
+      "repo": "BrianRWagner/ai-marketing-claude-code-skills",
+      "path": "vault-cleanup-auditor/SKILL.md"
+    },
+    {
+      "repo": "BrianRWagner/ai-marketing-claude-code-skills",
+      "path": "daily-briefing-builder/SKILL.md"
     },
     {
       "repo": "BrianRWagner/ai-marketing-claude-code-skills",
       "path": "cold-outreach-sequence/SKILL.md"
+    },
+    {
+      "repo": "BrianRWagner/ai-marketing-claude-code-skills",
+      "path": "ai-discoverability-audit/SKILL.md"
     },
     {
       "repo": "BrianRWagner/ai-marketing-claude-code-skills",
@@ -443,11 +495,11 @@
     },
     {
       "repo": "BrianRWagner/ai-marketing-claude-code-skills",
-      "path": "content-idea-generator/SKILL.md"
+      "path": "testimonial-collector/SKILL.md"
     },
     {
       "repo": "BrianRWagner/ai-marketing-claude-code-skills",
-      "path": "ai-discoverability-audit/SKILL.md"
+      "path": "content-idea-generator/SKILL.md"
     },
     {
       "repo": "BrianRWagner/ai-marketing-claude-code-skills",
@@ -635,11 +687,23 @@
     },
     {
       "repo": "JasonWarrenUK/claude-code-config",
+      "path": "skills/user-empathy-lens/SKILL.md"
+    },
+    {
+      "repo": "JasonWarrenUK/claude-code-config",
       "path": "skills/testing-obsessive/SKILL.md"
     },
     {
       "repo": "JasonWarrenUK/claude-code-config",
+      "path": "skills/ethics-reviewer/SKILL.md"
+    },
+    {
+      "repo": "JasonWarrenUK/claude-code-config",
       "path": "skills/data-ontologist/SKILL.md"
+    },
+    {
+      "repo": "JasonWarrenUK/claude-code-config",
+      "path": "skills/domain-modeller/SKILL.md"
     },
     {
       "repo": "JasonWarrenUK/claude-code-config",
@@ -660,6 +724,10 @@
     {
       "repo": "JasonWarrenUK/claude-code-config",
       "path": "skills/git-manager/SKILL.md"
+    },
+    {
+      "repo": "JasonWarrenUK/claude-code-config",
+      "path": "skills/scope-coach/SKILL.md"
     },
     {
       "repo": "JasonWarrenUK/claude-code-config",
@@ -959,7 +1027,7 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/fda-database/SKILL.md"
+      "path": "scientific-skills/scikit-learn/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -987,11 +1055,11 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/statistical-analysis/SKILL.md"
+      "path": "scientific-skills/opentargets-database/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/latchbio-integration/SKILL.md"
+      "path": "scientific-skills/document-skills/pptx/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -999,15 +1067,15 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/latex-posters/SKILL.md"
+      "path": "scientific-skills/zinc-database/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/dnanexus-integration/SKILL.md"
+      "path": "scientific-skills/document-skills/xlsx/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/market-research-reports/SKILL.md"
+      "path": "scientific-skills/clinicaltrials-database/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1019,7 +1087,7 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/matchms/SKILL.md"
+      "path": "scientific-skills/seaborn/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1039,7 +1107,11 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/rdkit/SKILL.md"
+      "path": "scientific-skills/sympy/SKILL.md"
+    },
+    {
+      "repo": "K-Dense-AI/claude-scientific-skills",
+      "path": "scientific-skills/medchem/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1047,15 +1119,19 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/geopandas/SKILL.md"
+      "path": "scientific-skills/neurokit2/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/pennylane/SKILL.md"
+      "path": "scientific-skills/pufferlib/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
       "path": "scientific-skills/matplotlib/SKILL.md"
+    },
+    {
+      "repo": "K-Dense-AI/claude-scientific-skills",
+      "path": "scientific-skills/scvi-tools/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1067,15 +1143,11 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/pptx-posters/SKILL.md"
+      "path": "scientific-skills/vaex/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/pdb-database/SKILL.md"
-    },
-    {
-      "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/pymc/SKILL.md"
+      "path": "scientific-skills/latex-posters/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1083,23 +1155,23 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/datamol/SKILL.md"
+      "path": "scientific-skills/denario/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/pubchem-database/SKILL.md"
+      "path": "scientific-skills/ensembl-database/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/uniprot-database/SKILL.md"
+      "path": "scientific-skills/pytorch-lightning/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/torchdrug/SKILL.md"
+      "path": "scientific-skills/statistical-analysis/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/opentargets-database/SKILL.md"
+      "path": "scientific-skills/market-research-reports/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1111,11 +1183,11 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/shap/SKILL.md"
+      "path": "scientific-skills/gget/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/qiskit/SKILL.md"
+      "path": "scientific-skills/matlab/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1123,11 +1195,11 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/scikit-bio/SKILL.md"
+      "path": "scientific-skills/edgartools/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/scikit-learn/SKILL.md"
+      "path": "scientific-skills/transformers/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1139,7 +1211,7 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/cirq/SKILL.md"
+      "path": "scientific-skills/pymc/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1151,11 +1223,15 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
+      "path": "scientific-skills/offer-k-dense-web/SKILL.md"
+    },
+    {
+      "repo": "K-Dense-AI/claude-scientific-skills",
       "path": "scientific-skills/gtars/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/sympy/SKILL.md"
+      "path": "scientific-skills/pysam/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1163,39 +1239,35 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/scholar-evaluation/SKILL.md"
+      "path": "scientific-skills/plotly/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/scanpy/SKILL.md"
+      "path": "scientific-skills/geniml/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/pathml/SKILL.md"
+      "path": "scientific-skills/document-skills/pdf/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/pydicom/SKILL.md"
+      "path": "scientific-skills/dnanexus-integration/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/document-skills/docx/SKILL.md"
+      "path": "scientific-skills/geopandas/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/pufferlib/SKILL.md"
+      "path": "scientific-skills/deeptools/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/pylabrobot/SKILL.md"
+      "path": "scientific-skills/pdb-database/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/aeon/SKILL.md"
-    },
-    {
-      "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/gene-database/SKILL.md"
+      "path": "scientific-skills/cirq/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1207,7 +1279,11 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/brenda-database/SKILL.md"
+      "path": "scientific-skills/scikit-survival/SKILL.md"
+    },
+    {
+      "repo": "K-Dense-AI/claude-scientific-skills",
+      "path": "scientific-skills/pubchem-database/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1223,15 +1299,11 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/ensembl-database/SKILL.md"
+      "path": "scientific-skills/uniprot-database/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/pytorch-lightning/SKILL.md"
-    },
-    {
-      "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/omero-integration/SKILL.md"
+      "path": "scientific-skills/fluidsim/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1243,6 +1315,10 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
+      "path": "scientific-skills/omero-integration/SKILL.md"
+    },
+    {
+      "repo": "K-Dense-AI/claude-scientific-skills",
       "path": "scientific-skills/fred-economic-data/SKILL.md"
     },
     {
@@ -1251,23 +1327,19 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/document-skills/xlsx/SKILL.md"
+      "path": "scientific-skills/document-skills/docx/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/geo-database/SKILL.md"
+      "path": "scientific-skills/fda-database/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/usfiscaldata/SKILL.md"
+      "path": "scientific-skills/scientific-schematics/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
       "path": "scientific-skills/labarchive-integration/SKILL.md"
-    },
-    {
-      "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/protocolsio-integration/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1279,23 +1351,23 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/geniml/SKILL.md"
+      "path": "scientific-skills/qiskit/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/seaborn/SKILL.md"
+      "path": "scientific-skills/matchms/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/cobrapy/SKILL.md"
+      "path": "scientific-skills/astropy/SKILL.md"
+    },
+    {
+      "repo": "K-Dense-AI/claude-scientific-skills",
+      "path": "scientific-skills/datamol/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
       "path": "scientific-skills/molfeat/SKILL.md"
-    },
-    {
-      "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/denario/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1311,7 +1383,7 @@
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/fluidsim/SKILL.md"
+      "path": "scientific-skills/pyzotero/SKILL.md"
     },
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
@@ -1324,10 +1396,6 @@
     {
       "repo": "K-Dense-AI/claude-scientific-skills",
       "path": "scientific-skills/zarr-python/SKILL.md"
-    },
-    {
-      "repo": "K-Dense-AI/claude-scientific-skills",
-      "path": "scientific-skills/transformers/SKILL.md"
     },
     {
       "repo": "KaguraNanaga/document-format-skills",
@@ -1399,15 +1467,15 @@
     },
     {
       "repo": "Microck/ordinary-claude-skills",
-      "path": "skills_all/pdf/SKILL.md"
-    },
-    {
-      "repo": "Microck/ordinary-claude-skills",
       "path": "skills_all/esm/SKILL.md"
     },
     {
       "repo": "Microck/ordinary-claude-skills",
       "path": "skills_all/sql/SKILL.md"
+    },
+    {
+      "repo": "Microck/ordinary-claude-skills",
+      "path": "skills_all/pptx/SKILL.md"
     },
     {
       "repo": "Microck/ordinary-claude-skills",
@@ -1488,6 +1556,10 @@
     {
       "repo": "Microck/ordinary-claude-skills",
       "path": "skills_all/cobrapy/SKILL.md"
+    },
+    {
+      "repo": "Microck/ordinary-claude-skills",
+      "path": "skills_all/denario/SKILL.md"
     },
     {
       "repo": "Microck/ordinary-claude-skills",
@@ -1667,6 +1739,10 @@
     },
     {
       "repo": "Microck/ordinary-claude-skills",
+      "path": "skills_all/skill-writer/SKILL.md"
+    },
+    {
+      "repo": "Microck/ordinary-claude-skills",
       "path": "skills_all/bap-identity/SKILL.md"
     },
     {
@@ -1788,14 +1864,6 @@
     {
       "repo": "Microck/ordinary-claude-skills",
       "path": "skills_all/spec-kit-skill/SKILL.md"
-    },
-    {
-      "repo": "Microck/ordinary-claude-skills",
-      "path": "skills_all/native-modules/SKILL.md"
-    },
-    {
-      "repo": "Microck/ordinary-claude-skills",
-      "path": "skills_all/cookbook-audit/SKILL.md"
     },
     {
       "repo": "OmidZamani/dspy-skills",
@@ -3279,6 +3347,10 @@
     },
     {
       "repo": "aiskillstore/marketplace",
+      "path": "skills/mcp-builder/SKILL.md"
+    },
+    {
+      "repo": "aiskillstore/marketplace",
       "path": "skills/antfu/tsdown/SKILL.md"
     },
     {
@@ -3359,10 +3431,6 @@
     },
     {
       "repo": "aiskillstore/marketplace",
-      "path": "skills/template-skill/SKILL.md"
-    },
-    {
-      "repo": "aiskillstore/marketplace",
       "path": "skills/davila7/deslop/SKILL.md"
     },
     {
@@ -3375,7 +3443,7 @@
     },
     {
       "repo": "aiskillstore/marketplace",
-      "path": "skills/k-dense-ai/esm/SKILL.md"
+      "path": "skills/davila7/scanpy/SKILL.md"
     },
     {
       "repo": "aiskillstore/marketplace",
@@ -3383,7 +3451,11 @@
     },
     {
       "repo": "aiskillstore/marketplace",
-      "path": "skills/sickn33/kaizen/SKILL.md"
+      "path": "skills/davila7/biomni/SKILL.md"
+    },
+    {
+      "repo": "aiskillstore/marketplace",
+      "path": "skills/davila7/commit/SKILL.md"
     },
     {
       "repo": "aiskillstore/marketplace",
@@ -3435,11 +3507,19 @@
     },
     {
       "repo": "aiskillstore/marketplace",
-      "path": "skills/k-dense-ai/docx/SKILL.md"
+      "path": "skills/davila7/medchem/SKILL.md"
     },
     {
       "repo": "aiskillstore/marketplace",
-      "path": "skills/sickn33/c4-code/SKILL.md"
+      "path": "skills/algorithmic-art/SKILL.md"
+    },
+    {
+      "repo": "aiskillstore/marketplace",
+      "path": "skills/antfu/turborepo/SKILL.md"
+    },
+    {
+      "repo": "aiskillstore/marketplace",
+      "path": "skills/k-dense-ai/xlsx/SKILL.md"
     },
     {
       "repo": "aiskillstore/marketplace",
@@ -3451,11 +3531,7 @@
     },
     {
       "repo": "aiskillstore/marketplace",
-      "path": "skills/k-dense-ai/pptx/SKILL.md"
-    },
-    {
-      "repo": "aiskillstore/marketplace",
-      "path": "skills/sickn33/inngest/SKILL.md"
+      "path": "skills/k-dense-ai/vaex/SKILL.md"
     },
     {
       "repo": "aiskillstore/marketplace",
@@ -3468,6 +3544,10 @@
     {
       "repo": "aiskillstore/marketplace",
       "path": "skills/davila7/fluidsim/SKILL.md"
+    },
+    {
+      "repo": "aiskillstore/marketplace",
+      "path": "skills/k-dense-ai/gtars/SKILL.md"
     },
     {
       "repo": "aiskillstore/marketplace",
@@ -3503,6 +3583,10 @@
     },
     {
       "repo": "aiskillstore/marketplace",
+      "path": "skills/sickn33/3d-games/SKILL.md"
+    },
+    {
+      "repo": "aiskillstore/marketplace",
       "path": "skills/plugin-structure/SKILL.md"
     },
     {
@@ -3523,10 +3607,6 @@
     },
     {
       "repo": "aiskillstore/marketplace",
-      "path": "skills/sickn33/ruby-pro/SKILL.md"
-    },
-    {
-      "repo": "aiskillstore/marketplace",
       "path": "skills/davila7/deepchem/SKILL.md"
     },
     {
@@ -3535,7 +3615,7 @@
     },
     {
       "repo": "aiskillstore/marketplace",
-      "path": "skills/sickn33/firebase/SKILL.md"
+      "path": "skills/k-dense-ai/pymoo/SKILL.md"
     },
     {
       "repo": "aiskillstore/marketplace",
@@ -3559,11 +3639,15 @@
     },
     {
       "repo": "aiskillstore/marketplace",
-      "path": "skills/k-dense-ai/pytdc/SKILL.md"
+      "path": "skills/davila7/pydeseq2/SKILL.md"
     },
     {
       "repo": "aiskillstore/marketplace",
       "path": "skills/davila7/geopandas/SKILL.md"
+    },
+    {
+      "repo": "aiskillstore/marketplace",
+      "path": "skills/crearize/qa-check/SKILL.md"
     },
     {
       "repo": "aiskillstore/marketplace",
@@ -3580,6 +3664,10 @@
     {
       "repo": "aiskillstore/marketplace",
       "path": "skills/sickn33/langgraph/SKILL.md"
+    },
+    {
+      "repo": "aiskillstore/marketplace",
+      "path": "skills/davila7/senior-qa/SKILL.md"
     },
     {
       "repo": "aiskillstore/marketplace",
@@ -3644,26 +3732,6 @@
     {
       "repo": "aiskillstore/marketplace",
       "path": "skills/davila7/deeptools/SKILL.md"
-    },
-    {
-      "repo": "aiskillstore/marketplace",
-      "path": "skills/k-dense-ai/scanpy/SKILL.md"
-    },
-    {
-      "repo": "aiskillstore/marketplace",
-      "path": "skills/k-dense-ai/matlab/SKILL.md"
-    },
-    {
-      "repo": "aiskillstore/marketplace",
-      "path": "skills/sickn33/wordpress/SKILL.md"
-    },
-    {
-      "repo": "aiskillstore/marketplace",
-      "path": "skills/davila7/neurokit2/SKILL.md"
-    },
-    {
-      "repo": "aiskillstore/marketplace",
-      "path": "skills/sickn33/find-bugs/SKILL.md"
     },
     {
       "repo": "alex-feel/claude-code-toolbox",
@@ -4311,10 +4379,6 @@
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/pensive/skills/bug-review/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
       "path": "plugins/abstract/skills/hooks-eval/SKILL.md"
     },
     {
@@ -4323,11 +4387,11 @@
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/imbue/skills/proof-of-work/SKILL.md"
+      "path": "plugins/pensive/skills/rust-review/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/pensive/skills/rust-review/SKILL.md"
+      "path": "plugins/scry/skills/gif-generation/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
@@ -4335,11 +4399,11 @@
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/abstract/commands/test-skill.md"
+      "path": "plugins/pensive/skills/math-review/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/pensive/skills/math-review/SKILL.md"
+      "path": "plugins/abstract/commands/test-skill.md"
     },
     {
       "repo": "athola/claude-night-market",
@@ -4375,10 +4439,6 @@
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/leyline/skills/pytest-config/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
       "path": "plugins/attune/skills/workflow-setup/SKILL.md"
     },
     {
@@ -4395,6 +4455,10 @@
     },
     {
       "repo": "athola/claude-night-market",
+      "path": "plugins/leyline/skills/error-patterns/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
       "path": "plugins/imbue/skills/workflow-monitor/SKILL.md"
     },
     {
@@ -4407,23 +4471,11 @@
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/leyline/skills/damage-control/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
-      "path": "plugins/pensive/skills/unified-review/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
       "path": "plugins/scry/skills/media-composition/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/spec-kit/skills/task-planning/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
-      "path": "plugins/abstract/skills/modular-skills/SKILL.md"
+      "path": "plugins/attune/skills/project-planning/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
@@ -4431,11 +4483,15 @@
     },
     {
       "repo": "athola/claude-night-market",
+      "path": "plugins/abstract/skills/hook-authoring/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
       "path": "plugins/conserve/skills/smart-sourcing/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/attune/skills/project-planning/SKILL.md"
+      "path": "plugins/pensive/skills/code-refinement/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
@@ -4444,10 +4500,6 @@
     {
       "repo": "athola/claude-night-market",
       "path": "plugins/conserve/skills/bloat-detector/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
-      "path": "plugins/pensive/skills/code-refinement/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
@@ -4475,11 +4527,11 @@
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/parseltongue/skills/python-async/SKILL.md"
+      "path": "plugins/leyline/skills/storage-templates/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/sanctum/skills/doc-consolidation/SKILL.md"
+      "path": "plugins/parseltongue/skills/python-async/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
@@ -4491,6 +4543,10 @@
     },
     {
       "repo": "athola/claude-night-market",
+      "path": "plugins/sanctum/skills/session-management/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
       "path": "plugins/attune/skills/makefile-generation/SKILL.md"
     },
     {
@@ -4499,27 +4555,15 @@
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/attune/skills/mission-orchestrator/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
       "path": "plugins/pensive/skills/architecture-review/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/parseltongue/skills/python-testing/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
-      "path": "plugins/abstract/skills/makefile-dogfooder/SKILL.md"
+      "path": "plugins/leyline/skills/progressive-loading/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
       "path": "plugins/leyline/skills/risk-classification/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
-      "path": "plugins/attune/skills/project-specification/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
@@ -4535,7 +4579,15 @@
     },
     {
       "repo": "athola/claude-night-market",
+      "path": "plugins/attune/skills/project-specification/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
       "path": "plugins/sanctum/skills/git-workspace-review/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
+      "path": "plugins/attune/skills/project-brainstorming/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
@@ -4547,19 +4599,15 @@
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/conserve/skills/context-optimization/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
-      "path": "plugins/parseltongue/skills/python-packaging/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
-      "path": "plugins/minister/skills/release-health-gates/SKILL.md"
+      "path": "plugins/conserve/skills/response-compression/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
       "path": "plugins/spec-kit/skills/speckit-orchestrator/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
+      "path": "plugins/conserve/skills/context-optimization/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
@@ -4587,10 +4635,6 @@
     },
     {
       "repo": "athola/claude-night-market",
-      "path": "plugins/conserve/skills/optimizing-large-skills/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
       "path": "plugins/pensive/skills/safety-critical-patterns/SKILL.md"
     },
     {
@@ -4604,10 +4648,6 @@
     {
       "repo": "athola/claude-night-market",
       "path": "plugins/archetypes/skills/architecture-paradigms/SKILL.md"
-    },
-    {
-      "repo": "athola/claude-night-market",
-      "path": "plugins/abstract/skills/performance-optimization/SKILL.md"
     },
     {
       "repo": "athola/claude-night-market",
@@ -4660,6 +4700,34 @@
     {
       "repo": "athola/claude-night-market",
       "path": "plugins/archetypes/skills/architecture-paradigm-service-based/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
+      "path": "plugins/archetypes/skills/architecture-paradigm-client-server/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
+      "path": "plugins/archetypes/skills/architecture-paradigm-microservices/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
+      "path": "plugins/archetypes/skills/architecture-paradigm-functional-core/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
+      "path": "plugins/archetypes/skills/architecture-paradigm-modular-monolith/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
+      "path": "plugins/imbue/skills/scope-guard/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
+      "path": "plugins/pensive/skills/bug-review/SKILL.md"
+    },
+    {
+      "repo": "athola/claude-night-market",
+      "path": "plugins/abstract/skills/rules-eval/SKILL.md"
     },
     {
       "repo": "athola/skrills",
@@ -5919,51 +5987,11 @@
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/opportunity-solution-tree/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/epic-hypothesis/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/user-story-splitting/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/discovery-interview-prep/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/saas-economics-efficiency-metrics/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/roadmap-planning/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/customer-journey-map/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
       "path": "skills/skill-authoring-workflow/SKILL.md"
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/company-research/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/context-engineering-advisor/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/storyboard/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/jobs-to-be-done/SKILL.md"
+      "path": "skills/user-story/SKILL.md"
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
@@ -5971,47 +5999,7 @@
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/feature-investment-advisor/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/press-release/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/discovery-process/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/user-story-mapping-workshop/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/workshop-facilitation/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/acquisition-channel-advisor/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/eol-message/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/prd-development/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/positioning-statement/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
       "path": "skills/epic-breakdown-advisor/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/product-strategy-session/SKILL.md"
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
@@ -6019,31 +6007,19 @@
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/ai-shaped-readiness-advisor/SKILL.md"
+      "path": "skills/storyboard/SKILL.md"
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/saas-revenue-growth-metrics/SKILL.md"
+      "path": "skills/discovery-process/SKILL.md"
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/customer-journey-mapping-workshop/SKILL.md"
+      "path": "skills/product-strategy-session/SKILL.md"
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/proto-persona/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/pestel-analysis/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/problem-statement/SKILL.md"
-    },
-    {
-      "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/recommendation-canvas/SKILL.md"
+      "path": "skills/user-story-splitting/SKILL.md"
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
@@ -6051,19 +6027,43 @@
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/finance-metrics-quickref/SKILL.md"
+      "path": "skills/altitude-horizon-framework/SKILL.md"
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/pol-probe-advisor/SKILL.md"
+      "path": "skills/customer-journey-mapping-workshop/SKILL.md"
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/prioritization-advisor/SKILL.md"
+      "path": "skills/press-release/SKILL.md"
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/tam-sam-som-calculator/SKILL.md"
+      "path": "skills/positioning-statement/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/user-story-mapping-workshop/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/customer-journey-map/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/context-engineering-advisor/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/executive-onboarding-playbook/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/director-readiness-advisor/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/feature-investment-advisor/SKILL.md"
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
@@ -6071,7 +6071,91 @@
     },
     {
       "repo": "deanpeters/Product-Manager-Skills",
-      "path": "skills/user-story/SKILL.md"
+      "path": "skills/jobs-to-be-done/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/prioritization-advisor/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/finance-metrics-quickref/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/ai-shaped-readiness-advisor/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/proto-persona/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/workshop-facilitation/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/tam-sam-som-calculator/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/vp-cpo-readiness-advisor/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/eol-message/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/saas-economics-efficiency-metrics/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/recommendation-canvas/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/acquisition-channel-advisor/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/pestel-analysis/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/company-research/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/saas-revenue-growth-metrics/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/epic-hypothesis/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/prd-development/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/problem-statement/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/pol-probe-advisor/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/opportunity-solution-tree/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/roadmap-planning/SKILL.md"
+    },
+    {
+      "repo": "deanpeters/Product-Manager-Skills",
+      "path": "skills/discovery-interview-prep/SKILL.md"
     },
     {
       "repo": "decebals/claude-code-java",
@@ -6464,6 +6548,10 @@
     {
       "repo": "elvismdev/claude-wordpress-skills",
       "path": "skills/wp-performance-review/SKILL.md"
+    },
+    {
+      "repo": "eth0izzle/security-skills",
+      "path": "plugins/fusion-workflows/skills/fusion-workflows/SKILL.md"
     },
     {
       "repo": "evolsb/claude-legal-skill",
@@ -7958,10 +8046,6 @@
       "path": "skills/playwright-skill/SKILL.md"
     },
     {
-      "repo": "lee-fuhr/claude-session-index",
-      "path": "skills/session-index/SKILL.md"
-    },
-    {
       "repo": "leemysw/feishu-docx",
       "path": ".skills/feishu-docx/SKILL.md"
     },
@@ -7975,51 +8059,19 @@
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-600-docs-auditor/SKILL.md"
+      "path": "ln-730-devops-setup/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-771-logging-configurator/SKILL.md"
+      "path": "ln-004-agent-sync/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-775-api-docs-generator/SKILL.md"
+      "path": "ln-741-linter-configurator/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-774-healthcheck-setup/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-620-codebase-auditor/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-200-scope-decomposer/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-513-agent-reviewer/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-221-story-creator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-403-task-rework/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-643-api-contract-auditor/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-130-tasks-docs-creator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-512-tech-debt-cleaner/SKILL.md"
+      "path": "ln-700-project-bootstrap/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
@@ -8027,11 +8079,43 @@
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-641-pattern-analyzer/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-311-agent-reviewer/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-712-nuget-upgrader/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-600-docs-auditor/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-645-open-source-replacer/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-115-devops-docs-creator/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-750-commands-generator/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-626-dead-code-auditor/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
       "path": "ln-733-env-configurator/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-222-story-replanner/SKILL.md"
+      "path": "ln-200-scope-decomposer/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
@@ -8043,19 +8127,19 @@
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-740-quality-setup/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-621-security-auditor/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
       "path": "ln-711-npm-upgrader/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-731-docker-generator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-301-task-creator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-522-manual-tester/SKILL.md"
+      "path": "ln-622-build-auditor/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
@@ -8063,23 +8147,23 @@
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-310-story-validator/SKILL.md"
+      "path": "ln-222-story-replanner/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-300-task-coordinator/SKILL.md"
+      "path": "ln-620-codebase-auditor/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-111-root-docs-creator/SKILL.md"
+      "path": "ln-722-backend-generator/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-230-story-prioritizer/SKILL.md"
+      "path": "ln-220-story-coordinator/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-700-project-bootstrap/SKILL.md"
+      "path": "ln-512-tech-debt-cleaner/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
@@ -8087,23 +8171,23 @@
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-783-container-launcher/SKILL.md"
+      "path": "ln-130-tasks-docs-creator/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-100-documents-pipeline/SKILL.md"
+      "path": "ln-775-api-docs-generator/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-741-linter-configurator/SKILL.md"
+      "path": "ln-500-story-quality-gate/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-710-dependency-upgrader/SKILL.md"
+      "path": "ln-723-seed-data-generator/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-115-devops-docs-creator/SKILL.md"
+      "path": "ln-772-error-handler-setup/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
@@ -8115,7 +8199,7 @@
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-645-open-source-replacer/SKILL.md"
+      "path": "ln-721-frontend-restructure/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
@@ -8131,95 +8215,7 @@
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-113-backend-docs-creator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-626-dead-code-auditor/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-650-persistence-performance-auditor/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-713-pip-upgrader/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-402-task-reviewer/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-740-quality-setup/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-712-nuget-upgrader/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-005-agent-reviewer/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-311-agent-reviewer/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-400-story-executor/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-641-pattern-analyzer/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-210-epic-coordinator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-751-command-templates/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-722-backend-generator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-220-story-coordinator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-629-lifecycle-auditor/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-750-commands-generator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-720-structure-migrator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-500-story-quality-gate/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-770-crosscutting-setup/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-723-seed-data-generator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-772-error-handler-setup/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-721-frontend-restructure/SKILL.md"
+      "path": "ln-771-logging-configurator/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
@@ -8227,19 +8223,107 @@
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-783-container-launcher/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-403-task-rework/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-713-pip-upgrader/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-522-manual-tester/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-221-story-creator/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-513-agent-reviewer/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-005-agent-reviewer/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-400-story-executor/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-310-story-validator/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-300-task-coordinator/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-731-docker-generator/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-230-story-prioritizer/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-751-command-templates/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-111-root-docs-creator/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-629-lifecycle-auditor/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-720-structure-migrator/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
       "path": "ln-780-bootstrap-verifier/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-004-agent-sync/SKILL.md"
+      "path": "ln-100-documents-pipeline/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-730-devops-setup/SKILL.md"
+      "path": "ln-770-crosscutting-setup/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-622-build-auditor/SKILL.md"
+      "path": "ln-710-dependency-upgrader/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-643-api-contract-auditor/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-113-backend-docs-creator/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-774-healthcheck-setup/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-650-persistence-performance-auditor/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-301-task-creator/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-402-task-reviewer/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
@@ -8263,11 +8347,7 @@
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-120-reference-docs-creator/SKILL.md"
-    },
-    {
-      "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-1000-pipeline-orchestrator/SKILL.md"
+      "path": "ln-642-layer-boundary-auditor/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
@@ -8275,7 +8355,11 @@
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-642-layer-boundary-auditor/SKILL.md"
+      "path": "ln-120-reference-docs-creator/SKILL.md"
+    },
+    {
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "ln-1000-pipeline-orchestrator/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
@@ -8299,7 +8383,7 @@
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
-      "path": "ln-621-security-auditor/SKILL.md"
+      "path": "ln-210-epic-coordinator/SKILL.md"
     },
     {
       "repo": "levnikolaevich/claude-code-skills",
@@ -8631,11 +8715,11 @@
     },
     {
       "repo": "oaustegard/claude-skills",
-      "path": "configuring/SKILL.md"
+      "path": "remembering/SKILL.md"
     },
     {
       "repo": "oaustegard/claude-skills",
-      "path": "remembering/SKILL.md"
+      "path": "configuring/SKILL.md"
     },
     {
       "repo": "oaustegard/claude-skills",
@@ -8667,7 +8751,7 @@
     },
     {
       "repo": "oaustegard/claude-skills",
-      "path": "installing-skills/SKILL.md"
+      "path": "convening-experts/SKILL.md"
     },
     {
       "repo": "oaustegard/claude-skills",
@@ -8695,7 +8779,7 @@
     },
     {
       "repo": "oaustegard/claude-skills",
-      "path": "fetching-blocked-urls/SKILL.md"
+      "path": "orchestrating-agents/SKILL.md"
     },
     {
       "repo": "oaustegard/claude-skills",
@@ -8735,7 +8819,7 @@
     },
     {
       "repo": "oaustegard/claude-skills",
-      "path": "convening-experts/SKILL.md"
+      "path": "mapping-codebases/SKILL.md"
     },
     {
       "repo": "oaustegard/claude-skills",
@@ -8755,11 +8839,11 @@
     },
     {
       "repo": "oaustegard/claude-skills",
-      "path": "orchestrating-agents/SKILL.md"
+      "path": "creating-mcp-servers/SKILL.md"
     },
     {
       "repo": "oaustegard/claude-skills",
-      "path": "creating-mcp-servers/SKILL.md"
+      "path": "fetching-blocked-urls/SKILL.md"
     },
     {
       "repo": "oaustegard/claude-skills",
@@ -8775,7 +8859,7 @@
     },
     {
       "repo": "oaustegard/claude-skills",
-      "path": "mapping-codebases/SKILL.md"
+      "path": "installing-skills/SKILL.md"
     },
     {
       "repo": "oaustegard/claude-skills",
@@ -8823,6 +8907,14 @@
     },
     {
       "repo": "open-agreements/open-agreements",
+      "path": "skills/data-privacy-agreement/SKILL.md"
+    },
+    {
+      "repo": "open-agreements/open-agreements",
+      "path": "skills/cloud-service-agreement/SKILL.md"
+    },
+    {
+      "repo": "open-agreements/open-agreements",
       "path": "skills/employment-contract/SKILL.md"
     },
     {
@@ -8831,15 +8923,7 @@
     },
     {
       "repo": "open-agreements/open-agreements",
-      "path": "skills/cloud-service-agreement/SKILL.md"
-    },
-    {
-      "repo": "open-agreements/open-agreements",
       "path": "skills/services-agreement/SKILL.md"
-    },
-    {
-      "repo": "open-agreements/open-agreements",
-      "path": "skills/data-privacy-agreement/SKILL.md"
     },
     {
       "repo": "open-agreements/open-agreements",
@@ -9386,404 +9470,404 @@
       "path": ".claude/skills/reddit-commenter/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/claims/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".claude/skills/worker-benchmarks/skill.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/agent-swarm/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/worker-integration/skill.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-coder/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/worker-integration/skill.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-coder/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/worker-integration/skill.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/agent-agent/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/worker-benchmarks/skill.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/stream-chain/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".claude/skills/stream-chain/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/skill-builder/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/agent-planner/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-sandbox/SKILL.md"
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/skill-builder/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/swarm-advanced/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/agent-swarm-pr/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/swarm-advanced/SKILL.md"
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-reviewer/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-payments/SKILL.md"
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agentic-jujutsu/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".claude/skills/agentic-jujutsu/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/flow-nexus-swarm/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/agent-challenges/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/agentdb-advanced/SKILL.md"
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/flow-nexus-swarm/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/pair-programming/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agentdb-learning/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-pseudocode/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-swarm-issue/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/worker-benchmarks/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/flow-nexus-neural/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/github-multi-repo/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-safla-neural/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/github-code-review/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-raft-manager/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-specification/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/swarm-orchestration/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/flow-nexus-platform/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-release-swarm/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-repo-architect/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/v3-security-overhaul/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-authentication/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agentdb-optimization/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/reasoningbank-agentdb/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/agentdb-vector-search/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-release-manager/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/v3-core-implementation/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/v3-core-implementation/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-code-goal-planner/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agentdb-memory-patterns/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/agentdb-memory-patterns/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-orchestrator-task/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-worker-specialist/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-pagerank-analyzer/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-github-pr-manager/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-memory-coordinator/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-project-board-sync/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-performance-monitor/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-workflow-automation/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/github-release-management/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/github-project-management/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/github-release-management/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-production-validator/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/reasoningbank-intelligence/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-performance-analyzer/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-analyze-code-quality/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-swarm-memory-manager/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/reasoningbank-intelligence/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/github-workflow-automation/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-v3-queen-coordinator/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-adaptive-coordinator/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-performance-optimizer/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/v3-performance-optimization/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-consensus-coordinator/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-automation-smart-agent/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-coordinator-swarm-init/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-implementer-sparc-coder/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-base-template-generator/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-sona-learning-optimizer/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-v3-integration-architect/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-hierarchical-coordinator/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-collective-intelligence-coordinator/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/hive-mind/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/embeddings/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-docs-api-openapi/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-agentic-payments/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-security-manager/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/security-audit/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-trading-predictor/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-crdt-synchronizer/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": "v3/@claude-flow/browser/skills/browser/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/neural-training/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-app-store/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-resource-allocator/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-arch-system-design/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-user-tools/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-researcher/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/agentdb-learning/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".claude/skills/hooks-automation/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/pair-programming/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-pr-manager/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/agent-refinement/SKILL.md"
-    },
-    {
-      "repo": "ruvnet/claude-flow",
+      "repo": "ruvnet/ruflo",
       "path": ".agents/skills/agentdb-advanced/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
-      "path": ".agents/skills/memory-management/SKILL.md"
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-swarm-issue/SKILL.md"
     },
     {
-      "repo": "ruvnet/claude-flow",
-      "path": ".claude/skills/sparc-methodology/SKILL.md"
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/flow-nexus-neural/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/github-multi-repo/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-safla-neural/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-architecture/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-goal-planner/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/v3-integration-deep/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/swarm-orchestration/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-issue-tracker/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-release-swarm/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/v3-cli-modernization/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/v3-security-overhaul/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-authentication/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agentdb-optimization/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/reasoningbank-agentdb/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/agentdb-vector-search/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-release-manager/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/v3-core-implementation/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-multi-repo-swarm/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-code-goal-planner/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agentdb-memory-patterns/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/agentdb-memory-patterns/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-orchestrator-task/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-worker-specialist/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-pagerank-analyzer/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-github-pr-manager/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-memory-coordinator/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-project-board-sync/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-performance-monitor/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-workflow-automation/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/github-release-management/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/github-project-management/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/github-release-management/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-production-validator/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/reasoningbank-intelligence/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-performance-analyzer/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-analyze-code-quality/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-swarm-memory-manager/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/reasoningbank-intelligence/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/github-workflow-automation/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-v3-queen-coordinator/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-adaptive-coordinator/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-v3-security-architect/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/v3-performance-optimization/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-consensus-coordinator/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-automation-smart-agent/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-coordinator-swarm-init/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-implementer-sparc-coder/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-base-template-generator/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-sona-learning-optimizer/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-v3-integration-architect/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-hierarchical-coordinator/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": "v3/@claude-flow/cli/.claude/skills/swarm-orchestration/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-collective-intelligence-coordinator/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": "v3/@claude-flow/cli/.claude/skills/reasoningbank-intelligence/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/hive-mind/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-docs-api-openapi/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-agentic-payments/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-security-manager/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-workflow/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-payments/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-trading-predictor/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-crdt-synchronizer/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": "v3/@claude-flow/browser/skills/browser/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/neural-training/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-app-store/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-resource-allocator/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-arch-system-design/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/agentdb-advanced/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/agentdb-learning/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".claude/skills/pair-programming/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/hooks-automation/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-pr-manager/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-pseudocode/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/agent-refinement/SKILL.md"
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "path": ".agents/skills/sparc-methodology/SKILL.md"
     },
     {
       "repo": "saadshahd/moo.md",
@@ -10395,63 +10479,15 @@
     },
     {
       "repo": "sequenzia/agent-alchemy",
+      "path": "claude/cs-tools/skills/solve/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
       "path": "claude/tdd-tools/skills/tdd-cycle/SKILL.md"
     },
     {
       "repo": "sequenzia/agent-alchemy",
-      "path": "claude/dev-tools/skills/bug-killer/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/dev-tools/skills/docs-manager/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/opencode-tools/skills/oc-update-agent/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/dev-tools/skills/code-quality/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/opencode-tools/skills/oc-create-command/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/claude-tools/skills/claude-code-teams/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/opencode-tools/skills/oc-update-command/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/plugin-tools/skills/port-plugin/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/opencode-tools/skills/oc-update-skill/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/dev-tools/skills/document-changes/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/dev-tools/skills/release-python-package/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/dev-tools/skills/project-learnings/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/sdd-tools/skills/create-tasks/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/core-tools/skills/language-patterns/SKILL.md"
+      "path": "claude/sdd-tools/skills/run-tasks/SKILL.md"
     },
     {
       "repo": "sequenzia/agent-alchemy",
@@ -10459,11 +10495,135 @@
     },
     {
       "repo": "sequenzia/agent-alchemy",
+      "path": "claude/sdd-tools/skills/create-spec/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/tdd-tools/skills/create-tdd-tasks/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/cs-tools/skills/graph-algorithms/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
       "path": "claude/tdd-tools/skills/execute-tdd-tasks/SKILL.md"
     },
     {
       "repo": "sequenzia/agent-alchemy",
+      "path": "claude/dev-tools/skills/bug-killer/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/cs-tools/skills/data-structures/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/sdd-tools/skills/analyze-spec/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/sdd-tools/skills/execute-tasks/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/plugin-tools/skills/bump-plugin-version/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/plugin-tools/skills/dependency-checker/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/dev-tools/skills/release-python-package/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/opencode-tools/skills/oc-update-agent/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/sdd-tools/skills/create-tasks/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/dev-tools/skills/architecture-patterns/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/opencode-tools/skills/oc-create-command/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/cs-tools/skills/search-and-optimization/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/cs-tools/skills/dp-patterns/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/opencode-tools/skills/oc-update-skill/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/cs-tools/skills/string-algorithms/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/dev-tools/skills/project-learnings/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/dev-tools/skills/feature-dev/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/core-tools/skills/technical-diagrams/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/opencode-tools/skills/oc-tool-dev/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/opencode-tools/skills/oc-update-command/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/core-tools/skills/language-patterns/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/plugin-tools/skills/validate-adapter/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/dev-tools/skills/changelog-format/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
       "path": "claude/tdd-tools/skills/analyze-coverage/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/cs-tools/skills/math-and-combinatorics/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/opencode-tools/skills/oc-create-skill/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/dev-tools/skills/docs-manager/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/cs-tools/skills/verify/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/core-tools/skills/deep-analysis/SKILL.md"
     },
     {
       "repo": "sequenzia/agent-alchemy",
@@ -10475,55 +10635,19 @@
     },
     {
       "repo": "sequenzia/agent-alchemy",
-      "path": "claude/dev-tools/skills/architecture-patterns/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/claude-tools/skills/claude-code-tasks/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/core-tools/skills/technical-diagrams/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/dev-tools/skills/changelog-format/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/sdd-tools/skills/analyze-spec/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/core-tools/skills/deep-analysis/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/tdd-tools/skills/create-tdd-tasks/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/plugin-tools/skills/dependency-checker/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/plugin-tools/skills/validate-adapter/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/sdd-tools/skills/execute-tasks/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
       "path": "claude/plugin-tools/skills/update-ported-plugin/SKILL.md"
     },
     {
       "repo": "sequenzia/agent-alchemy",
-      "path": "claude/dev-tools/skills/feature-dev/SKILL.md"
+      "path": "claude/dev-tools/skills/document-changes/SKILL.md"
     },
     {
       "repo": "sequenzia/agent-alchemy",
-      "path": "claude/sdd-tools/skills/create-spec/SKILL.md"
+      "path": "claude/claude-tools/skills/claude-code-teams/SKILL.md"
+    },
+    {
+      "repo": "sequenzia/agent-alchemy",
+      "path": "claude/dev-tools/skills/code-quality/SKILL.md"
     },
     {
       "repo": "sequenzia/agent-alchemy",
@@ -10531,15 +10655,11 @@
     },
     {
       "repo": "sequenzia/agent-alchemy",
-      "path": "claude/plugin-tools/skills/bump-plugin-version/SKILL.md"
+      "path": "claude/plugin-tools/skills/port-plugin/SKILL.md"
     },
     {
       "repo": "sequenzia/agent-alchemy",
-      "path": "claude/opencode-tools/skills/oc-create-skill/SKILL.md"
-    },
-    {
-      "repo": "sequenzia/agent-alchemy",
-      "path": "claude/opencode-tools/skills/oc-tool-dev/SKILL.md"
+      "path": "claude/claude-tools/skills/claude-code-tasks/SKILL.md"
     },
     {
       "repo": "sequenzia/agent-alchemy",
@@ -10583,11 +10703,31 @@
     },
     {
       "repo": "shajith003/awesome-claude-skills",
-      "path": "template-skill/SKILL.md"
+      "path": "canvas-design/SKILL.md"
+    },
+    {
+      "repo": "shajith003/awesome-claude-skills",
+      "path": "document-skills/pptx/SKILL.md"
+    },
+    {
+      "repo": "shajith003/awesome-claude-skills",
+      "path": "slack-gif-creator/SKILL.md"
+    },
+    {
+      "repo": "shajith003/awesome-claude-skills",
+      "path": "brand-guidelines/SKILL.md"
+    },
+    {
+      "repo": "shajith003/awesome-claude-skills",
+      "path": "webapp-testing/SKILL.md"
     },
     {
       "repo": "shajith003/awesome-claude-skills",
       "path": "document-skills/xlsx/SKILL.md"
+    },
+    {
+      "repo": "shajith003/awesome-claude-skills",
+      "path": "algorithmic-art/SKILL.md"
     },
     {
       "repo": "shajith003/awesome-claude-skills",
@@ -10599,11 +10739,7 @@
     },
     {
       "repo": "shajith003/awesome-claude-skills",
-      "path": "document-skills/docx/SKILL.md"
-    },
-    {
-      "repo": "shajith003/awesome-claude-skills",
-      "path": "canvas-design/SKILL.md"
+      "path": "template-skill/SKILL.md"
     },
     {
       "repo": "shajith003/awesome-claude-skills",
@@ -10611,31 +10747,15 @@
     },
     {
       "repo": "shajith003/awesome-claude-skills",
-      "path": "brand-guidelines/SKILL.md"
-    },
-    {
-      "repo": "shajith003/awesome-claude-skills",
-      "path": "theme-factory/SKILL.md"
-    },
-    {
-      "repo": "shajith003/awesome-claude-skills",
-      "path": "webapp-testing/SKILL.md"
-    },
-    {
-      "repo": "shajith003/awesome-claude-skills",
-      "path": "algorithmic-art/SKILL.md"
-    },
-    {
-      "repo": "shajith003/awesome-claude-skills",
-      "path": "slack-gif-creator/SKILL.md"
-    },
-    {
-      "repo": "shajith003/awesome-claude-skills",
-      "path": "document-skills/pptx/SKILL.md"
+      "path": "document-skills/docx/SKILL.md"
     },
     {
       "repo": "shajith003/awesome-claude-skills",
       "path": "skill-creator/SKILL.md"
+    },
+    {
+      "repo": "shajith003/awesome-claude-skills",
+      "path": "theme-factory/SKILL.md"
     },
     {
       "repo": "shimo4228/claude-code-learned-skills",
@@ -10878,10 +10998,6 @@
       "path": "skills/esper-explore/SKILL.md"
     },
     {
-      "repo": "solanabr/solana-claude-config",
-      "path": ".claude/skills/SKILL.md"
-    },
-    {
       "repo": "sstklen/claude-api-cost-optimization",
       "path": "SKILL.md"
     },
@@ -10943,11 +11059,15 @@
     },
     {
       "repo": "tdimino/claude-code-minoan",
-      "path": "skills/design-media/nano-banana-pro/SKILL.md"
+      "path": "skills/integration-automation/rlama/SKILL.md"
     },
     {
       "repo": "tdimino/claude-code-minoan",
-      "path": "skills/integration-automation/rlama/SKILL.md"
+      "path": "skills/design-media/aldea-slidedeck/SKILL.md"
+    },
+    {
+      "repo": "tdimino/claude-code-minoan",
+      "path": "skills/design-media/nano-banana-pro/SKILL.md"
     },
     {
       "repo": "tdimino/claude-code-minoan",
