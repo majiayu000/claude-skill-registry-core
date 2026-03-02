@@ -82,7 +82,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 180
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "🔍 Running full discovery via GitHub API..."
           python scripts/discover_by_topic.py --output skills/other --json sources/discovered.json 2>&1 | tee discover.log
@@ -93,7 +93,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 60
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "🔍 Running bounded daily discovery..."
           python scripts/discover_by_topic.py \
@@ -125,7 +125,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 240
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "⬇️ Downloading skills from existing registry (full mode)..."
           python scripts/sync_and_download.py --download-only 2>&1 | tee download.log
@@ -136,7 +136,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 120
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "⬇️ Downloading bounded set from registry (daily mode)..."
           python scripts/sync_and_download.py --download-only --max-pending 3000 2>&1 | tee download.log
