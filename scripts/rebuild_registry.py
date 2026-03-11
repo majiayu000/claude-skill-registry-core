@@ -232,6 +232,20 @@ def build_category_indexes(skills: list, output_dir: Path):
         json.dump(index, f, indent=2)
 
 
+def load_collections(sources_dir: Path) -> list:
+    """Load collections from sources/collections.json."""
+    collections_path = sources_dir / "collections.json"
+    if not collections_path.exists():
+        return []
+    try:
+        with open(collections_path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("collections", [])
+    except Exception as e:
+        logger.warning(f"Failed to load collections: {e}")
+        return []
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -250,6 +264,7 @@ if __name__ == "__main__":
         skills_dir = (registry_dir / args.skills_dir).resolve()
         registry_path = (registry_dir / args.registry).resolve()
         categories_dir = (registry_dir / args.categories_dir).resolve()
+        sources_dir = (registry_dir / "sources").resolve()
 
         print("=" * 60)
         print("REBUILDING REGISTRY FROM DOWNLOADED SKILLS")
@@ -293,16 +308,23 @@ if __name__ == "__main__":
         # Sort by stars then name
         unique_skills.sort(key=lambda x: (-x.get("stars", 0), x["name"].lower()))
 
+        # Load collections
+        collections = load_collections(sources_dir)
+        print(f"Collections loaded: {len(collections)}")
+        print()
+
         # Build registry
         registry = {
-            "version": "2.0.0",
+            "version": "2.1.0",
             "updated_at": datetime.utcnow().isoformat() + "Z",
             "total_count": len(unique_skills),
+            "collection_count": len(collections),
             "skills": unique_skills,
+            "collections": collections,
         }
 
         if safe_write_registry(registry_path, registry):
-            print(f"Written {registry_path} with {len(unique_skills)} skills")
+            print(f"Written {registry_path} with {len(unique_skills)} skills, {len(collections)} collections")
         else:
             print("Failed to write registry!")
             return
