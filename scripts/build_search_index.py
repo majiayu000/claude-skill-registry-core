@@ -18,10 +18,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 import argparse
 import logging
-import re
-import yaml
 
-from utils import get_repo_suffix
+from utils import get_repo_suffix, extract_description, load_metadata
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -65,41 +63,6 @@ def get_category_code(category: str) -> str:
     return CATEGORY_CODES.get(category.lower(), "oth")
 
 
-def extract_description(skill_content: str) -> str:
-    """Extract description from SKILL.md content."""
-    # Try YAML frontmatter
-    if skill_content.startswith("---"):
-        try:
-            end_idx = skill_content.find("---", 3)
-            if end_idx > 0:
-                frontmatter = skill_content[3:end_idx].strip()
-                data = yaml.safe_load(frontmatter)
-                if data and data.get("description"):
-                    return data["description"]
-        except Exception:
-            pass
-
-    # Try first paragraph
-    lines = skill_content.split("\n")
-    in_frontmatter = False
-
-    for line in lines:
-        line = line.strip()
-        if line == "---":
-            in_frontmatter = not in_frontmatter
-            continue
-        if in_frontmatter:
-            continue
-        if line.startswith("#"):
-            continue
-        if line and not line.startswith("```") and len(line) > 20:
-            line = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', line)
-            line = re.sub(r'[*_`]', '', line)
-            return line
-
-    return ""
-
-
 def scan_skills_v2(skills_dir: Path) -> List[Dict]:
     """Scan skills directory with structure: skills/{category}/{skill-name}/"""
     skills = []
@@ -129,12 +92,7 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
             dir_name = skill_dir.name
 
             # Load metadata
-            metadata = {}
-            if metadata_file.exists():
-                try:
-                    metadata = json.loads(metadata_file.read_text(encoding='utf-8'))
-                except Exception:
-                    pass
+            metadata = load_metadata(skill_dir) if metadata_file.exists() else {}
 
             # Get skill name (from metadata or directory)
             name = metadata.get("name") or dir_name

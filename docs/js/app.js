@@ -1142,20 +1142,22 @@ elements.tagFilter.addEventListener('keydown', (e) => {
 
 // Render active tag filters
 function renderActiveTags() {
-    elements.activeTags.innerHTML = state.currentTagFilters.map(tag => `
-        <span class="active-tag">
-            #${tag}
-            <button onclick="removeTagFilter('${tag}')">&times;</button>
-        </span>
-    `).join('');
+    elements.activeTags.innerHTML = state.currentTagFilters.map(tag => {
+        const safe = escapeHtml(tag);
+        return `<span class="active-tag">#${safe}<button class="remove-tag-btn" data-tag="${safe}">&times;</button></span>`;
+    }).join('');
 }
 
-// Remove tag filter
-function removeTagFilter(tag) {
-    state.currentTagFilters = state.currentTagFilters.filter(t => t !== tag);
-    renderActiveTags();
-    applyFiltersAndSearch();
-}
+// Delegate click for tag removal (avoids inline onclick XSS risk)
+elements.activeTags.addEventListener('click', (e) => {
+    const btn = e.target.closest('.remove-tag-btn');
+    if (btn) {
+        const tag = btn.dataset.tag;
+        state.currentTagFilters = state.currentTagFilters.filter(t => t !== tag);
+        renderActiveTags();
+        applyFiltersAndSearch();
+    }
+});
 
 // Clear all filters
 elements.clearFilters.addEventListener('click', () => {
