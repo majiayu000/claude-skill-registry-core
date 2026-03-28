@@ -122,6 +122,7 @@ jobs:
       - name: Download skills from registry (full)
         if: steps.discovery.outputs.profile == 'full'
         id: download_full
+        shell: bash
         timeout-minutes: 240
         env:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
@@ -132,6 +133,7 @@ jobs:
       - name: Download skills from registry (daily bounded)
         if: steps.discovery.outputs.profile != 'full'
         id: download_daily
+        shell: bash
         timeout-minutes: 120
         env:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
