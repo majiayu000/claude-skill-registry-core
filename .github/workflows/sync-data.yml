@@ -122,24 +122,22 @@ jobs:
       - name: Download skills from registry (full)
         if: steps.discovery.outputs.profile == 'full'
         id: download_full
-        continue-on-error: true
         timeout-minutes: 240
         env:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "⬇️ Downloading skills from existing registry (full mode)..."
-          python scripts/sync_and_download.py --download-only 2>&1 | tee download.log
+          python scripts/sync_and_download.py --download-only --fail-on-empty-download 2>&1 | tee download.log
 
       - name: Download skills from registry (daily bounded)
         if: steps.discovery.outputs.profile != 'full'
         id: download_daily
-        continue-on-error: true
         timeout-minutes: 120
         env:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "⬇️ Downloading bounded set from registry (daily mode)..."
-          python scripts/sync_and_download.py --download-only --max-pending 3000 2>&1 | tee download.log
+          python scripts/sync_and_download.py --download-only --max-pending 3000 --fail-on-empty-download 2>&1 | tee download.log
 
       - name: Print download outcome
         if: always()
@@ -155,6 +153,14 @@ jobs:
           fi
           echo "Download profile: $PROFILE"
           echo "Download step outcome: ${outcome:-not-run}"
+
+      - name: Upload download failure report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: download-failure-report
+          path: failure_report.json
+          if-no-files-found: ignore
 
       - name: Resolve security scope
         id: security_scope
