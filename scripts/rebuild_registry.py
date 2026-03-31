@@ -8,7 +8,7 @@ Scans all skills/*/SKILL.md files and rebuilds the registry index.
 import json
 import logging
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from utils import extract_description, load_metadata
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def utc_now_isoformat() -> str:
     """Return a stable UTC timestamp with trailing Z."""
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def safe_write_registry(registry_path: Path, registry: dict) -> bool:

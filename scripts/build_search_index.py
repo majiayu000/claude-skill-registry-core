@@ -15,7 +15,7 @@ import argparse
 import gzip
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -46,7 +46,7 @@ KNOWN_CATEGORIES = set(CATEGORY_CODES.keys()) | {"data", "other"}
 
 def utc_now_isoformat() -> str:
     """Return a stable UTC timestamp with trailing Z."""
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def truncate_text(text: Any, max_length: int) -> str:
@@ -219,7 +219,7 @@ def build_search_index(
 
     # Build minimal search index
     search_index = {
-        "v": datetime.now(UTC).strftime("%Y-%m-%d"),
+        "v": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "t": len(skills),
         "s": []
     }
