@@ -80,3 +80,8 @@ def test_build_plugins_index_and_stats_use_plugin_keys(tmp_path):
     assert stats["total_plugins"] == 1
     assert stats_data["total_plugins"] == 1
     assert "total_collections" not in stats_data
+
+
+def test_utc_helpers_keep_trailing_z_suffix():
+    assert build_search_index.utc_now_isoformat().endswith("Z")
+    assert rebuild_registry.utc_now_isoformat().endswith("Z")
