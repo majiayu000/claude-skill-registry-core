@@ -282,6 +282,38 @@ jobs:
             metadata-compliance-report.json
             THIRD_PARTY_NOTICES.generated.md
 
+      - name: Validate sync pipeline health
+        env:
+          PROFILE: ${{ steps.discovery.outputs.profile }}
+          DISCOVER_FULL_OUTCOME: ${{ steps.discover_full.outcome }}
+          DISCOVER_DAILY_OUTCOME: ${{ steps.discover_daily.outcome }}
+          DOWNLOAD_FULL_OUTCOME: ${{ steps.download_full.outcome }}
+          DOWNLOAD_DAILY_OUTCOME: ${{ steps.download_daily.outcome }}
+          SECURITY_MODE: ${{ steps.security_scope.outputs.mode }}
+          SECURITY_FULL_OUTCOME: ${{ steps.security_full.outcome }}
+          SECURITY_DAILY_OUTCOME: ${{ steps.security_daily.outcome }}
+        run: |
+          if [ "$PROFILE" = "full" ]; then
+            discovery_outcome="$DISCOVER_FULL_OUTCOME"
+            download_outcome="$DOWNLOAD_FULL_OUTCOME"
+          else
+            discovery_outcome="$DISCOVER_DAILY_OUTCOME"
+            download_outcome="$DOWNLOAD_DAILY_OUTCOME"
+          fi
+
+          if [ "$SECURITY_MODE" = "full" ]; then
+            security_outcome="$SECURITY_FULL_OUTCOME"
+          else
+            security_outcome="$SECURITY_DAILY_OUTCOME"
+          fi
+
+          python scripts/check_sync_pipeline_health.py \
+            --discovery-outcome "${discovery_outcome:-not-run}" \
+            --download-outcome "${download_outcome:-not-run}" \
+            --security-outcome "${security_outcome:-not-run}" \
+            --security-report security-report.json \
+            --require-security-report
+
       - name: Copy security report to docs
         run: |
           if [ -f security-report.json ]; then
@@ -293,6 +325,13 @@ jobs:
       - name: Rebuild registry.json from archive
         run: |
           python scripts/rebuild_registry.py --skills-dir skills --registry registry.json --skip-categories
+
+      - name: Build registry summary
+        run: |
+          python scripts/build_registry_summary.py \
+            --registry registry.json \
+            --plugins sources/plugins.json \
+            --output registry_summary.json
 
       - name: Commit & push data repo changes
         run: |
@@ -330,12 +369,12 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-          git add registry.json sources/ CHANGELOG.md scripts/ schema/ README.md SECURITY.md LICENSE THIRD_PARTY_NOTICES.md .github/workflows/sync-data.yml .github/workflows/metadata-compliance.yml
+          git add registry.json registry_summary.json sources/ CHANGELOG.md scripts/ schema/ README.md SECURITY.md LICENSE THIRD_PARTY_NOTICES.md .github/workflows/sync-data.yml .github/workflows/metadata-compliance.yml
 
           if git diff --staged --quiet; then
             echo "No core changes"
           else
-            COUNT=$(python3 -c "import json; print(json.load(open('registry.json')).get('total_count', 0))")
+            COUNT=$(python3 -c "import json; print(json.load(open('registry_summary.json')).get('total_count', 0))")
             git commit -m "chore: sync registry ($COUNT skills) $(date -u +%Y-%m-%d)"
             for attempt in 1 2 3; do
               if git push; then
