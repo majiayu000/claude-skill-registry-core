@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Discover skill collections — cohesive products with skills + commands + hooks.
+Discover Claude Code plugins — cohesive products with skills + commands + hooks.
 
-A collection is NOT "a repo with lots of SKILL.md files". It is a packaged
+A plugin is NOT "a repo with lots of SKILL.md files". It is a packaged
 product where multiple skills, slash commands, and hooks work together to
 serve a specific use case (e.g. PM workflow, frontend dev toolkit).
 
@@ -38,11 +38,11 @@ NPM_QUERIES = [
 ]
 
 
-def load_existing_collections(path: Path) -> set[str]:
+def load_existing_plugins(path: Path) -> set[str]:
     if not path.exists():
         return set()
     with open(path, "r", encoding="utf-8") as f:
-        return {c.get("repo", "") for c in json.load(f).get("collections", [])}
+        return {p.get("repo", "") for p in json.load(f).get("plugins", [])}
 
 
 def npm_search(query: str) -> list[dict]:
@@ -169,7 +169,7 @@ def get_install_command(repo: str, branch: str) -> str:
 
 
 def score_candidate(repo: str, structure: dict, npm_name: str = "") -> dict:
-    """Score a repo as a collection candidate. Strict criteria."""
+    """Score a repo as a plugin candidate. Strict criteria."""
     score = 0
     reasons = []
 
@@ -235,7 +235,7 @@ def score_candidate(repo: str, structure: dict, npm_name: str = "") -> dict:
 
 
 def discover_from_npm(existing: set[str]) -> list[dict]:
-    """Discover collection candidates from npm packages."""
+    """Discover plugin candidates from npm packages."""
     seen_repos: set[str] = set()
     candidates = []
 
@@ -252,7 +252,7 @@ def discover_from_npm(existing: set[str]) -> list[dict]:
     logger.info("")
 
     # Step 2: inspect each
-    for pkg_name, pkg_meta in all_packages.items():
+    for pkg_name, _pkg_meta in all_packages.items():
         # Get detailed info for repo URL
         info = npm_view(pkg_name)
         if not info:
@@ -286,7 +286,7 @@ def discover_from_npm(existing: set[str]) -> list[dict]:
 
 
 def discover_from_registry(registry_path: Path, existing: set[str], checked_repos: set[str]) -> list[dict]:
-    """Scan registry for repos that might be collections (have many skills)."""
+    """Scan registry for repos that might be plugins (have many skills)."""
     if not registry_path.exists():
         return []
 
@@ -326,16 +326,16 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Discover skill collections (skills + commands + hooks products)",
+        description="Discover Claude Code plugins (skills + commands + hooks products)",
     )
-    parser.add_argument("--collections", default="sources/collections.json")
+    parser.add_argument("--plugins", default="sources/plugins.json")
     parser.add_argument("--registry", default="registry.json", help="Scan registry for candidates too")
     parser.add_argument("--output", "-o", help="Output JSON for candidates")
     parser.add_argument("--npm-only", action="store_true", help="Only search npm, skip registry scan")
 
     args = parser.parse_args()
-    existing = load_existing_collections(Path(args.collections))
-    logger.info(f"Existing collections: {len(existing)}")
+    existing = load_existing_plugins(Path(args.plugins))
+    logger.info(f"Existing plugins: {len(existing)}")
     logger.info("")
 
     # Phase 1: npm discovery
@@ -369,7 +369,7 @@ def main():
     logger.info("")
 
     if not all_candidates:
-        logger.info("No collection candidates found.")
+        logger.info("No plugin candidates found.")
         return
 
     for c in all_candidates:

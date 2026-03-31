@@ -1,7 +1,7 @@
 {
-  "name": "Community Skill Collections",
-  "description": "Manually curated skill collections submitted by the community",
-  "collections": [
+  "name": "Community Claude Code Plugins",
+  "description": "Manually curated Claude Code plugins submitted by the community",
+  "plugins": [
     {
       "name": "pm-ai-partner",
       "description": "12 PM-specific agent skills + 6 workflow commands for Product Managers",
