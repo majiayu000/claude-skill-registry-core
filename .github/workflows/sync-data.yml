@@ -338,6 +338,12 @@ jobs:
             --plugins sources/plugins.json \
             --output registry_summary.json
 
+      - name: Refresh data repo README archive count
+        run: |
+          python scripts/update_data_readme.py \
+            --archive-dir skills \
+            --readme skills/README.md
+
       - name: Commit & push data repo changes
         run: |
           cd skills
