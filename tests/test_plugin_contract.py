@@ -132,6 +132,83 @@ def test_scan_skills_v2_is_recursive_and_metadata_optional(tmp_path):
     assert by_dir["skill-beta"]["category"] == "development"
 
 
+def test_rebuild_registry_omits_derived_and_empty_optional_fields(tmp_path):
+    skills_dir = tmp_path / "skills"
+    skill_dir = skills_dir / "development" / "skill-beta"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# beta", encoding="utf-8")
+    (skill_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "name": "beta",
+                "repo": "owner/repo",
+                "github_path": "skills/skill-beta",
+                "github_branch": "main",
+                "category": "development",
+                "tags": ["dev"],
+                "stars": 7,
+                "source": "test",
+                "author": "",
+                "source_url": "",
+                "license": "",
+                "distribution": "",
+                "permission_note": "",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    [record] = rebuild_registry.scan_skills(skills_dir)
+
+    assert record["name"] == "beta"
+    assert record["repo"] == "owner/repo"
+    assert record["path"] == "skills/skill-beta"
+    assert "install" not in record
+    assert "author" not in record
+    assert "source_url" not in record
+    assert "license" not in record
+    assert "distribution" not in record
+    assert "permission_note" not in record
+
+
+def test_load_from_registry_reconstructs_install_without_embedded_install_field(tmp_path):
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {"name": "repo-path", "repo": "owner/repo", "path": "skills/repo-path"},
+                    {"name": "repo-only", "repo": "owner/repo"},
+                    {"name": "path-only", "path": "skills/path-only"},
+                    {"name": "name-only"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    skills = build_search_index.load_from_registry(registry_path)
+
+    assert [s["install"] for s in skills] == [
+        "owner/repo/skills/repo-path",
+        "owner/repo",
+        "local/skills/path-only",
+        "local/name-only",
+    ]
+
+
+def test_safe_write_registry_writes_compact_json(tmp_path):
+    registry_path = tmp_path / "registry.json"
+
+    assert rebuild_registry.safe_write_registry(
+        registry_path,
+        {"skills": [{"name": "demo", "repo": "owner/repo"}]},
+    )
+
+    content = registry_path.read_text(encoding="utf-8")
+    assert content == '{"skills":[{"name":"demo","repo":"owner/repo"}]}'
+
+
 def test_cleanup_orphan_metadata_removes_only_orphans(tmp_path):
     skills_dir = tmp_path / "skills"
     good_dir = skills_dir / "data" / "good-skill"

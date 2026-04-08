@@ -394,7 +394,15 @@ def load_from_registry(registry_path: Path) -> List[Dict]:
     for skill in skills:
         repo = skill.get('repo', '')
         path = skill.get('path', '')
-        skill['install'] = f"{repo}/{path}" if path else repo
+        name = skill.get('name', 'unknown')
+        if repo and path:
+            skill['install'] = f"{repo}/{path}"
+        elif repo:
+            skill['install'] = repo
+        elif path:
+            skill['install'] = f"local/{path}"
+        else:
+            skill['install'] = f"local/{name}"
 
     return skills
 

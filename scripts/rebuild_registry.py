@@ -27,7 +27,7 @@ def safe_write_registry(registry_path: Path, registry: dict) -> bool:
     temp_path = registry_path.with_suffix('.json.tmp')
     try:
         with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump(registry, f, indent=2, ensure_ascii=False)
+            json.dump(registry, f, ensure_ascii=False, separators=(",", ":"))
 
         temp_path.rename(registry_path)
         return True
@@ -92,8 +92,6 @@ def scan_skills(skills_dir: Path) -> list:
             or "main"
         )
 
-        install = f"{repo}/{github_path}" if (repo and github_path) else (repo or f"unknown/{name}")
-
         skill_entry = {
             "name": name,
             "description": description[:200] if description else f"Skill: {name}",
@@ -103,14 +101,13 @@ def scan_skills(skills_dir: Path) -> list:
             "category": category,
             "tags": metadata.get("tags", []),
             "stars": metadata.get("stars", 0),
-            "install": install,
             "source": metadata.get("source", "local"),
-            "author": metadata.get("author", ""),
-            "source_url": metadata.get("source_url", ""),
-            "license": metadata.get("license", ""),
-            "distribution": metadata.get("distribution", ""),
-            "permission_note": metadata.get("permission_note", ""),
         }
+
+        for key in ("author", "source_url", "license", "distribution", "permission_note"):
+            value = metadata.get(key, "")
+            if value not in ("", None):
+                skill_entry[key] = value
 
         skills.append(skill_entry)
 
