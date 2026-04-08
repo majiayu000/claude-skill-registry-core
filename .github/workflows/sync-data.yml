@@ -119,6 +119,11 @@ jobs:
           echo "Discovery profile: $PROFILE"
           echo "Discovery step outcome: ${outcome:-not-run}"
 
+      - name: Rebuild registry from sources
+        run: |
+          echo "🧱 Rebuilding registry.json from current sources..."
+          python scripts/sync_and_download.py --sync-only --skip-github-fallback
+
       - name: Download skills from registry (full)
         if: steps.discovery.outputs.profile == 'full'
         id: download_full
@@ -333,6 +338,11 @@ jobs:
             --plugins sources/plugins.json \
             --output registry_summary.json
 
+      - name: Refresh data repo README archive count
+        run: |
+          python scripts/update_data_readme.py \
+            --archive-dir skills \
+            --readme skills/README.md
       - name: Commit & push data repo changes
         run: |
           cd skills
