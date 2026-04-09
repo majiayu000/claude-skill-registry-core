@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: false
+      skip_discovery:
+        description: Skip GitHub discovery and rebuild from current sources only
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -66,15 +71,18 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           EVENT_SCHEDULE: ${{ github.event.schedule }}
           INPUT_FULL_SCAN: ${{ github.event.inputs.full_scan }}
+          INPUT_SKIP_DISCOVERY: ${{ github.event.inputs.skip_discovery }}
         run: |
           profile="daily-bounded"
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$INPUT_FULL_SCAN" = "true" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$INPUT_SKIP_DISCOVERY" = "true" ]; then
+            profile="manual-sources-only"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$INPUT_FULL_SCAN" = "true" ]; then
             profile="full"
           elif [ "$EVENT_NAME" = "schedule" ] && [ "$EVENT_SCHEDULE" = "30 2 * * 0" ]; then
             profile="full"
           fi
           echo "profile=$profile" >> "$GITHUB_OUTPUT"
-          echo "Discovery profile: $profile (event=$EVENT_NAME schedule=$EVENT_SCHEDULE full_scan=$INPUT_FULL_SCAN)"
+          echo "Discovery profile: $profile (event=$EVENT_NAME schedule=$EVENT_SCHEDULE full_scan=$INPUT_FULL_SCAN skip_discovery=$INPUT_SKIP_DISCOVERY)"
 
       - name: Discover new skills from GitHub (full)
         if: steps.discovery.outputs.profile == 'full'
@@ -88,7 +96,7 @@ jobs:
           python scripts/discover_by_topic.py --output skills/other --json sources/discovered.json 2>&1 | tee discover.log
 
       - name: Discover new skills from GitHub (daily bounded)
-        if: steps.discovery.outputs.profile != 'full'
+        if: steps.discovery.outputs.profile == 'daily-bounded'
         id: discover_daily
         continue-on-error: true
         timeout-minutes: 60
