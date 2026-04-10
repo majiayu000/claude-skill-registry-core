@@ -214,9 +214,18 @@ jobs:
           for p in paths:
               data = json.loads(p.read_text(encoding="utf-8"))
               merged["timestamp"] = data.get("timestamp", merged["timestamp"])
-              for k, v in (data.get("stats") or {}).items():
-                  if isinstance(v, int):
-                      merged["stats"][k] = merged["stats"].get(k, 0) + v
+              stats = data.get("stats") or {}
+              for key in (
+                  "downloaded",
+                  "failed",
+                  "skipped",
+                  "url_attempts",
+                  "manifest_hits",
+                  "manifest_misses",
+              ):
+                  value = stats.get(key, 0)
+                  if isinstance(value, int):
+                      merged["stats"][key] += value
               for k, v in (data.get("failure_reasons") or {}).items():
                   if isinstance(v, int):
                       merged["failure_reasons"][k] = merged["failure_reasons"].get(k, 0) + v
