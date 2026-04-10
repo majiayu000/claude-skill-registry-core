@@ -2,10 +2,8 @@ name: Sync Skills Archive (Data Repo) + Registry
 
 on:
   schedule:
-    # Run daily at 00:00 UTC
-    - cron: '0 0 * * *'
-    # Run a full discovery weekly on Sunday
-    - cron: '30 2 * * 0'
+    - cron: "0 0 * * *"
+    - cron: "30 2 * * 0"
   workflow_dispatch:
     inputs:
       full_scan:
@@ -20,20 +18,29 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
+  actions: read
 
 concurrency:
   group: sync-data-pipeline
   cancel-in-progress: true
 
 jobs:
-  sync:
+  prepare-sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      data_sha: ${{ steps.refs.outputs.data_sha }}
+      core_payload_ready: ${{ steps.prepare_payload.outputs.ready }}
+      core_payload_count: ${{ steps.prepare_payload.outputs.count }}
     steps:
       - name: Checkout core
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Validate data repo config
         env:
@@ -60,7 +67,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: pip install pyyaml aiohttp requests jsonschema
@@ -92,7 +99,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          echo "🔍 Running full discovery via GitHub API..."
+          echo "Running full discovery via GitHub API..."
           python scripts/discover_by_topic.py --output skills/other --json sources/discovered.json 2>&1 | tee discover.log
 
       - name: Discover new skills from GitHub (daily bounded)
@@ -103,7 +110,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          echo "🔍 Running bounded daily discovery..."
+          echo "Running bounded daily discovery..."
           python scripts/discover_by_topic.py \
             --output skills/other \
             --json sources/discovered.json \
@@ -129,45 +136,105 @@ jobs:
 
       - name: Rebuild registry from sources
         run: |
-          echo "🧱 Rebuilding registry.json from current sources..."
+          echo "Rebuilding registry.json from current sources..."
           python scripts/sync_and_download.py --sync-only --skip-github-fallback
 
-      - name: Download skills from registry (full)
-        if: steps.discovery.outputs.profile == 'full'
-        id: download_full
+      - name: Download skills from registry (sharded)
+        id: download_sharded
         shell: bash
         timeout-minutes: 240
         env:
-          GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-        run: |
-          echo "⬇️ Downloading skills from existing registry (full mode)..."
-          python scripts/sync_and_download.py --download-only --fail-on-empty-download 2>&1 | tee download.log
-
-      - name: Download skills from registry (daily bounded)
-        if: steps.discovery.outputs.profile != 'full'
-        id: download_daily
-        shell: bash
-        timeout-minutes: 120
-        env:
-          GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-        run: |
-          echo "⬇️ Downloading bounded set from registry (daily mode)..."
-          python scripts/sync_and_download.py --download-only --max-pending 3000 --fail-on-empty-download 2>&1 | tee download.log
-
-      - name: Print download outcome
-        if: always()
-        env:
           PROFILE: ${{ steps.discovery.outputs.profile }}
-          FULL_OUTCOME: ${{ steps.download_full.outcome }}
-          DAILY_OUTCOME: ${{ steps.download_daily.outcome }}
+          GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
           if [ "$PROFILE" = "full" ]; then
-            outcome="$FULL_OUTCOME"
+            SHARD_COUNT=4
+            MAX_PENDING=0
           else
-            outcome="$DAILY_OUTCOME"
+            SHARD_COUNT=2
+            MAX_PENDING=3000
           fi
+
           echo "Download profile: $PROFILE"
-          echo "Download step outcome: ${outcome:-not-run}"
+          echo "Shard count: $SHARD_COUNT"
+
+          if [ "$MAX_PENDING" -gt 0 ]; then
+            MAX_PENDING_PER_SHARD=$(( (MAX_PENDING + SHARD_COUNT - 1) / SHARD_COUNT ))
+          else
+            MAX_PENDING_PER_SHARD=0
+          fi
+
+          pids=""
+          for idx in $(seq 0 $((SHARD_COUNT - 1))); do
+            LOG_PATH="download_shard_${idx}.log"
+            REPORT_PATH="failure_report_shard_${idx}.json"
+            CMD="python scripts/sync_and_download.py --download-only --fail-on-empty-download --shard-count $SHARD_COUNT --shard-index $idx --disable-acquisition-manifest --failure-report $REPORT_PATH"
+            if [ "$MAX_PENDING_PER_SHARD" -gt 0 ]; then
+              CMD="$CMD --max-pending $MAX_PENDING_PER_SHARD"
+            fi
+            echo "Starting shard $idx: $CMD"
+            bash -lc "$CMD" > "$LOG_PATH" 2>&1 &
+            pids="$pids $!"
+          done
+
+          failed=0
+          for pid in $pids; do
+            if ! wait "$pid"; then
+              failed=1
+            fi
+          done
+
+          echo "Sharded download logs:"
+          ls -1 download_shard_*.log || true
+          for f in download_shard_*.log; do
+            echo "---- $f (tail) ----"
+            tail -n 40 "$f" || true
+          done
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = sorted(Path(".").glob("failure_report_shard_*.json"))
+          merged = {
+              "timestamp": "",
+              "stats": {
+                  "downloaded": 0,
+                  "failed": 0,
+                  "skipped": 0,
+                  "url_attempts": 0,
+                  "manifest_hits": 0,
+                  "manifest_misses": 0,
+              },
+              "failure_reasons": {},
+              "failures": {},
+          }
+          for p in paths:
+              data = json.loads(p.read_text(encoding="utf-8"))
+              merged["timestamp"] = data.get("timestamp", merged["timestamp"])
+              for k, v in (data.get("stats") or {}).items():
+                  if isinstance(v, int):
+                      merged["stats"][k] = merged["stats"].get(k, 0) + v
+              for k, v in (data.get("failure_reasons") or {}).items():
+                  if isinstance(v, int):
+                      merged["failure_reasons"][k] = merged["failure_reasons"].get(k, 0) + v
+              for k, v in (data.get("failures") or {}).items():
+                  if isinstance(v, list):
+                      merged["failures"].setdefault(k, []).extend(v)
+          Path("failure_report.json").write_text(
+              json.dumps(merged, indent=2, ensure_ascii=False) + "\n",
+              encoding="utf-8",
+          )
+          print("merged reports:", len(paths))
+          print("merged stats:", merged["stats"])
+          PY
+
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::One or more shard downloads failed."
+            exit 1
+          fi
 
       - name: Upload download failure report
         if: always()
@@ -213,7 +280,7 @@ jobs:
         id: security_full
         continue-on-error: true
         run: |
-          echo "🔒 Running full security scan on skills..."
+          echo "Running full security scan on skills..."
           python scripts/security_scanner.py skills/ --quiet --report-only --output security-report.json
 
       - name: Security scan (skills daily incremental)
@@ -221,7 +288,7 @@ jobs:
         id: security_daily
         continue-on-error: true
         run: |
-          echo "🔒 Running incremental security scan on changed skills..."
+          echo "Running incremental security scan on changed skills..."
           python scripts/security_scanner.py \
             skills/ \
             --quiet \
@@ -270,7 +337,7 @@ jobs:
 
       - name: Metadata compliance scan (changed skills)
         run: |
-          echo "📜 Running metadata attribution/license compliance scan (advisory, non-blocking)..."
+          echo "Running metadata attribution/license compliance scan (advisory, non-blocking)..."
           python scripts/check_metadata_compliance.py \
             --skills-dir skills \
             --metadata-schema schema/metadata.schema.json \
@@ -300,19 +367,17 @@ jobs:
           PROFILE: ${{ steps.discovery.outputs.profile }}
           DISCOVER_FULL_OUTCOME: ${{ steps.discover_full.outcome }}
           DISCOVER_DAILY_OUTCOME: ${{ steps.discover_daily.outcome }}
-          DOWNLOAD_FULL_OUTCOME: ${{ steps.download_full.outcome }}
-          DOWNLOAD_DAILY_OUTCOME: ${{ steps.download_daily.outcome }}
+          DOWNLOAD_OUTCOME: ${{ steps.download_sharded.outcome }}
           SECURITY_MODE: ${{ steps.security_scope.outputs.mode }}
           SECURITY_FULL_OUTCOME: ${{ steps.security_full.outcome }}
           SECURITY_DAILY_OUTCOME: ${{ steps.security_daily.outcome }}
         run: |
           if [ "$PROFILE" = "full" ]; then
             discovery_outcome="$DISCOVER_FULL_OUTCOME"
-            download_outcome="$DOWNLOAD_FULL_OUTCOME"
           else
             discovery_outcome="$DISCOVER_DAILY_OUTCOME"
-            download_outcome="$DOWNLOAD_DAILY_OUTCOME"
           fi
+          download_outcome="$DOWNLOAD_OUTCOME"
 
           if [ "$SECURITY_MODE" = "full" ]; then
             security_outcome="$SECURITY_FULL_OUTCOME"
@@ -398,6 +463,105 @@ jobs:
             done
           fi
 
+      - name: Capture data SHA
+        id: refs
+        run: |
+          echo "data_sha=$(git -C skills rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Package core changes for finalize stage
+        id: prepare_payload
+        run: |
+          ALL_CHANGED="$RUNNER_TEMP/core-all-changed.txt"
+          PAYLOAD_FILES="$RUNNER_TEMP/core-files.txt"
+          PAYLOAD_DIR="$RUNNER_TEMP/core-sync-payload"
+
+          mkdir -p "$PAYLOAD_DIR/files"
+          : > "$PAYLOAD_FILES"
+
+          {
+            git diff --name-only
+            git ls-files --others --exclude-standard
+          } | sort -u > "$ALL_CHANGED"
+
+          while IFS= read -r file; do
+            case "$file" in
+              registry.json|registry_summary.json|CHANGELOG.md|README.md|SECURITY.md|LICENSE|THIRD_PARTY_NOTICES.md|.github/workflows/sync-data.yml|.github/workflows/metadata-compliance.yml|sources/*|scripts/*|schema/*)
+                if [ -f "$file" ]; then
+                  echo "$file" >> "$PAYLOAD_FILES"
+                  mkdir -p "$PAYLOAD_DIR/files/$(dirname "$file")"
+                  cp -a "$file" "$PAYLOAD_DIR/files/$file"
+                fi
+                ;;
+            esac
+          done < "$ALL_CHANGED"
+
+          COUNT=$(wc -l < "$PAYLOAD_FILES" | tr -d '[:space:]')
+          if [ -z "$COUNT" ]; then
+            COUNT=0
+          fi
+
+          cp "$PAYLOAD_FILES" "$PAYLOAD_DIR/core-files.txt"
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "payload_dir=$PAYLOAD_DIR" >> "$GITHUB_OUTPUT"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Core payload prepared with $COUNT files."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "No core files changed; payload skipped."
+          fi
+
+      - name: Upload core sync payload
+        if: steps.prepare_payload.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-sync-payload
+          path: ${{ steps.prepare_payload.outputs.payload_dir }}
+
+  finalize-core-and-dispatch:
+    needs: prepare-sync
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout core
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download core sync payload
+        if: needs.prepare-sync.outputs.core_payload_ready == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: core-sync-payload
+          path: ${{ runner.temp }}/core-sync-payload
+
+      - name: Apply core sync payload
+        if: needs.prepare-sync.outputs.core_payload_ready == 'true'
+        run: |
+          PAYLOAD_ROOT="${{ runner.temp }}/core-sync-payload"
+          FILE_LIST="$PAYLOAD_ROOT/core-files.txt"
+
+          if [ ! -f "$FILE_LIST" ]; then
+            echo "::error::Missing payload file list: $FILE_LIST"
+            exit 1
+          fi
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            src="$PAYLOAD_ROOT/files/$file"
+            if [ ! -f "$src" ]; then
+              echo "::error::Missing payload file: $src"
+              exit 1
+            fi
+            mkdir -p "$(dirname "$file")"
+            cp -a "$src" "$file"
+          done < "$FILE_LIST"
+
+          echo "Applied core payload with $(wc -l < "$FILE_LIST" | tr -d '[:space:]') files."
+
       - name: Commit & push core metadata changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -432,9 +596,11 @@ jobs:
 
       - name: Capture source SHAs
         id: refs
+        env:
+          DATA_SHA: ${{ needs.prepare-sync.outputs.data_sha }}
         run: |
           echo "core_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "data_sha=$(git -C skills rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "data_sha=$DATA_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Validate main publish config
         id: maincfg

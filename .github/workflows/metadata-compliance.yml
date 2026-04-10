@@ -30,6 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Checkout data repo to ./skills
         continue-on-error: true
@@ -39,6 +40,7 @@ jobs:
           token: ${{ secrets.DATA_REPO_TOKEN || github.token }}
           path: skills
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Ensure skills workspace exists
         run: |
