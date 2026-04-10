@@ -346,6 +346,27 @@ jobs:
             --plugins sources/plugins.json \
             --output registry_summary.json
 
+      - name: Guard core artifact size before push
+        run: |
+          if [ ! -f registry.json ]; then
+            echo "::error::registry.json not found before push."
+            exit 1
+          fi
+
+          SIZE_BYTES=$(stat -c%s registry.json)
+          LIMIT_BYTES=100000000
+          SAFETY_LIMIT_BYTES=95000000
+
+          echo "registry.json size: ${SIZE_BYTES} bytes"
+          echo "GitHub hard limit: ${LIMIT_BYTES} bytes"
+          echo "Configured safety limit: ${SAFETY_LIMIT_BYTES} bytes"
+
+          if [ "$SIZE_BYTES" -gt "$SAFETY_LIMIT_BYTES" ]; then
+            echo "::error::registry.json exceeds safety limit (${SIZE_BYTES} > ${SAFETY_LIMIT_BYTES})."
+            echo "::error::Stopping before any push to avoid partial cross-repo updates."
+            exit 1
+          fi
+
       - name: Commit & push data repo changes
         run: |
           cd skills
