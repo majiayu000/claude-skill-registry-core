@@ -17,9 +17,6 @@ on:
         type: boolean
         default: false
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 permissions:
   contents: read
   actions: read
@@ -40,7 +37,7 @@ jobs:
       core_payload_count: ${{ steps.prepare_payload.outputs.count }}
     steps:
       - name: Checkout core
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -60,7 +57,7 @@ jobs:
           fi
 
       - name: Checkout data repo to ./skills
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ vars.REGISTRY_DATA_REPO }}
           token: ${{ secrets.DATA_REPO_TOKEN }}
@@ -68,7 +65,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -250,7 +247,7 @@ jobs:
 
       - name: Upload download failure report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: download-failure-report
           path: failure_report.json
@@ -360,14 +357,14 @@ jobs:
 
       - name: Upload security report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-report
           path: security-report.json
 
       - name: Upload metadata compliance report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: metadata-compliance-report
           path: |
@@ -526,7 +523,7 @@ jobs:
 
       - name: Upload core sync payload
         if: steps.prepare_payload.outputs.ready == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: core-sync-payload
           path: ${{ steps.prepare_payload.outputs.payload_dir }}
@@ -539,13 +536,13 @@ jobs:
       actions: read
     steps:
       - name: Checkout core
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Download core sync payload
         if: needs.prepare-sync.outputs.core_payload_ready == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: core-sync-payload
           path: ${{ runner.temp }}/core-sync-payload

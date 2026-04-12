@@ -19,9 +19,6 @@ on:
         type: boolean
         default: false
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 permissions:
   contents: read
 
@@ -30,14 +27,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout core
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Checkout data repo to ./skills
         continue-on-error: true
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ vars.REGISTRY_DATA_REPO }}
           token: ${{ secrets.DATA_REPO_TOKEN || github.token }}
@@ -53,7 +50,7 @@ jobs:
           fi
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -112,7 +109,7 @@ jobs:
 
       - name: Upload compliance artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: metadata-compliance
           path: |
