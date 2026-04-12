@@ -93,7 +93,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "🔍 Running full discovery via GitHub API..."
-          python scripts/discover_by_topic.py --output skills/other --json sources/discovered.json 2>&1 | tee discover.log
+          python scripts/discover_by_topic.py \
+            --output skills/other \
+            --json sources/discovered.json \
+            --candidates-output sources/learning/discovery_candidates.jsonl \
+            --priors-output sources/learning/discovery_priors.json 2>&1 | tee discover.log
 
       - name: Discover new skills from GitHub (daily bounded)
         if: steps.discovery.outputs.profile == 'daily-bounded'
@@ -107,6 +111,8 @@ jobs:
           python scripts/discover_by_topic.py \
             --output skills/other \
             --json sources/discovered.json \
+            --candidates-output sources/learning/discovery_candidates.jsonl \
+            --priors-output sources/learning/discovery_priors.json \
             --max-repos 300 \
             --max-topic-pages 2 \
             --skip-code-search \
@@ -141,7 +147,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "⬇️ Downloading skills from existing registry (full mode)..."
-          python scripts/sync_and_download.py --download-only --fail-on-empty-download 2>&1 | tee download.log
+          python scripts/sync_and_download.py \
+            --download-only \
+            --fail-on-empty-download \
+            --observations-output sources/learning/discovery_observations.jsonl \
+            --learning-priors sources/learning/discovery_priors.json 2>&1 | tee download.log
 
       - name: Download skills from registry (daily bounded)
         if: steps.discovery.outputs.profile != 'full'
@@ -152,7 +162,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "⬇️ Downloading bounded set from registry (daily mode)..."
-          python scripts/sync_and_download.py --download-only --max-pending 3000 --fail-on-empty-download 2>&1 | tee download.log
+          python scripts/sync_and_download.py \
+            --download-only \
+            --max-pending 3000 \
+            --fail-on-empty-download \
+            --observations-output sources/learning/discovery_observations.jsonl \
+            --learning-priors sources/learning/discovery_priors.json 2>&1 | tee download.log
 
       - name: Print download outcome
         if: always()
@@ -175,6 +190,17 @@ jobs:
         with:
           name: download-failure-report
           path: failure_report.json
+          if-no-files-found: ignore
+
+      - name: Upload discovery learning data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discovery-learning-data
+          path: |
+            sources/learning/discovery_candidates.jsonl
+            sources/learning/discovery_observations.jsonl
+            sources/learning/discovery_priors.json
           if-no-files-found: ignore
 
       - name: Resolve security scope
