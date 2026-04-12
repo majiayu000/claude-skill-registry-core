@@ -100,7 +100,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "Running full discovery via GitHub API..."
-          python scripts/discover_by_topic.py --output skills/other --json sources/discovered.json 2>&1 | tee discover.log
+          python scripts/discover_by_topic.py \
+            --output skills/other \
+            --json sources/discovered.json \
+            --candidates-output sources/learning/discovery_candidates.jsonl \
+            --priors-output sources/learning/discovery_priors.json 2>&1 | tee discover.log
 
       - name: Discover new skills from GitHub (daily bounded)
         if: steps.discovery.outputs.profile == 'daily-bounded'
@@ -114,6 +118,8 @@ jobs:
           python scripts/discover_by_topic.py \
             --output skills/other \
             --json sources/discovered.json \
+            --candidates-output sources/learning/discovery_candidates.jsonl \
+            --priors-output sources/learning/discovery_priors.json \
             --max-repos 300 \
             --max-topic-pages 2 \
             --skip-code-search \
@@ -170,7 +176,8 @@ jobs:
           for idx in $(seq 0 $((SHARD_COUNT - 1))); do
             LOG_PATH="download_shard_${idx}.log"
             REPORT_PATH="failure_report_shard_${idx}.json"
-            CMD="python scripts/sync_and_download.py --download-only --fail-on-empty-download --shard-count $SHARD_COUNT --shard-index $idx --disable-acquisition-manifest --failure-report $REPORT_PATH"
+            OBS_PATH="discovery_observations_shard_${idx}.jsonl"
+            CMD="python scripts/sync_and_download.py --download-only --fail-on-empty-download --shard-count $SHARD_COUNT --shard-index $idx --disable-acquisition-manifest --failure-report $REPORT_PATH --observations-output $OBS_PATH"
             if [ "$MAX_PENDING_PER_SHARD" -gt 0 ]; then
               CMD="$CMD --max-pending $MAX_PENDING_PER_SHARD"
             fi
@@ -238,6 +245,21 @@ jobs:
           )
           print("merged reports:", len(paths))
           print("merged stats:", merged["stats"])
+
+          obs_paths = sorted(Path(".").glob("discovery_observations_shard_*.jsonl"))
+          merged_obs_path = Path("sources/learning/discovery_observations.jsonl")
+          merged_obs_path.parent.mkdir(parents=True, exist_ok=True)
+          row_count = 0
+          with merged_obs_path.open("w", encoding="utf-8") as out:
+              for op in obs_paths:
+                  for line in op.read_text(encoding="utf-8").splitlines():
+                      line = line.strip()
+                      if not line:
+                          continue
+                      out.write(line + "\n")
+                      row_count += 1
+          print("merged observation shards:", len(obs_paths))
+          print("merged observations rows:", row_count)
           PY
 
           if [ "$failed" -ne 0 ]; then
@@ -251,6 +273,17 @@ jobs:
         with:
           name: download-failure-report
           path: failure_report.json
+          if-no-files-found: ignore
+
+      - name: Upload discovery learning data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: discovery-learning-data
+          path: |
+            sources/learning/discovery_candidates.jsonl
+            sources/learning/discovery_observations.jsonl
+            sources/learning/discovery_priors.json
           if-no-files-found: ignore
 
       - name: Resolve security scope
