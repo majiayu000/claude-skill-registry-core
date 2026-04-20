@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import sys
+import urllib.error
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,6 +73,43 @@ def test_extract_copyright_notice_ignores_apache_definition_lines():
     """
 
     assert module.extract_copyright_notice(license_text) == "Copyright (c) 2026 Real Owner"
+
+
+def test_fetch_repo_license_degrades_after_url_errors(monkeypatch):
+    module = load_module()
+
+    def fail_request(*args, **kwargs):
+        raise urllib.error.URLError("tls eof")
+
+    monkeypatch.setattr(module, "github_request", fail_request)
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+
+    result = module.fetch_repo_license("owner/repo", token="", timeout=1)
+
+    assert result["license"] == "NOASSERTION"
+    assert result["error"] == "fetch_error:tls eof"
+
+
+def test_fetch_repo_license_degrades_after_timeout(monkeypatch):
+    module = load_module()
+
+    def fail_request(*args, **kwargs):
+        raise TimeoutError("read timed out")
+
+    monkeypatch.setattr(module, "github_request", fail_request)
+    monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+
+    result = module.fetch_repo_license("owner/repo", token="", timeout=1)
+
+    assert result["license"] == "NOASSERTION"
+    assert result["error"] == "fetch_error:read timed out"
+
+
+def test_license_classification_covers_backfill_spdx_values():
+    module = load_module()
+
+    assert module.build_legal_metadata(license_name="MIT-0")["distribution"] == "compatible"
+    assert module.build_legal_metadata(license_name="EUPL-1.2")["distribution"] == "restricted"
 
 
 def test_main_dry_run_does_not_modify_metadata(tmp_path, monkeypatch):
