@@ -4,8 +4,10 @@ on:
   pull_request:
     paths:
       - "scripts/**"
+      - "sources/community.json"
       - "schema/**"
       - "README.md"
+      - "tests/**"
       - ".github/workflows/metadata-compliance.yml"
   workflow_dispatch:
     inputs:
@@ -23,6 +25,28 @@ permissions:
   contents: read
 
 jobs:
+  community-intake-guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout core
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Validate community intake diff
+        run: |
+          python scripts/check_community_intake_diff.py \
+            --base-ref "${{ github.event.pull_request.base.sha }}" \
+            --head-ref HEAD \
+            --path sources/community.json
+
   metadata-compliance:
     runs-on: ubuntu-latest
     steps:
