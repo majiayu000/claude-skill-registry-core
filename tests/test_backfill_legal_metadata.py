@@ -62,6 +62,18 @@ def test_backfill_metadata_uses_repo_license_cache():
     assert updated["license_class"] == "compatible"
 
 
+def test_extract_copyright_notice_ignores_apache_definition_lines():
+    module = load_module()
+    license_text = """
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      Copyright (c) 2026 Real Owner
+    """
+
+    assert module.extract_copyright_notice(license_text) == "Copyright (c) 2026 Real Owner"
+
+
 def test_main_dry_run_does_not_modify_metadata(tmp_path, monkeypatch):
     module = load_module()
     metadata_path = tmp_path / "skills" / "development" / "demo" / "metadata.json"
