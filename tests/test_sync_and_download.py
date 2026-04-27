@@ -1,5 +1,8 @@
+import asyncio
 import importlib.util
+import json
 import sys
+import types
 from datetime import timedelta
 from pathlib import Path
 
@@ -9,6 +12,7 @@ import pytest
 def load_module():
     module_path = Path(__file__).resolve().parents[1] / "scripts" / "sync_and_download.py"
     spec = importlib.util.spec_from_file_location("sync_and_download_module", module_path)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
@@ -96,6 +100,149 @@ def test_probe_order_removes_duplicates():
 
     assert branch_order == ["main", "master"]
     assert path_order == ["skills/demo/SKILL.md", "SKILL.md"]
+
+
+def test_skill_source_dir_resolves_skill_parent():
+    module = load_module()
+
+    assert module.skill_source_dir("skills/demo/SKILL.md") == "skills/demo"
+    assert module.skill_source_dir(".claude/skills/demo/SKILL.md") == ".claude/skills/demo"
+    assert module.skill_source_dir("SKILL.md") == ""
+    assert module.skill_source_dir("") == ""
+
+
+def test_bundled_file_allowlist_is_scoped_and_size_limited():
+    module = load_module()
+
+    assert module.bundled_relative_path("", "package.json") == "package.json"
+    assert module.bundled_relative_path("skills/demo", "skills/demo/scripts/run.sh") == "scripts/run.sh"
+    assert module.bundled_relative_path("skills/demo", "other/scripts/run.sh") == ""
+    assert module.should_recurse_bundled_dir("scripts") is True
+    assert module.should_recurse_bundled_dir("references/nested") is True
+    assert module.should_recurse_bundled_dir("docs") is False
+    assert module.is_safe_bundled_file("references/helper.py", 1024) is True
+    assert module.is_safe_bundled_file("scripts/listen.mjs", 1024) is True
+    assert module.is_safe_bundled_file("package.json", 1024) is True
+    assert module.is_safe_bundled_file("docs/helper.py", 1024) is False
+    assert module.is_safe_bundled_file("references/.env", 10) is False
+    assert module.is_safe_bundled_file(
+        "references/huge.py",
+        module.MAX_BUNDLED_FILE_BYTES + 1,
+    ) is False
+
+
+def test_bundled_download_failure_does_not_publish_partial_archive(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure_report.json"
+    manifest_path = tmp_path / "manifest.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "skills/demo",
+                        "category": "development",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeResponse:
+        def __init__(self, status, *, text="", json_payload=None, body=b""):
+            self.status = status
+            self._text = text
+            self._json_payload = json_payload
+            self._body = body
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def text(self):
+            return self._text
+
+        async def json(self):
+            return self._json_payload
+
+        async def read(self):
+            return self._body
+
+    class FakeClientSession:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def get(self, url, timeout=None):
+            if url == "https://raw.githubusercontent.com/acme/demo/main/skills/demo/SKILL.md":
+                return FakeResponse(
+                    200,
+                    text=(
+                        "---\nname: demo\n"
+                        "description: Demo skill with a helper script.\n---\n# Demo\n"
+                    ),
+                )
+            if url == "https://api.github.com/repos/acme/demo/contents/skills/demo?ref=main":
+                return FakeResponse(
+                    200,
+                    json_payload=[
+                        {
+                            "type": "dir",
+                            "path": "skills/demo/scripts",
+                            "size": 0,
+                        }
+                    ],
+                )
+            if url == "https://api.github.com/repos/acme/demo/contents/skills/demo/scripts?ref=main":
+                return FakeResponse(
+                    200,
+                    json_payload=[
+                        {
+                            "type": "file",
+                            "path": "skills/demo/scripts/run.sh",
+                            "download_url": "https://download.example/run.sh",
+                            "size": 10,
+                        }
+                    ],
+                )
+            if url == "https://download.example/run.sh":
+                return FakeResponse(503)
+            return FakeResponse(404)
+
+    fake_aiohttp = types.SimpleNamespace(
+        TCPConnector=lambda *args, **kwargs: object(),
+        ClientTimeout=lambda *args, **kwargs: object(),
+        ClientSession=FakeClientSession,
+    )
+    monkeypatch.setitem(sys.modules, "aiohttp", fake_aiohttp)
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            manifest_path=manifest_path,
+            failure_report_path=failure_report_path,
+        )
+    )
+
+    assert stats["downloaded"] == 0
+    assert stats["failed"] == 1
+    assert stats["bundled_files"] == 0
+    assert not list(output_dir.rglob("SKILL.md"))
+    failure_report = json.loads(failure_report_path.read_text(encoding="utf-8"))
+    assert failure_report["failure_reasons"]["bundled_download_failed"] == 1
 
 
 def test_select_shard_skills_is_deterministic():
