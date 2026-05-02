@@ -98,6 +98,11 @@ BUNDLED_ROOT_FILE_ALLOWLIST = {
     "LICENSE",
     "LICENSE.md",
 }
+BUNDLED_REQUIRED_ROOT_FILE_HINTS = BUNDLED_ROOT_FILE_ALLOWLIST - {
+    "README.md",
+    "LICENSE",
+    "LICENSE.md",
+}
 BUNDLED_FILE_EXTENSIONS = {
     ".bash",
     ".css",
@@ -238,6 +243,15 @@ def is_safe_bundled_file(relative_path: str, size: int) -> bool:
 def is_submodule_contents_entry(entry: dict) -> bool:
     """Return True for GitHub Contents API submodules exposed as file entries."""
     return entry.get("type") == "submodule" or "submodule_git_url" in entry
+
+
+def requires_complete_bundled_archive(skill_content: str) -> bool:
+    """Return True when SKILL.md explicitly depends on bundled support files."""
+    normalized = (skill_content or "").lower().replace("\\", "/")
+    for dirname in BUNDLED_DIR_ALLOWLIST:
+        if f"{dirname}/" in normalized:
+            return True
+    return any(filename.lower() in normalized for filename in BUNDLED_REQUIRED_ROOT_FILE_HINTS)
 
 
 def build_manifest_key(repo: str, path: str, name: str, category: str) -> str:
@@ -932,12 +946,15 @@ async def download_skills(
         branch: str,
         resolved_skill_path: str,
         skill_dir: Path,
+        require_complete_archive: bool,
     ) -> tuple[list[str], list[str], str]:
         archived: list[str] = []
         failed: list[str] = []
         try:
             entries = await collect_bundled_file_entries(session, repo, branch, resolved_skill_path)
         except BundledListingError as exc:
+            if not require_complete_archive:
+                return archived, failed, ""
             return archived, [str(exc)], "bundled_listing_failed"
         if not entries:
             return archived, failed, ""
@@ -971,6 +988,17 @@ async def download_skills(
             target_path.parent.mkdir(parents=True, exist_ok=True)
             target_path.write_bytes(content)
             archived.append(rel_path)
+
+        if failed and not require_complete_archive:
+            skill_root = skill_dir.resolve()
+            for rel_path in archived:
+                target_path = (skill_dir / rel_path).resolve()
+                try:
+                    target_path.relative_to(skill_root)
+                except ValueError:
+                    continue
+                target_path.unlink(missing_ok=True)
+            return [], [], ""
 
         failure_reason = "bundled_download_failed" if failed else ""
         return archived, failed, failure_reason
@@ -1012,6 +1040,7 @@ async def download_skills(
                             if resp.status == 200:
                                 content = await resp.text()
                                 if content and len(content) > 50 and ("---" in content[:50] or "#" in content[:100]):
+                                    require_complete_archive = requires_complete_bundled_archive(content)
                                     # Valid content - save under category with normalized name
                                     category_dir = output_dir / category
                                     category_dir.mkdir(parents=True, exist_ok=True)
@@ -1030,6 +1059,7 @@ async def download_skills(
                                         branch,
                                         relative_path,
                                         skill_dir,
+                                        require_complete_archive,
                                     )
                                     if bundled_failures:
                                         failure_reason = (

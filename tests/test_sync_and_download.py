@@ -211,6 +211,7 @@ def test_bundled_download_failure_does_not_publish_partial_archive(tmp_path, mon
                 text=(
                     "---\nname: demo\n"
                     "description: Demo skill with a helper script.\n---\n# Demo\n"
+                    "Run scripts/run.sh before using this skill.\n"
                 ),
             ),
             "https://api.github.com/repos/acme/demo/contents/skills/demo?ref=main": FakeResponse(
@@ -286,6 +287,7 @@ def test_bundled_listing_failure_does_not_publish_skill_md_only(tmp_path, monkey
                 text=(
                     "---\nname: demo\n"
                     "description: Demo skill with references.\n---\n# Demo\n"
+                    "Read references/guide.md before using this skill.\n"
                 ),
             ),
             "https://api.github.com/repos/acme/demo/contents/skills/demo?ref=main": FakeResponse(
@@ -310,6 +312,145 @@ def test_bundled_listing_failure_does_not_publish_skill_md_only(tmp_path, monkey
     failure_report = json.loads(failure_report_path.read_text(encoding="utf-8"))
     assert failure_report["failure_reasons"]["bundled_listing_failed"] == 1
     assert "status 403" in failure_report["failures"]["bundled_listing_failed"][0]
+
+
+def test_bundled_listing_failure_degrades_when_skill_has_no_support_refs(
+    tmp_path,
+    monkeypatch,
+):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure_report.json"
+    manifest_path = tmp_path / "manifest.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "skills/demo",
+                        "category": "development",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            "https://raw.githubusercontent.com/acme/demo/main/skills/demo/SKILL.md": FakeResponse(
+                200,
+                text=(
+                    "---\nname: demo\n"
+                    "description: Demo skill without support files.\n---\n"
+                    "# Demo\nUse this skill directly from the markdown instructions.\n"
+                ),
+            ),
+            "https://api.github.com/repos/acme/demo/contents/skills/demo?ref=main": FakeResponse(
+                403
+            ),
+        },
+    )
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            manifest_path=manifest_path,
+            failure_report_path=failure_report_path,
+        )
+    )
+
+    assert stats["downloaded"] == 1
+    assert stats["failed"] == 0
+    assert stats["bundled_files"] == 0
+    skill_dir = next(output_dir.glob("development/*"))
+    metadata = json.loads((skill_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["archive_mode"] == "skill-md"
+    assert metadata["bundled_files"] == []
+    failure_report = json.loads(failure_report_path.read_text(encoding="utf-8"))
+    assert "bundled_listing_failed" not in failure_report["failure_reasons"]
+
+
+def test_optional_bundled_download_failure_degrades_to_skill_md(
+    tmp_path,
+    monkeypatch,
+):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure_report.json"
+    manifest_path = tmp_path / "manifest.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "SKILL.md",
+                        "category": "development",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            "https://raw.githubusercontent.com/acme/demo/main/SKILL.md": FakeResponse(
+                200,
+                text=(
+                    "---\nname: demo\n"
+                    "description: Demo skill with optional repo files.\n---\n"
+                    "# Demo\nUse this skill directly from the markdown instructions.\n"
+                ),
+            ),
+            "https://api.github.com/repos/acme/demo/contents?ref=main": FakeResponse(
+                200,
+                json_payload=[
+                    {"type": "file", "path": "SKILL.md", "size": 80},
+                    {"type": "dir", "path": "scripts", "size": 0},
+                ],
+            ),
+            "https://api.github.com/repos/acme/demo/contents/scripts?ref=main": FakeResponse(
+                200,
+                json_payload=[
+                    {
+                        "type": "file",
+                        "path": "scripts/optional.py",
+                        "download_url": "https://download.example/optional.py",
+                        "size": 12,
+                    }
+                ],
+            ),
+            "https://download.example/optional.py": FakeResponse(503),
+        },
+    )
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            manifest_path=manifest_path,
+            failure_report_path=failure_report_path,
+        )
+    )
+
+    assert stats["downloaded"] == 1
+    assert stats["failed"] == 0
+    assert stats["bundled_files"] == 0
+    skill_dir = next(output_dir.glob("development/*"))
+    metadata = json.loads((skill_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["archive_mode"] == "skill-md"
+    assert metadata["bundled_files"] == []
+    assert not (skill_dir / "scripts" / "optional.py").exists()
+    failure_report = json.loads(failure_report_path.read_text(encoding="utf-8"))
+    assert "bundled_download_failed" not in failure_report["failure_reasons"]
 
 
 def test_bundled_references_are_archived_with_directory_mode(tmp_path, monkeypatch):
