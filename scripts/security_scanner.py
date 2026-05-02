@@ -338,11 +338,13 @@ class SecurityScanner:
                 if not script_file.is_file():
                     continue
 
+                if not self._check_bundled_file_size(script_file):
+                    continue
                 if script_file.suffix.lower() in BUNDLED_SCAN_EXTENSIONS:
                     self._scan_bundled_text_file(script_file)
 
-    def _scan_bundled_text_file(self, bundled_file: Path):
-        """Scan an archived support file when it is text-like executable input."""
+    def _check_bundled_file_size(self, bundled_file: Path) -> bool:
+        """Return False and record an issue when an archived support file is too large."""
         size = bundled_file.stat().st_size
         if size > 10_000_000:  # 10MB
             self.issues.append({
@@ -351,6 +353,12 @@ class SecurityScanner:
                 'file': str(bundled_file),
                 'message': f'Bundled file too large: {size} bytes'
             })
+            return False
+        return True
+
+    def _scan_bundled_text_file(self, bundled_file: Path):
+        """Scan an archived support file when it is text-like executable input."""
+        if not self._check_bundled_file_size(bundled_file):
             return
 
         try:

@@ -86,6 +86,36 @@ description: Demo skill used to verify bundled support dir scanning.
     assert any("assets/payload.svg" in file for file in issue_files)
 
 
+def test_scanner_size_checks_non_text_support_files(tmp_path):
+    module = load_module()
+    skill_dir = tmp_path / "demo"
+    scripts_dir = skill_dir / "scripts"
+    scripts_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        """---
+name: demo
+description: Demo skill used to verify bundled file size checks.
+---
+
+# Demo
+""",
+        encoding="utf-8",
+    )
+    oversized_file = scripts_dir / "payload.bin"
+    with oversized_file.open("wb") as handle:
+        handle.truncate(10_000_001)
+
+    scanner = module.SecurityScanner()
+    is_safe, issues = scanner.scan_file(skill_dir / "SKILL.md")
+
+    assert is_safe is False
+    assert any(
+        issue.get("type") == "file_too_large"
+        and "scripts/payload.bin" in issue.get("file", "")
+        for issue in issues
+    )
+
+
 def test_scanner_checks_root_package_manifest(tmp_path):
     module = load_module()
     skill_dir = tmp_path / "demo"

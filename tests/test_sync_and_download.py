@@ -385,6 +385,77 @@ def test_bundled_references_are_archived_with_directory_mode(tmp_path, monkeypat
     assert (skill_dir / "references" / "guide.md").read_text(encoding="utf-8") == "# Guide\n"
 
 
+def test_bundled_collection_skips_github_submodule_entries(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure_report.json"
+    manifest_path = tmp_path / "manifest.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "SKILL.md",
+                        "category": "development",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            "https://raw.githubusercontent.com/acme/demo/main/SKILL.md": FakeResponse(
+                200,
+                text=(
+                    "---\nname: demo\n"
+                    "description: Demo skill with a submodule path.\n---\n# Demo\n"
+                ),
+            ),
+            "https://api.github.com/repos/acme/demo/contents?ref=main": FakeResponse(
+                200,
+                json_payload=[
+                    {"type": "file", "path": "SKILL.md", "size": 80},
+                    {"type": "dir", "path": "scripts", "size": 0},
+                ],
+            ),
+            "https://api.github.com/repos/acme/demo/contents/scripts?ref=main": FakeResponse(
+                200,
+                json_payload=[
+                    {
+                        "type": "file",
+                        "path": "scripts/tool.py",
+                        "size": 0,
+                        "download_url": None,
+                        "submodule_git_url": "https://github.com/acme/tool.git",
+                    }
+                ],
+            ),
+        },
+    )
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            manifest_path=manifest_path,
+            failure_report_path=failure_report_path,
+        )
+    )
+
+    assert stats["downloaded"] == 1
+    assert stats["failed"] == 0
+    skill_dir = next(output_dir.glob("development/*"))
+    metadata = json.loads((skill_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["archive_mode"] == "skill-md"
+    assert metadata["bundled_files"] == []
+    assert not (skill_dir / "scripts" / "tool.py").exists()
+
+
 def test_select_shard_skills_is_deterministic():
     module = load_module()
     skills = [

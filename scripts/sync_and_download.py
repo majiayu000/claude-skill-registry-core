@@ -235,6 +235,11 @@ def is_safe_bundled_file(relative_path: str, size: int) -> bool:
     return PurePosixPath(filename).suffix.lower() in BUNDLED_FILE_EXTENSIONS
 
 
+def is_submodule_contents_entry(entry: dict) -> bool:
+    """Return True for GitHub Contents API submodules exposed as file entries."""
+    return entry.get("type") == "submodule" or "submodule_git_url" in entry
+
+
 def build_manifest_key(repo: str, path: str, name: str, category: str) -> str:
     """Build a stable key for acquisition manifest lookups."""
     return build_skill_key(repo, path, name=name, category=sanitize_category(category))
@@ -880,6 +885,9 @@ async def download_skills(
 
             for entry in await fetch_contents_listing(session, repo, branch, current_dir):
                 entry_type = entry.get("type")
+                if is_submodule_contents_entry(entry):
+                    continue
+
                 repo_path = str(entry.get("path") or "").strip("/")
                 rel_path = bundled_relative_path(source_dir, repo_path)
                 if not rel_path:
