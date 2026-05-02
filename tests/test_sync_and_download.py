@@ -19,6 +19,56 @@ def load_module():
     return module
 
 
+class FakeResponse:
+    def __init__(self, status, *, text="", json_payload=None, body=b""):
+        self.status = status
+        self._text = text
+        self._json_payload = json_payload
+        self._body = body
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return None
+
+    async def text(self):
+        return self._text
+
+    async def json(self):
+        return self._json_payload
+
+    async def read(self):
+        return self._body
+
+
+def install_fake_aiohttp(monkeypatch, routes):
+    class FakeClientSession:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def get(self, url, timeout=None):
+            response = routes.get(url)
+            if isinstance(response, Exception):
+                raise response
+            if response is None:
+                return FakeResponse(404)
+            return response
+
+    fake_aiohttp = types.SimpleNamespace(
+        TCPConnector=lambda *args, **kwargs: object(),
+        ClientTimeout=lambda *args, **kwargs: object(),
+        ClientSession=FakeClientSession,
+    )
+    monkeypatch.setitem(sys.modules, "aiohttp", fake_aiohttp)
+
+
 def test_should_fail_on_empty_download_only_when_all_attempts_fail():
     module = load_module()
 
@@ -153,60 +203,28 @@ def test_bundled_download_failure_does_not_publish_partial_archive(tmp_path, mon
         encoding="utf-8",
     )
 
-    class FakeResponse:
-        def __init__(self, status, *, text="", json_payload=None, body=b""):
-            self.status = status
-            self._text = text
-            self._json_payload = json_payload
-            self._body = body
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return None
-
-        async def text(self):
-            return self._text
-
-        async def json(self):
-            return self._json_payload
-
-        async def read(self):
-            return self._body
-
-    class FakeClientSession:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return None
-
-        def get(self, url, timeout=None):
-            if url == "https://raw.githubusercontent.com/acme/demo/main/skills/demo/SKILL.md":
-                return FakeResponse(
-                    200,
-                    text=(
-                        "---\nname: demo\n"
-                        "description: Demo skill with a helper script.\n---\n# Demo\n"
-                    ),
-                )
-            if url == "https://api.github.com/repos/acme/demo/contents/skills/demo?ref=main":
-                return FakeResponse(
-                    200,
-                    json_payload=[
-                        {
-                            "type": "dir",
-                            "path": "skills/demo/scripts",
-                            "size": 0,
-                        }
-                    ],
-                )
-            if url == "https://api.github.com/repos/acme/demo/contents/skills/demo/scripts?ref=main":
-                return FakeResponse(
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            "https://raw.githubusercontent.com/acme/demo/main/skills/demo/SKILL.md": FakeResponse(
+                200,
+                text=(
+                    "---\nname: demo\n"
+                    "description: Demo skill with a helper script.\n---\n# Demo\n"
+                ),
+            ),
+            "https://api.github.com/repos/acme/demo/contents/skills/demo?ref=main": FakeResponse(
+                200,
+                json_payload=[
+                    {
+                        "type": "dir",
+                        "path": "skills/demo/scripts",
+                        "size": 0,
+                    }
+                ],
+            ),
+            "https://api.github.com/repos/acme/demo/contents/skills/demo/scripts?ref=main": (
+                FakeResponse(
                     200,
                     json_payload=[
                         {
@@ -217,16 +235,10 @@ def test_bundled_download_failure_does_not_publish_partial_archive(tmp_path, mon
                         }
                     ],
                 )
-            if url == "https://download.example/run.sh":
-                return FakeResponse(503)
-            return FakeResponse(404)
-
-    fake_aiohttp = types.SimpleNamespace(
-        TCPConnector=lambda *args, **kwargs: object(),
-        ClientTimeout=lambda *args, **kwargs: object(),
-        ClientSession=FakeClientSession,
+            ),
+            "https://download.example/run.sh": FakeResponse(503),
+        },
     )
-    monkeypatch.setitem(sys.modules, "aiohttp", fake_aiohttp)
 
     stats = asyncio.run(
         module.download_skills(
@@ -243,6 +255,134 @@ def test_bundled_download_failure_does_not_publish_partial_archive(tmp_path, mon
     assert not list(output_dir.rglob("SKILL.md"))
     failure_report = json.loads(failure_report_path.read_text(encoding="utf-8"))
     assert failure_report["failure_reasons"]["bundled_download_failed"] == 1
+
+
+def test_bundled_listing_failure_does_not_publish_skill_md_only(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure_report.json"
+    manifest_path = tmp_path / "manifest.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "skills/demo",
+                        "category": "development",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            "https://raw.githubusercontent.com/acme/demo/main/skills/demo/SKILL.md": FakeResponse(
+                200,
+                text=(
+                    "---\nname: demo\n"
+                    "description: Demo skill with references.\n---\n# Demo\n"
+                ),
+            ),
+            "https://api.github.com/repos/acme/demo/contents/skills/demo?ref=main": FakeResponse(
+                403
+            ),
+        },
+    )
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            manifest_path=manifest_path,
+            failure_report_path=failure_report_path,
+        )
+    )
+
+    assert stats["downloaded"] == 0
+    assert stats["failed"] == 1
+    assert stats["bundled_files"] == 0
+    assert not list(output_dir.rglob("SKILL.md"))
+    failure_report = json.loads(failure_report_path.read_text(encoding="utf-8"))
+    assert failure_report["failure_reasons"]["bundled_listing_failed"] == 1
+    assert "status 403" in failure_report["failures"]["bundled_listing_failed"][0]
+
+
+def test_bundled_references_are_archived_with_directory_mode(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure_report.json"
+    manifest_path = tmp_path / "manifest.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "SKILL.md",
+                        "category": "development",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            "https://raw.githubusercontent.com/acme/demo/main/SKILL.md": FakeResponse(
+                200,
+                text=(
+                    "---\nname: demo\n"
+                    "description: Demo skill with references.\n---\n"
+                    "# Demo\nSee references/guide.md.\n"
+                ),
+            ),
+            "https://api.github.com/repos/acme/demo/contents?ref=main": FakeResponse(
+                200,
+                json_payload=[
+                    {"type": "file", "path": "SKILL.md", "size": 80},
+                    {"type": "dir", "path": "references", "size": 0},
+                ],
+            ),
+            "https://api.github.com/repos/acme/demo/contents/references?ref=main": FakeResponse(
+                200,
+                json_payload=[
+                    {
+                        "type": "file",
+                        "path": "references/guide.md",
+                        "download_url": "https://download.example/guide.md",
+                        "size": 12,
+                    }
+                ],
+            ),
+            "https://download.example/guide.md": FakeResponse(200, body=b"# Guide\n"),
+        },
+    )
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            manifest_path=manifest_path,
+            failure_report_path=failure_report_path,
+        )
+    )
+
+    assert stats["downloaded"] == 1
+    assert stats["failed"] == 0
+    assert stats["bundled_files"] == 1
+    skill_dir = next(output_dir.glob("development/*"))
+    metadata = json.loads((skill_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["archive_mode"] == "directory"
+    assert metadata["bundled_files"] == ["references/guide.md"]
+    assert (skill_dir / "references" / "guide.md").read_text(encoding="utf-8") == "# Guide\n"
 
 
 def test_select_shard_skills_is_deterministic():

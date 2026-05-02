@@ -139,6 +139,15 @@ MAX_BUNDLED_TOTAL_BYTES = 5_000_000
 MAX_BUNDLED_FILES_PER_SKILL = 100
 
 
+class BundledListingError(Exception):
+    """Raised when GitHub Contents API cannot list a skill support directory."""
+
+    def __init__(self, directory_path: str, reason: str):
+        self.directory_path = directory_path.strip("/") or "."
+        self.reason = reason
+        super().__init__(f"{self.directory_path}: {reason}")
+
+
 def _source_count(path: Path) -> int:
     """Safely read source count from an existing source JSON file."""
     try:
@@ -841,11 +850,16 @@ async def download_skills(
         try:
             async with session.get(url, timeout=request_timeout) as resp:
                 if resp.status != 200:
-                    return []
+                    raise BundledListingError(directory_path, f"status {resp.status}")
                 payload = await resp.json()
-        except Exception:
-            return []
-        return payload if isinstance(payload, list) else []
+        except BundledListingError:
+            raise
+        except Exception as exc:
+            reason = str(exc) or exc.__class__.__name__
+            raise BundledListingError(directory_path, reason) from exc
+        if not isinstance(payload, list):
+            raise BundledListingError(directory_path, "unexpected payload")
+        return payload
 
     async def collect_bundled_file_entries(
         session: aiohttp.ClientSession,
@@ -910,12 +924,15 @@ async def download_skills(
         branch: str,
         resolved_skill_path: str,
         skill_dir: Path,
-    ) -> tuple[list[str], list[str]]:
+    ) -> tuple[list[str], list[str], str]:
         archived: list[str] = []
         failed: list[str] = []
-        entries = await collect_bundled_file_entries(session, repo, branch, resolved_skill_path)
+        try:
+            entries = await collect_bundled_file_entries(session, repo, branch, resolved_skill_path)
+        except BundledListingError as exc:
+            return archived, [str(exc)], "bundled_listing_failed"
         if not entries:
-            return archived, failed
+            return archived, failed, ""
 
         skill_root = skill_dir.resolve()
         for entry in entries:
@@ -947,7 +964,8 @@ async def download_skills(
             target_path.write_bytes(content)
             archived.append(rel_path)
 
-        return archived, failed
+        failure_reason = "bundled_download_failed" if failed else ""
+        return archived, failed, failure_reason
 
     async def try_download(session: aiohttp.ClientSession, skill: dict) -> bool:
         name = (skill.get("name") or "").strip() or "unknown"
@@ -994,7 +1012,11 @@ async def download_skills(
                                     skill_dir.mkdir(parents=True, exist_ok=True)
                                     (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
                                     resolved_path = path or relative_path
-                                    bundled_files, bundled_failures = await download_bundled_files(
+                                    (
+                                        bundled_files,
+                                        bundled_failures,
+                                        bundled_failure_reason,
+                                    ) = await download_bundled_files(
                                         session,
                                         repo,
                                         branch,
@@ -1002,15 +1024,18 @@ async def download_skills(
                                         skill_dir,
                                     )
                                     if bundled_failures:
+                                        failure_reason = (
+                                            bundled_failure_reason or "bundled_download_failed"
+                                        )
                                         shutil.rmtree(skill_dir, ignore_errors=True)
-                                        failures["bundled_download_failed"].append(
+                                        failures[failure_reason].append(
                                             f"{name}: {', '.join(bundled_failures)}"
                                         )
                                         stats["url_attempts"] += attempts
                                         add_observation(
                                             skill,
                                             outcome="failed",
-                                            failure_reason="bundled_download_failed",
+                                            failure_reason=failure_reason,
                                             attempts=attempts,
                                             manifest_hit=manifest_entry is not None,
                                             branch=branch,
