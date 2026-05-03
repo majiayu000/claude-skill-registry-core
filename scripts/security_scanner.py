@@ -4,14 +4,13 @@ Security Scanner for SKILL.md files
 Implements automated security checks for skill registry
 """
 
-import os
-import re
 import json
-import yaml
-import hashlib
+import re
 from pathlib import Path
 from typing import Dict, List, Tuple
+
 import jsonschema
+import yaml
 
 # Load schema
 SCHEMA_PATH = Path(__file__).parent.parent / "schema" / "skill.schema.json"
@@ -107,6 +106,41 @@ SENSITIVE_PATHS = [
     '/proc/', '/sys/', '$HOME/.env', '.env',
 ]
 
+BUNDLED_SCAN_DIRS = ('references', 'scripts', 'assets', 'templates', 'examples')
+BUNDLED_SCAN_ROOT_FILES = (
+    'package.json',
+    'package-lock.json',
+    'pnpm-lock.yaml',
+    'yarn.lock',
+    'requirements.txt',
+    'pyproject.toml',
+    'uv.lock',
+    'README.md',
+)
+BUNDLED_SCAN_EXTENSIONS = {
+    '.bash',
+    '.css',
+    '.csv',
+    '.html',
+    '.js',
+    '.json',
+    '.jsx',
+    '.j2',
+    '.md',
+    '.mjs',
+    '.ps1',
+    '.py',
+    '.sh',
+    '.svg',
+    '.toml',
+    '.tpl',
+    '.ts',
+    '.tsx',
+    '.txt',
+    '.yaml',
+    '.yml',
+}
+
 INJECTION_PATTERNS = [
     re.compile(r'ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts)', re.IGNORECASE),
     re.compile(r'disregard\s+(everything|all)', re.IGNORECASE),
@@ -186,7 +220,7 @@ class SecurityScanner:
         # 4. Check for sensitive paths
         self._scan_sensitive_paths(content)
 
-        # 5. Check bundled scripts
+        # 5. Check bundled scripts and reference implementations
         self._scan_bundled_files(skill_path.parent)
 
         # 6. Prompt injection detection
@@ -289,32 +323,51 @@ class SecurityScanner:
                 })
 
     def _scan_bundled_files(self, skill_dir: Path):
-        """Scan bundled scripts and resources"""
-        scripts_dir = skill_dir / 'scripts'
-        if not scripts_dir.exists():
-            return
+        """Scan bundled executable/reference files."""
+        for filename in BUNDLED_SCAN_ROOT_FILES:
+            bundled_file = skill_dir / filename
+            if bundled_file.is_file():
+                self._scan_bundled_text_file(bundled_file)
 
-        for script_file in scripts_dir.rglob('*'):
-            if not script_file.is_file():
+        for dirname in BUNDLED_SCAN_DIRS:
+            bundled_dir = skill_dir / dirname
+            if not bundled_dir.exists():
                 continue
 
-            # Check file size
-            size = script_file.stat().st_size
-            if size > 10_000_000:  # 10MB
-                self.issues.append({
-                    'severity': 'error',
-                    'type': 'file_too_large',
-                    'file': str(script_file),
-                    'message': f'Bundled file too large: {size} bytes'
-                })
+            for script_file in bundled_dir.rglob('*'):
+                if not script_file.is_file():
+                    continue
 
-            # Scan script content
-            if script_file.suffix in ['.py', '.sh', '.js']:
-                try:
-                    content = script_file.read_text(encoding='utf-8')
-                    self._scan_dangerous_patterns(content, script_file)
-                except (OSError, UnicodeDecodeError):
-                    pass
+                if not self._check_bundled_file_size(script_file):
+                    continue
+                if script_file.suffix.lower() in BUNDLED_SCAN_EXTENSIONS:
+                    self._scan_bundled_text_file(script_file)
+
+    def _check_bundled_file_size(self, bundled_file: Path) -> bool:
+        """Return False and record an issue when an archived support file is too large."""
+        size = bundled_file.stat().st_size
+        if size > 10_000_000:  # 10MB
+            self.issues.append({
+                'severity': 'error',
+                'type': 'file_too_large',
+                'file': str(bundled_file),
+                'message': f'Bundled file too large: {size} bytes'
+            })
+            return False
+        return True
+
+    def _scan_bundled_text_file(self, bundled_file: Path):
+        """Scan an archived support file when it is text-like executable input."""
+        if not self._check_bundled_file_size(bundled_file):
+            return
+
+        try:
+            content = bundled_file.read_text(encoding='utf-8')
+            self._scan_dangerous_patterns(content, bundled_file)
+            self._detect_credentials(content, bundled_file)
+            self._detect_obfuscation_exec(content, bundled_file)
+        except (OSError, UnicodeDecodeError):
+            pass
 
     def _detect_credentials(self, content: str, file_path: Path):
         """Detect hardcoded credentials and secret key formats"""
