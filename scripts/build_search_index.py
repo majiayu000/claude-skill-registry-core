@@ -413,6 +413,7 @@ def build_search_index(
             "quality_score": quality_score,
             "trust_score": trust_score,
             "compatible_agents": compatible_agents,
+            "_description_length": len(description),
         }
         dedupe_key = f"{install}|{branch}"
         existing = lite_skills_by_key.get(dedupe_key)
@@ -423,7 +424,7 @@ def build_search_index(
         ) > (
             int(existing.get("stars", 0) or 0),
             int(existing.get("quality_score", 0) or 0),
-            len(str(existing.get("description", ""))),
+            int(existing.get("_description_length", 0) or 0),
         ):
             lite_skills_by_key[dedupe_key] = lite_record
             quality_records_by_id[skill_id] = {
@@ -469,6 +470,10 @@ def build_search_index(
         ),
         reverse=True,
     )
+    all_lite_skills = [
+        {key: value for key, value in skill.items() if not key.startswith("_")}
+        for skill in all_lite_skills
+    ]
     lite_skills = all_lite_skills[:LITE_INDEX_LIMIT]
     ranking_records = sorted(
         ranking_records_by_id.values(),

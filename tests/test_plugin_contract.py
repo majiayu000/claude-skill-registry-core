@@ -144,6 +144,46 @@ def test_build_search_index_lite_dedupes_install_and_branch(tmp_path):
     assert lite_data["skills"][0]["name"] == "demo-strong"
 
 
+def test_build_search_index_lite_dedupe_uses_untruncated_description_length(tmp_path):
+    output_dir = tmp_path / "docs"
+    install = "owner/repo/skills/demo/SKILL.md"
+    long_description = "a" * 240
+    shorter_but_over_truncation = "b" * 181
+    skills = [
+        {
+            "name": "demo-long",
+            "description": long_description,
+            "repo": "owner/repo",
+            "path": "skills/demo/SKILL.md",
+            "branch": "main",
+            "category": "development",
+            "tags": ["demo", "quality", "search"],
+            "stars": 10,
+            "install": install,
+            "source": "test",
+        },
+        {
+            "name": "demo-shorter",
+            "description": shorter_but_over_truncation,
+            "repo": "owner/repo",
+            "path": "skills/demo/SKILL.md",
+            "branch": "main",
+            "category": "development",
+            "tags": ["demo", "quality", "search"],
+            "stars": 10,
+            "install": install,
+            "source": "test",
+        },
+    ]
+
+    build_search_index.build_search_index(skills, output_dir, source_name="test-skills")
+
+    lite_data = json.loads((output_dir / "search-index-lite.json").read_text(encoding="utf-8"))
+    assert lite_data["total_count"] == 1
+    assert lite_data["skills"][0]["name"] == "demo-long"
+    assert "_description_length" not in lite_data["skills"][0]
+
+
 def test_utc_helpers_keep_trailing_z_suffix():
     assert build_search_index.utc_now_isoformat().endswith("Z")
     assert rebuild_registry.utc_now_isoformat().endswith("Z")

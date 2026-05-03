@@ -173,6 +173,8 @@ def test_bundled_file_allowlist_is_scoped_and_size_limited():
     assert module.is_safe_bundled_file("references/helper.py", 1024) is True
     assert module.is_safe_bundled_file("scripts/listen.mjs", 1024) is True
     assert module.is_safe_bundled_file("package.json", 1024) is True
+    assert module.is_safe_bundled_file("references/SKILL.md", 1024) is False
+    assert module.is_safe_bundled_file("examples/SKILL.md", 1024) is False
     assert module.is_safe_bundled_file("docs/helper.py", 1024) is False
     assert module.is_safe_bundled_file("references/.env", 10) is False
     assert module.is_safe_bundled_file(

@@ -230,6 +230,8 @@ def is_safe_bundled_file(relative_path: str, size: int) -> bool:
         return False
 
     filename = parts[-1]
+    if filename.lower() == "skill.md":
+        return False
     if len(parts) == 1:
         return filename in BUNDLED_ROOT_FILE_ALLOWLIST
 
