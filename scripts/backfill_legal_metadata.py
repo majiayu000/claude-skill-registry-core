@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import http.client
 import json
 import os
 import re
@@ -68,7 +69,11 @@ def skill_branch(metadata: dict[str, Any]) -> str:
 def extract_copyright_notice(license_text: str) -> str:
     for line in license_text.splitlines():
         text = line.strip()
-        if re.match(r"^(copyright|\(c\)|©)\b", text, flags=re.IGNORECASE):
+        if re.match(
+            r"^(copyright\s+(?:\(c\)|©|\d{4})|\(c\)\s+\d{4}|©\s*\d{4})(?=\s|$)",
+            text,
+            flags=re.IGNORECASE,
+        ):
             return text
     return ""
 
@@ -89,12 +94,26 @@ def github_request(url: str, token: str, timeout: int) -> dict[str, Any]:
 
 def fetch_repo_license(repo: str, token: str, timeout: int) -> dict[str, str]:
     url = f"https://api.github.com/repos/{repo}/license"
-    try:
-        payload = github_request(url, token=token, timeout=timeout)
-    except urllib.error.HTTPError as exc:
-        if exc.code in {403, 404, 451}:
-            return {"license": "NOASSERTION", "copyright": "", "error": f"http_{exc.code}"}
-        raise
+    for attempt in range(3):
+        try:
+            payload = github_request(url, token=token, timeout=timeout)
+            break
+        except urllib.error.HTTPError as exc:
+            if exc.code in {403, 404, 451}:
+                return {"license": "NOASSERTION", "copyright": "", "error": f"http_{exc.code}"}
+            raise
+        except (TimeoutError, http.client.IncompleteRead, urllib.error.URLError, OSError) as exc:
+            if attempt < 2:
+                time.sleep(1 + attempt)
+                continue
+            reason = getattr(exc, "reason", exc)
+            return {
+                "license": "NOASSERTION",
+                "copyright": "",
+                "error": f"fetch_error:{reason}",
+            }
+    else:  # pragma: no cover - loop always returns or breaks
+        return {"license": "NOASSERTION", "copyright": "", "error": "fetch_failed"}
 
     license_payload = payload.get("license") or {}
     spdx = normalize_license(str(license_payload.get("spdx_id") or "NOASSERTION"))
@@ -230,6 +249,7 @@ def main() -> int:
             continue
         repos_seen.add(repo)
 
+        had_cache = repo in cache
         repo_license = load_or_fetch_license(
             repo,
             cache,
@@ -238,6 +258,8 @@ def main() -> int:
             timeout=args.timeout,
             sleep_seconds=args.sleep,
         )
+        if not had_cache:
+            write_json(cache_path, cache)
         updated = backfill_metadata(metadata, repo_license)
         if updated == metadata:
             stats["unchanged"] += 1

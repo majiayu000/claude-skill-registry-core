@@ -1,19 +1,19 @@
 {
   "version": 1,
-  "updated_at": "2026-04-20T01:56:53.312970Z",
-  "total_count": 18,
+  "updated_at": "2026-05-03T02:21:34.966886Z",
+  "total_count": 21,
   "entries": {
     "Xquik-dev/x-twitter-scraper": {
       "repo": "Xquik-dev/x-twitter-scraper",
       "branch": "master",
       "relative_path": "skills/x-twitter-scraper/SKILL.md",
-      "updated_at": "2026-04-20T01:56:37.088270Z"
+      "updated_at": "2026-05-03T02:21:28.842840Z"
     },
     "miningstore/confluence-to-agent-knowledge-base": {
       "repo": "miningstore/confluence-to-agent-knowledge-base",
       "branch": "main",
       "relative_path": "SKILL.md",
-      "updated_at": "2026-04-20T01:56:41.857359Z"
+      "updated_at": "2026-05-03T02:21:28.843327Z"
     },
     "seangeng/holydocs-skills:holydocs": {
       "repo": "seangeng/holydocs-skills",
@@ -43,73 +43,91 @@
       "repo": "mguozhen/dingtalk-bridge",
       "branch": "main",
       "relative_path": "SKILL.md",
-      "updated_at": "2026-04-20T01:56:41.964868Z"
+      "updated_at": "2026-05-03T02:21:28.844562Z"
     },
     "conorluddy/ios-simulator-skill": {
       "repo": "conorluddy/ios-simulator-skill",
       "branch": "main",
       "relative_path": "ios-simulator-skill/SKILL.md",
-      "updated_at": "2026-04-20T01:56:43.571192Z"
+      "updated_at": "2026-04-30T02:24:28.501355Z"
     },
     "lackeyjb/playwright-skill": {
       "repo": "lackeyjb/playwright-skill",
       "branch": "main",
       "relative_path": "skills/playwright-skill/SKILL.md",
-      "updated_at": "2026-04-20T01:56:44.507875Z"
+      "updated_at": "2026-05-03T02:21:26.422682Z"
     },
     "ToniPerea/humanizar-texto-es": {
       "repo": "ToniPerea/humanizar-texto-es",
       "branch": "main",
       "relative_path": "SKILL.md",
-      "updated_at": "2026-04-20T01:56:43.582004Z"
+      "updated_at": "2026-05-03T02:21:26.865926Z"
     },
     "yusufkaraaslan/Skill_Seekers": {
       "repo": "yusufkaraaslan/Skill_Seekers",
       "branch": "main",
       "relative_path": "skills/skill-seekers/SKILL.md",
-      "updated_at": "2026-04-20T01:56:44.518463Z"
+      "updated_at": "2026-05-03T02:21:26.195425Z"
     },
     "Chris1220-cmd/deep-research-skill": {
       "repo": "Chris1220-cmd/deep-research-skill",
       "branch": "master",
       "relative_path": "SKILL.md",
-      "updated_at": "2026-04-20T01:56:41.868436Z"
+      "updated_at": "2026-05-03T02:21:26.866298Z"
     },
     "Enreign/pagerunner-skill": {
       "repo": "Enreign/pagerunner-skill",
       "branch": "main",
-      "relative_path": "SKILL.md",
-      "updated_at": "2026-04-20T01:56:44.498184Z"
+      "relative_path": "skills/pagerunner-skill/SKILL.md",
+      "updated_at": "2026-05-03T02:21:27.470701Z"
     },
     "alonw0/web-asset-generator": {
       "repo": "alonw0/web-asset-generator",
       "branch": "main",
       "relative_path": "skills/web-asset-generator/SKILL.md",
-      "updated_at": "2026-04-20T01:56:45.071117Z"
+      "updated_at": "2026-05-03T02:21:26.697439Z"
     },
     "mguozhen/social-bot": {
       "repo": "mguozhen/social-bot",
       "branch": "main",
       "relative_path": "SKILL.md",
-      "updated_at": "2026-04-20T01:56:44.665317Z"
+      "updated_at": "2026-05-03T02:21:26.711402Z"
     },
     "b33kman/professional-business-writing-skill": {
       "repo": "b33kman/professional-business-writing-skill",
       "branch": "main",
       "relative_path": "SKILL.md",
-      "updated_at": "2026-04-20T01:56:45.296932Z"
+      "updated_at": "2026-05-03T02:21:26.866612Z"
     },
     "MetcalfSolutions/Satori": {
       "repo": "MetcalfSolutions/Satori",
       "branch": "main",
       "relative_path": "SKILL.md",
-      "updated_at": "2026-04-20T01:56:44.642386Z"
+      "updated_at": "2026-05-03T02:21:26.208736Z"
     },
     "varfolomejev/query-victorialogs": {
       "repo": "varfolomejev/query-victorialogs",
       "branch": "main",
       "relative_path": "SKILL.md",
-      "updated_at": "2026-04-20T01:56:45.295637Z"
+      "updated_at": "2026-05-03T02:21:26.865479Z"
+    },
+    "KKKKhazix/khazix-skills:hv-analysis": {
+      "repo": "KKKKhazix/khazix-skills",
+      "branch": "main",
+      "relative_path": "hv-analysis/SKILL.md",
+      "updated_at": "2026-05-01T20:03:12.427316Z"
+    },
+    "KKKKhazix/khazix-skills:khazix-writer": {
+      "repo": "KKKKhazix/khazix-skills",
+      "branch": "main",
+      "relative_path": "khazix-writer/SKILL.md",
+      "updated_at": "2026-05-01T20:03:12.719192Z"
+    },
+    "KKKKhazix/khazix-skills:neat-freak": {
+      "repo": "KKKKhazix/khazix-skills",
+      "branch": "main",
+      "relative_path": "neat-freak/SKILL.md",
+      "updated_at": "2026-05-01T20:03:14.719507Z"
     }
   }
 }
