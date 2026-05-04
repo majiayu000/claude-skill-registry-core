@@ -1,9 +1,14 @@
 import importlib.util
+import json
+import sys
 from pathlib import Path
 
 
 def load_module():
-    module_path = Path(__file__).resolve().parents[1] / "scripts" / "security_scanner.py"
+    scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    module_path = scripts_dir / "security_scanner.py"
     spec = importlib.util.spec_from_file_location("security_scanner_module", module_path)
     assert spec is not None
     module = importlib.util.module_from_spec(spec)
@@ -42,6 +47,84 @@ description: Demo skill used to verify bundled reference scanning.
         and "references/helper.py" in issue.get("file", "")
         for issue in issues
     )
+
+
+def test_scanner_blocks_security_listed_source_repo(tmp_path):
+    module = load_module()
+    skill_dir = tmp_path / "php-code-injection"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        """---
+name: php-code-injection
+description: Demo skill used to verify source blocklist scanning.
+---
+
+# Demo
+""",
+        encoding="utf-8",
+    )
+    (skill_dir / "metadata.json").write_text(
+        json.dumps({"repo": "blacklanternsecurity/red-run"}),
+        encoding="utf-8",
+    )
+
+    scanner = module.SecurityScanner()
+    is_safe, issues = scanner.scan_file(skill_dir / "SKILL.md")
+
+    assert is_safe is False
+    assert any(issue["type"] == "blocked_source" for issue in issues)
+
+
+def test_scanner_fails_closed_when_metadata_is_unreadable(tmp_path):
+    module = load_module()
+    skill_dir = tmp_path / "bad-metadata"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        """---
+name: bad-metadata
+description: Demo skill used to verify fail-closed metadata scanning.
+---
+
+# Demo
+""",
+        encoding="utf-8",
+    )
+    (skill_dir / "metadata.json").write_text("{", encoding="utf-8")
+
+    scanner = module.SecurityScanner()
+    is_safe, issues = scanner.scan_file(skill_dir / "SKILL.md")
+
+    assert is_safe is False
+    assert any(issue["type"] == "metadata_read_error" for issue in issues)
+
+
+def test_file_list_maps_changed_support_file_to_owner_skill(tmp_path):
+    module = load_module()
+    skill_dir = tmp_path / "demo"
+    examples_dir = skill_dir / "examples"
+    examples_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        """---
+name: demo
+description: Demo skill used to verify file list ownership.
+---
+
+# Demo
+""",
+        encoding="utf-8",
+    )
+    (skill_dir / "metadata.json").write_text("{}", encoding="utf-8")
+    (examples_dir / "install.sh").write_text("echo ok\n", encoding="utf-8")
+    file_list = tmp_path / "changed-files.txt"
+    file_list.write_text(
+        "demo/examples/install.sh\n"
+        "demo/metadata.json\n",
+        encoding="utf-8",
+    )
+
+    selected = module.resolve_scan_file_list(tmp_path, file_list)
+
+    assert selected == [(skill_dir / "SKILL.md").resolve()]
 
 
 def test_scanner_checks_all_archived_support_dirs(tmp_path):

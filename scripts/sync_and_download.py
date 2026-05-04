@@ -42,6 +42,7 @@ sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from discover_by_topic import GitHubTopicDiscovery
+from security_blocklist import blocked_repo_entry, load_security_blocklist
 from utils import build_legal_metadata, build_skill_key, ensure_unique_dir, normalize_name
 
 from crawler.skillsmp_sync import SkillsMPSync
@@ -430,6 +431,52 @@ def filter_pending_skills(
     return filtered, skipped, skipped_rows
 
 
+def validate_existing_archive_sources(
+    output_dir: Path,
+    security_blocklist: dict[str, dict],
+) -> None:
+    """Fail when existing archived skills are sourced from blocked repos."""
+    exclude = {".git", ".github-skills", ".template", ".templates", ".attic"}
+    blocked_archives: list[str] = []
+    metadata_errors: list[str] = []
+
+    for dirpath, dirnames, filenames in os.walk(output_dir):
+        dirnames[:] = [dirname for dirname in dirnames if dirname not in exclude]
+        if "metadata.json" not in filenames or "SKILL.md" not in filenames:
+            continue
+
+        meta_path = Path(dirpath) / "metadata.json"
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            metadata_errors.append(f"{meta_path}: {exc}")
+            continue
+
+        repo = str(meta.get("repo") or "")
+        blocked_entry = blocked_repo_entry(repo, security_blocklist)
+        if not blocked_entry:
+            continue
+
+        blocked_archives.append(
+            f"{meta_path.parent}: {blocked_entry['repo']} "
+            f"({blocked_entry.get('reason', 'security blocklist')})"
+        )
+
+    if metadata_errors:
+        sample = "\n".join(metadata_errors[:20])
+        raise RuntimeError(
+            "Cannot validate existing archive metadata for security blocklist:\n"
+            f"{sample}"
+        )
+
+    if blocked_archives:
+        sample = "\n".join(blocked_archives[:50])
+        raise RuntimeError(
+            "Existing archive contains blocked source repos:\n"
+            f"{sample}"
+        )
+
+
 def build_branch_probe_order(
     repo: str,
     preferred_branch_by_repo: dict[str, str],
@@ -637,6 +684,9 @@ async def download_skills(
         len(manifest_entries),
         manifest_file,
     )
+    security_blocklist = load_security_blocklist()
+    logger.info("Security blocklist loaded: %s repos", len(security_blocklist))
+    validate_existing_archive_sources(output_dir, security_blocklist)
 
     # Check existing (across all categories)
     exclude = {".git", ".github-skills", ".template", ".templates", ".attic"}
@@ -1017,6 +1067,13 @@ async def download_skills(
         if not repo:
             failures["no_repo"].append(name)
             add_observation(skill, outcome="failed", failure_reason="no_repo")
+            return False
+        blocked_entry = blocked_repo_entry(repo, security_blocklist)
+        if blocked_entry:
+            reason = blocked_entry.get("reason") or "blocked source repo"
+            failures["blocked_source"].append(f"{repo}: {name} ({reason})")
+            add_observation(skill, outcome="failed", failure_reason="blocked_source")
+            logger.warning("Blocked security-listed source repo: %s (%s)", repo, name)
             return False
 
         manifest_key = build_manifest_key(repo, path, name, category)

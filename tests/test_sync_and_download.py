@@ -78,6 +78,77 @@ def test_should_fail_on_empty_download_only_when_all_attempts_fail():
     assert module.should_fail_on_empty_download({"downloaded": 0, "failed": 3, "skipped": 10}) is False
 
 
+def test_download_blocks_security_listed_source_repo(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure_report.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "php-code-injection",
+                        "repo": "blacklanternsecurity/red-run",
+                        "path": "skills/web/php-code-injection/SKILL.md",
+                        "category": "other",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(monkeypatch, {})
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            failure_report_path=failure_report_path,
+        )
+    )
+
+    assert stats["downloaded"] == 0
+    assert stats["failed"] == 1
+    assert not list(output_dir.rglob("SKILL.md"))
+    failure_report = json.loads(failure_report_path.read_text(encoding="utf-8"))
+    assert failure_report["failure_reasons"]["blocked_source"] == 1
+
+
+def test_existing_blocked_archive_fails_before_existing_skip(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    skill_dir = output_dir / "other" / "php-code-injection"
+    failure_report_path = tmp_path / "failure_report.json"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        """---
+name: php-code-injection
+description: Existing blocked archive.
+---
+
+# Demo
+""",
+        encoding="utf-8",
+    )
+    (skill_dir / "metadata.json").write_text(
+        json.dumps({"repo": "blacklanternsecurity/red-run"}),
+        encoding="utf-8",
+    )
+    registry_path.write_text(json.dumps({"skills": []}), encoding="utf-8")
+    install_fake_aiohttp(monkeypatch, {})
+
+    with pytest.raises(RuntimeError, match="Existing archive contains blocked source repos"):
+        asyncio.run(
+            module.download_skills(
+                registry_path,
+                output_dir,
+                failure_report_path=failure_report_path,
+            )
+        )
+
+
 def test_manifest_round_trip(tmp_path):
     module = load_module()
     manifest_path = tmp_path / "acquisition_manifest.json"

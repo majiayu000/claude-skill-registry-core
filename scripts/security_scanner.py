@@ -12,6 +12,8 @@ from typing import Dict, List, Tuple
 import jsonschema
 import yaml
 
+from security_blocklist import blocked_repo_entry, load_security_blocklist
+
 # Load schema
 SCHEMA_PATH = Path(__file__).parent.parent / "schema" / "skill.schema.json"
 
@@ -163,6 +165,7 @@ class SecurityScanner:
     def __init__(self, schema_path: str = None):
         self.schema_path = schema_path or SCHEMA_PATH
         self.schema = self._load_schema()
+        self.security_blocklist = load_security_blocklist()
         self.issues = []
 
     def _load_schema(self) -> dict:
@@ -223,13 +226,16 @@ class SecurityScanner:
         # 5. Check bundled scripts and reference implementations
         self._scan_bundled_files(skill_path.parent)
 
-        # 6. Prompt injection detection
+        # 6. Block known malicious or high-risk source repositories
+        self._scan_blocked_source(skill_path)
+
+        # 7. Prompt injection detection
         self._detect_prompt_injection(content)
 
-        # 7. Hardcoded credentials detection
+        # 8. Hardcoded credentials detection
         self._detect_credentials(content, skill_path)
 
-        # 8. Obfuscation-to-execution chains
+        # 9. Obfuscation-to-execution chains
         self._detect_obfuscation_exec(content, skill_path)
 
         # Determine if safe (only fail on truly dangerous issues)
@@ -239,6 +245,8 @@ class SecurityScanner:
             'dangerous_pattern',
             'file_too_large',
             'hardcoded_credential',
+            'metadata_read_error',
+            'blocked_source',
         }
         has_critical = any(
             i['severity'] == 'error' and i.get('type') in critical_types
@@ -369,6 +377,39 @@ class SecurityScanner:
         except (OSError, UnicodeDecodeError):
             pass
 
+    def _scan_blocked_source(self, skill_path: Path):
+        """Fail archived skills sourced from a repo on the security blocklist."""
+        metadata_path = skill_path.parent / "metadata.json"
+        if not metadata_path.exists():
+            return
+
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
+        except (OSError, json.JSONDecodeError) as exc:
+            self.issues.append({
+                'severity': 'error',
+                'type': 'metadata_read_error',
+                'file': str(metadata_path),
+                'message': f'Cannot read metadata for blocklist scan: {exc}',
+            })
+            return
+
+        repo = str(metadata.get("repo") or "")
+        blocked_entry = blocked_repo_entry(repo, self.security_blocklist)
+        if not blocked_entry:
+            return
+
+        self.issues.append({
+            'severity': 'error',
+            'type': 'blocked_source',
+            'file': str(metadata_path),
+            'repo': blocked_entry["repo"],
+            'message': (
+                f'Skill source repo "{blocked_entry["repo"]}" is blocked: '
+                f'{blocked_entry.get("reason", "security blocklist")}'
+            ),
+        })
+
     def _detect_credentials(self, content: str, file_path: Path):
         """Detect hardcoded credentials and secret key formats"""
         lines = content.split('\n')
@@ -434,8 +475,9 @@ class SecurityScanner:
 
 def resolve_scan_file_list(skills_dir: Path, file_list_path: Path) -> List[Path]:
     """
-    Resolve a newline-delimited file list into SKILL.md paths under skills_dir.
-    Lines may be absolute or relative paths.
+    Resolve a newline-delimited archive file list into SKILL.md paths under skills_dir.
+    Lines may be absolute or relative paths. Non-SKILL.md files map to the
+    nearest parent directory that owns a SKILL.md.
     """
     if not file_list_path.exists():
         return []
@@ -443,6 +485,16 @@ def resolve_scan_file_list(skills_dir: Path, file_list_path: Path) -> List[Path]
     skills_root = skills_dir.resolve()
     selected = []
     seen = set()
+
+    def owning_skill_file(candidate: Path) -> Path | None:
+        current = candidate if candidate.is_dir() else candidate.parent
+        while True:
+            skill_file = current / "SKILL.md"
+            if skill_file.is_file():
+                return skill_file
+            if current == skills_root:
+                return None
+            current = current.parent
 
     for raw in file_list_path.read_text(encoding='utf-8', errors='ignore').splitlines():
         line = raw.strip()
@@ -460,16 +512,18 @@ def resolve_scan_file_list(skills_dir: Path, file_list_path: Path) -> List[Path]
             # Ignore paths outside scan root for safety.
             continue
 
-        if candidate.name != "SKILL.md":
-            continue
-        if not candidate.exists() or not candidate.is_file():
+        if not candidate.exists():
             continue
 
-        key = str(candidate)
+        skill_file = candidate if candidate.name == "SKILL.md" else owning_skill_file(candidate)
+        if not skill_file:
+            continue
+
+        key = str(skill_file)
         if key in seen:
             continue
         seen.add(key)
-        selected.append(candidate)
+        selected.append(skill_file)
 
     return selected
 
