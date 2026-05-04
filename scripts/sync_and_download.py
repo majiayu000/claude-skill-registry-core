@@ -42,7 +42,7 @@ sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from discover_by_topic import GitHubTopicDiscovery
-from security_blocklist import blocked_repo_entry, load_security_blocklist
+from security_blocklist import blocked_metadata_source, blocked_repo_entry, load_security_blocklist
 from utils import build_legal_metadata, build_skill_key, ensure_unique_dir, normalize_name
 
 from crawler.skillsmp_sync import SkillsMPSync
@@ -452,14 +452,14 @@ def validate_existing_archive_sources(
             metadata_errors.append(f"{meta_path}: {exc}")
             continue
 
-        repo = str(meta.get("repo") or "")
-        blocked_entry = blocked_repo_entry(repo, security_blocklist)
-        if not blocked_entry:
+        blocked_source = blocked_metadata_source(meta, security_blocklist)
+        if not blocked_source:
             continue
+        blocked_entry, source_field = blocked_source
 
         blocked_archives.append(
             f"{meta_path.parent}: {blocked_entry['repo']} "
-            f"({blocked_entry.get('reason', 'security blocklist')})"
+            f"via {source_field} ({blocked_entry.get('reason', 'security blocklist')})"
         )
 
     if metadata_errors:

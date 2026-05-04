@@ -75,6 +75,42 @@ description: Demo skill used to verify source blocklist scanning.
     assert any(issue["type"] == "blocked_source" for issue in issues)
 
 
+def test_scanner_blocks_security_listed_github_path(tmp_path):
+    module = load_module()
+    skill_dir = tmp_path / "primr-strategy"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        """---
+name: primr-strategy
+description: Demo skill used to verify github_path blocklist scanning.
+---
+
+# Demo
+""",
+        encoding="utf-8",
+    )
+    (skill_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "repo": "blisspixel/primr",
+                "github_path": "openclaw/skills/primr-strategy",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    scanner = module.SecurityScanner()
+    is_safe, issues = scanner.scan_file(skill_dir / "SKILL.md")
+
+    assert is_safe is False
+    assert any(
+        issue["type"] == "blocked_source"
+        and issue["repo"] == "openclaw/skills"
+        and issue["metadata_field"] == "github_path"
+        for issue in issues
+    )
+
+
 def test_scanner_fails_closed_when_metadata_is_unreadable(tmp_path):
     module = load_module()
     skill_dir = tmp_path / "bad-metadata"

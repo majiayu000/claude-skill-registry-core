@@ -47,3 +47,27 @@ def test_blocked_repo_entry_normalizes_urls(tmp_path):
 
     assert entry is not None
     assert entry["repo"] == "owner/repo"
+
+
+def test_blocked_metadata_source_matches_github_path_prefix():
+    module = load_module()
+    blocklist = {
+        "openclaw/skills": {
+            "repo": "openclaw/skills",
+            "reason": "test",
+            "action": "reject",
+        }
+    }
+
+    result = module.blocked_metadata_source(
+        {
+            "repo": "blisspixel/primr",
+            "github_path": "openclaw/skills/primr-strategy",
+        },
+        blocklist,
+    )
+
+    assert result is not None
+    entry, field = result
+    assert entry["repo"] == "openclaw/skills"
+    assert field == "github_path"

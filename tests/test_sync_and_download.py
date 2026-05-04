@@ -149,6 +149,38 @@ description: Existing blocked archive.
         )
 
 
+def test_existing_archive_blocks_security_listed_github_path(tmp_path):
+    module = load_module()
+    output_dir = tmp_path / "skills"
+    skill_dir = output_dir / "other" / "primr-strategy"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        """---
+name: primr-strategy
+description: Existing archive with blocked github_path.
+---
+
+# Demo
+""",
+        encoding="utf-8",
+    )
+    (skill_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "repo": "blisspixel/primr",
+                "github_path": "openclaw/skills/primr-strategy",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="Existing archive contains blocked source repos"):
+        module.validate_existing_archive_sources(
+            output_dir,
+            module.load_security_blocklist(),
+        )
+
+
 def test_manifest_round_trip(tmp_path):
     module = load_module()
     manifest_path = tmp_path / "acquisition_manifest.json"
