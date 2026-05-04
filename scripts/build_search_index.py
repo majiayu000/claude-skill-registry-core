@@ -583,7 +583,7 @@ def build_search_index(
 
         cat_path = categories_dir / f"{category}.json"
         with open(cat_path, 'w', encoding='utf-8') as f:
-            json.dump(cat_data, f, ensure_ascii=False, indent=2)
+            json.dump(cat_data, f, ensure_ascii=False, separators=(',', ':'))
 
         category_index["categories"].append({
             "name": category,
