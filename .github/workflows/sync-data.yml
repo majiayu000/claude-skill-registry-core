@@ -237,21 +237,18 @@ jobs:
       - name: Security scan (skills full)
         if: steps.security_scope.outputs.mode == 'full'
         id: security_full
-        continue-on-error: true
         run: |
           echo "🔒 Running full security scan on skills..."
-          python scripts/security_scanner.py skills/ --quiet --report-only --output security-report.json
+          python scripts/security_scanner.py skills/ --quiet --output security-report.json
 
       - name: Security scan (skills daily incremental)
         if: steps.security_scope.outputs.mode != 'full'
         id: security_daily
-        continue-on-error: true
         run: |
           echo "🔒 Running incremental security scan on changed skills..."
           python scripts/security_scanner.py \
             skills/ \
             --quiet \
-            --report-only \
             --output security-report.json \
             --file-list "${{ steps.security_scope.outputs.file_list }}"
 

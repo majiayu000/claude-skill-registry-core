@@ -12,6 +12,8 @@ from typing import Dict, List, Tuple
 import jsonschema
 import yaml
 
+from security_blocklist import blocked_repo_entry, load_security_blocklist
+
 # Load schema
 SCHEMA_PATH = Path(__file__).parent.parent / "schema" / "skill.schema.json"
 
@@ -163,6 +165,7 @@ class SecurityScanner:
     def __init__(self, schema_path: str = None):
         self.schema_path = schema_path or SCHEMA_PATH
         self.schema = self._load_schema()
+        self.security_blocklist = load_security_blocklist()
         self.issues = []
 
     def _load_schema(self) -> dict:
@@ -223,13 +226,16 @@ class SecurityScanner:
         # 5. Check bundled scripts and reference implementations
         self._scan_bundled_files(skill_path.parent)
 
-        # 6. Prompt injection detection
+        # 6. Block known malicious or high-risk source repositories
+        self._scan_blocked_source(skill_path)
+
+        # 7. Prompt injection detection
         self._detect_prompt_injection(content)
 
-        # 7. Hardcoded credentials detection
+        # 8. Hardcoded credentials detection
         self._detect_credentials(content, skill_path)
 
-        # 8. Obfuscation-to-execution chains
+        # 9. Obfuscation-to-execution chains
         self._detect_obfuscation_exec(content, skill_path)
 
         # Determine if safe (only fail on truly dangerous issues)
@@ -239,6 +245,8 @@ class SecurityScanner:
             'dangerous_pattern',
             'file_too_large',
             'hardcoded_credential',
+            'metadata_read_error',
+            'blocked_source',
         }
         has_critical = any(
             i['severity'] == 'error' and i.get('type') in critical_types
@@ -368,6 +376,39 @@ class SecurityScanner:
             self._detect_obfuscation_exec(content, bundled_file)
         except (OSError, UnicodeDecodeError):
             pass
+
+    def _scan_blocked_source(self, skill_path: Path):
+        """Fail archived skills sourced from a repo on the security blocklist."""
+        metadata_path = skill_path.parent / "metadata.json"
+        if not metadata_path.exists():
+            return
+
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
+        except (OSError, json.JSONDecodeError) as exc:
+            self.issues.append({
+                'severity': 'error',
+                'type': 'metadata_read_error',
+                'file': str(metadata_path),
+                'message': f'Cannot read metadata for blocklist scan: {exc}',
+            })
+            return
+
+        repo = str(metadata.get("repo") or "")
+        blocked_entry = blocked_repo_entry(repo, self.security_blocklist)
+        if not blocked_entry:
+            return
+
+        self.issues.append({
+            'severity': 'error',
+            'type': 'blocked_source',
+            'file': str(metadata_path),
+            'repo': blocked_entry["repo"],
+            'message': (
+                f'Skill source repo "{blocked_entry["repo"]}" is blocked: '
+                f'{blocked_entry.get("reason", "security blocklist")}'
+            ),
+        })
 
     def _detect_credentials(self, content: str, file_path: Path):
         """Detect hardcoded credentials and secret key formats"""

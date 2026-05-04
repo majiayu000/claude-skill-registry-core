@@ -42,6 +42,7 @@ sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from discover_by_topic import GitHubTopicDiscovery
+from security_blocklist import blocked_repo_entry, load_security_blocklist
 from utils import build_legal_metadata, build_skill_key, ensure_unique_dir, normalize_name
 
 from crawler.skillsmp_sync import SkillsMPSync
@@ -637,6 +638,8 @@ async def download_skills(
         len(manifest_entries),
         manifest_file,
     )
+    security_blocklist = load_security_blocklist()
+    logger.info("Security blocklist loaded: %s repos", len(security_blocklist))
 
     # Check existing (across all categories)
     exclude = {".git", ".github-skills", ".template", ".templates", ".attic"}
@@ -1017,6 +1020,13 @@ async def download_skills(
         if not repo:
             failures["no_repo"].append(name)
             add_observation(skill, outcome="failed", failure_reason="no_repo")
+            return False
+        blocked_entry = blocked_repo_entry(repo, security_blocklist)
+        if blocked_entry:
+            reason = blocked_entry.get("reason") or "blocked source repo"
+            failures["blocked_source"].append(f"{repo}: {name} ({reason})")
+            add_observation(skill, outcome="failed", failure_reason="blocked_source")
+            logger.warning("Blocked security-listed source repo: %s (%s)", repo, name)
             return False
 
         manifest_key = build_manifest_key(repo, path, name, category)
