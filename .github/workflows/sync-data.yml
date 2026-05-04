@@ -227,8 +227,8 @@ jobs:
           fi
 
           {
-            git -C skills diff --name-only --diff-filter=AM | grep '/SKILL.md$' || true
-            git -C skills ls-files --others --exclude-standard | grep '/SKILL.md$' || true
+            git -C skills diff --name-only --diff-filter=AM || true
+            git -C skills ls-files --others --exclude-standard || true
           } | sort -u > "$FILE_LIST"
 
           COUNT=$(wc -l < "$FILE_LIST" | tr -d '[:space:]')
@@ -239,7 +239,7 @@ jobs:
           echo "mode=daily-incremental" >> "$GITHUB_OUTPUT"
           echo "file_list=$FILE_LIST" >> "$GITHUB_OUTPUT"
           echo "changed_count=$COUNT" >> "$GITHUB_OUTPUT"
-          echo "Security scope: daily-incremental ($COUNT files)"
+          echo "Security scope: daily-incremental ($COUNT archive files)"
 
       - name: Security scan (skills full)
         if: steps.security_scope.outputs.mode == 'full'

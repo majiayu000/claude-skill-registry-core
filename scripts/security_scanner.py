@@ -475,8 +475,9 @@ class SecurityScanner:
 
 def resolve_scan_file_list(skills_dir: Path, file_list_path: Path) -> List[Path]:
     """
-    Resolve a newline-delimited file list into SKILL.md paths under skills_dir.
-    Lines may be absolute or relative paths.
+    Resolve a newline-delimited archive file list into SKILL.md paths under skills_dir.
+    Lines may be absolute or relative paths. Non-SKILL.md files map to the
+    nearest parent directory that owns a SKILL.md.
     """
     if not file_list_path.exists():
         return []
@@ -484,6 +485,16 @@ def resolve_scan_file_list(skills_dir: Path, file_list_path: Path) -> List[Path]
     skills_root = skills_dir.resolve()
     selected = []
     seen = set()
+
+    def owning_skill_file(candidate: Path) -> Path | None:
+        current = candidate if candidate.is_dir() else candidate.parent
+        while True:
+            skill_file = current / "SKILL.md"
+            if skill_file.is_file():
+                return skill_file
+            if current == skills_root:
+                return None
+            current = current.parent
 
     for raw in file_list_path.read_text(encoding='utf-8', errors='ignore').splitlines():
         line = raw.strip()
@@ -501,16 +512,18 @@ def resolve_scan_file_list(skills_dir: Path, file_list_path: Path) -> List[Path]
             # Ignore paths outside scan root for safety.
             continue
 
-        if candidate.name != "SKILL.md":
-            continue
-        if not candidate.exists() or not candidate.is_file():
+        if not candidate.exists():
             continue
 
-        key = str(candidate)
+        skill_file = candidate if candidate.name == "SKILL.md" else owning_skill_file(candidate)
+        if not skill_file:
+            continue
+
+        key = str(skill_file)
         if key in seen:
             continue
         seen.add(key)
-        selected.append(candidate)
+        selected.append(skill_file)
 
     return selected
 

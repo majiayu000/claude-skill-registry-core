@@ -98,6 +98,35 @@ description: Demo skill used to verify fail-closed metadata scanning.
     assert any(issue["type"] == "metadata_read_error" for issue in issues)
 
 
+def test_file_list_maps_changed_support_file_to_owner_skill(tmp_path):
+    module = load_module()
+    skill_dir = tmp_path / "demo"
+    examples_dir = skill_dir / "examples"
+    examples_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        """---
+name: demo
+description: Demo skill used to verify file list ownership.
+---
+
+# Demo
+""",
+        encoding="utf-8",
+    )
+    (skill_dir / "metadata.json").write_text("{}", encoding="utf-8")
+    (examples_dir / "install.sh").write_text("echo ok\n", encoding="utf-8")
+    file_list = tmp_path / "changed-files.txt"
+    file_list.write_text(
+        "demo/examples/install.sh\n"
+        "demo/metadata.json\n",
+        encoding="utf-8",
+    )
+
+    selected = module.resolve_scan_file_list(tmp_path, file_list)
+
+    assert selected == [(skill_dir / "SKILL.md").resolve()]
+
+
 def test_scanner_checks_all_archived_support_dirs(tmp_path):
     module = load_module()
     skill_dir = tmp_path / "demo"
