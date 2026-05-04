@@ -12,7 +12,7 @@ from typing import Dict, List, Tuple
 import jsonschema
 import yaml
 
-from security_blocklist import blocked_repo_entry, load_security_blocklist
+from security_blocklist import blocked_metadata_source, load_security_blocklist
 
 # Load schema
 SCHEMA_PATH = Path(__file__).parent.parent / "schema" / "skill.schema.json"
@@ -394,16 +394,17 @@ class SecurityScanner:
             })
             return
 
-        repo = str(metadata.get("repo") or "")
-        blocked_entry = blocked_repo_entry(repo, self.security_blocklist)
-        if not blocked_entry:
+        blocked_source = blocked_metadata_source(metadata, self.security_blocklist)
+        if not blocked_source:
             return
+        blocked_entry, source_field = blocked_source
 
         self.issues.append({
             'severity': 'error',
             'type': 'blocked_source',
             'file': str(metadata_path),
             'repo': blocked_entry["repo"],
+            'metadata_field': source_field,
             'message': (
                 f'Skill source repo "{blocked_entry["repo"]}" is blocked: '
                 f'{blocked_entry.get("reason", "security blocklist")}'
