@@ -51,6 +51,21 @@ REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 TAG_PATTERN = re.compile(r"^[a-z0-9-]+$")
 
+
+def _has_path_traversal(path: str) -> bool:
+    """Detect ``..`` traversal segments regardless of separator style.
+
+    ``Path("a\\..\\b").parts`` returns a single piece on POSIX runners,
+    so this helper splits on both ``/`` and ``\\`` before checking.
+    """
+    if not path:
+        return False
+    for separator in ("/", "\\"):
+        for segment in path.split(separator):
+            if segment == "..":
+                return True
+    return False
+
 # Files we may legitimately skip — auto-generated indexes, blocklists, etc.
 NON_SKILL_TOPLEVEL_KEYS = ("entries", "blocked_repos", "plugins")
 EXPECTED_TOPLEVEL_KEYS = ("skills", *NON_SKILL_TOPLEVEL_KEYS)
@@ -189,7 +204,7 @@ def validate_skill_entry(
                     location,
                 )
             )
-        elif ".." in Path(path).parts:
+        elif _has_path_traversal(path):
             report.add(
                 Issue(file, "error", "E_PATH_TRAVERSAL", "path must not contain '..'", location)
             )

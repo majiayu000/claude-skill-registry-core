@@ -206,6 +206,31 @@ def test_path_traversal_is_rejected(vs, sources, capsys):
     assert "E_PATH_TRAVERSAL" in out
 
 
+def test_windows_style_path_traversal_is_rejected(vs, sources, capsys):
+    # ``Path("a\\..\\b").parts`` is a single piece on POSIX runners, so the
+    # validator must split on both '/' and '\' before checking for '..'.
+    _write(
+        sources / "community.json",
+        {
+            "name": "Community",
+            "description": "x",
+            "skills": [
+                {
+                    "name": "demo",
+                    "repo": "owner/repo",
+                    "path": "a\\..\\..\\etc",
+                    "description": "Long enough description here.",
+                    "category": "security",
+                }
+            ],
+        },
+    )
+    rc = vs.main(["--sources-dir", str(sources)])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "E_PATH_TRAVERSAL" in out
+
+
 def test_leading_slash_path_is_rejected(vs, sources, capsys):
     _write(
         sources / "community.json",

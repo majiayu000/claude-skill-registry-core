@@ -453,11 +453,15 @@ def test_extract_description_strips_markdown_links(utils):
     assert "the manual" in desc
 
 
-def test_extract_description_skips_short_lines_and_code_fences(utils):
+def test_extract_description_skips_short_lines_and_fence_openers(utils):
+    # extract_description only filters lines that *start with* ``` and lines
+    # under 20 chars; it does not understand fenced-block scope. The content
+    # below verifies that contract: short lines and the fence opener itself
+    # are skipped, then the first long body line is picked.
     content = (
         "---\nname: demo\n---\n\n"
         "short\n"
-        "```\ncode\n```\n"
+        "```\n"
         "This actually has more than twenty characters in it for sure.\n"
     )
     desc = utils.extract_description(content)
