@@ -418,7 +418,7 @@ def _validate_discovery_entries(
                         location,
                     )
                 )
-            elif ".." in Path(path_value).parts:
+            elif _has_path_traversal(path_value):
                 report.add(
                     Issue(
                         file_label,
