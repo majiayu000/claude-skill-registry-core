@@ -409,7 +409,9 @@ def _validate_discovery_entries(
             )
 
         path_value = entry.get("path")
-        if path_value is not None and isinstance(path_value, str):
+        if path_value is not None and not isinstance(path_value, str):
+            report.add(Issue(file_label, "error", "E_PATH_TYPE", "path must be a string", location))
+        elif isinstance(path_value, str):
             if path_value.startswith("/"):
                 report.add(
                     Issue(
