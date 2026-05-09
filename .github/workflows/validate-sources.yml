@@ -1,0 +1,48 @@
+name: Validate Sources
+
+on:
+  pull_request:
+    paths:
+      - "sources/**"
+      - "scripts/validate_sources.py"
+      - "scripts/utils.py"
+      - "tests/test_utils.py"
+      - "tests/test_validate_sources.py"
+      - ".github/workflows/validate-sources.yml"
+  push:
+    branches: [main]
+    paths:
+      - "sources/**"
+      - "scripts/validate_sources.py"
+      - "scripts/utils.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-sources:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml jsonschema pytest
+
+      - name: Validate sources/*.json shape
+        run: |
+          # Errors fail the build; warnings only print so authored category
+          # drift does not break unrelated contributor PRs.
+          python scripts/validate_sources.py --sources-dir sources
+
+      - name: Run scripts/utils.py + validate_sources.py tests
+        run: |
+          python -m pytest tests/test_utils.py tests/test_validate_sources.py -v -p no:cacheprovider --override-ini="addopts="
