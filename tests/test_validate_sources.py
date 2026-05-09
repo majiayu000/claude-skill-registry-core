@@ -271,6 +271,26 @@ def test_discovery_windows_style_path_traversal_is_rejected(vs, sources, capsys)
     assert "E_PATH_TRAVERSAL" in out
 
 
+def test_discovery_path_must_be_string(vs, sources, capsys):
+    _write(
+        sources / "github_search.json",
+        {
+            "name": "GH search",
+            "skills": [
+                {
+                    "repo": "owner/repo",
+                    "path": 123,
+                    "description": None,
+                }
+            ],
+        },
+    )
+    rc = vs.main(["--sources-dir", str(sources)])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "E_PATH_TYPE" in out
+
+
 def test_leading_slash_path_is_rejected(vs, sources, capsys):
     _write(
         sources / "community.json",
