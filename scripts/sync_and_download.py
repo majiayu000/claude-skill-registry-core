@@ -43,7 +43,13 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from discover_by_topic import GitHubTopicDiscovery
 from security_blocklist import blocked_metadata_source, blocked_repo_entry, load_security_blocklist
-from utils import build_legal_metadata, build_skill_key, ensure_unique_dir, normalize_name
+from utils import (
+    build_legal_metadata,
+    build_skill_key,
+    ensure_unique_dir,
+    iter_source_skills,
+    normalize_name,
+)
 
 from crawler.skillsmp_sync import SkillsMPSync
 
@@ -603,7 +609,7 @@ def build_unified_registry(
 
         source_name = source.get("name", source_file.stem)
 
-        for skill in source.get("skills", []):
+        for skill in iter_source_skills(source):
             # Create unique key
             repo = skill.get("repo", "")
             name = skill.get("name", "")

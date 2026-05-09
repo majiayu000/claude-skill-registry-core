@@ -78,6 +78,34 @@ def test_should_fail_on_empty_download_only_when_all_attempts_fail():
     assert module.should_fail_on_empty_download({"downloaded": 0, "failed": 3, "skipped": 10}) is False
 
 
+def test_build_unified_registry_inherits_top_level_repo(tmp_path):
+    module = load_module()
+    sources_dir = tmp_path / "sources"
+    sources_dir.mkdir()
+    output_path = tmp_path / "registry.json"
+    (sources_dir / "anthropic.json").write_text(
+        json.dumps(
+            {
+                "name": "Anthropic",
+                "repo": "anthropics/skills",
+                "skills": [
+                    {
+                        "name": "docx",
+                        "path": "skills/docx",
+                        "description": "Document editing skill.",
+                        "category": "documents",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert module.build_unified_registry(sources_dir, output_path) == 1
+    registry = json.loads(output_path.read_text(encoding="utf-8"))
+    assert registry["skills"][0]["repo"] == "anthropics/skills"
+
+
 def test_download_blocks_security_listed_source_repo(tmp_path, monkeypatch):
     module = load_module()
     registry_path = tmp_path / "registry.json"

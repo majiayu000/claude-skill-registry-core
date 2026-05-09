@@ -323,6 +323,24 @@ def test_build_skill_key_priority(utils):
     assert utils.build_skill_key(path="x/y", name="foo") == ":foo"
 
 
+def test_iter_source_skills_inherits_top_level_repo(utils):
+    source = {
+        "repo": "anthropics/skills",
+        "skills": [{"name": "docx", "path": "skills/docx"}],
+    }
+    rows = list(utils.iter_source_skills(source))
+    assert rows == [{"name": "docx", "path": "skills/docx", "repo": "anthropics/skills"}]
+
+
+def test_iter_source_skills_keeps_row_repo(utils):
+    source = {
+        "repo": "anthropics/skills",
+        "skills": [{"name": "custom", "repo": "owner/repo", "path": "skills/custom"}],
+    }
+    rows = list(utils.iter_source_skills(source))
+    assert rows[0]["repo"] == "owner/repo"
+
+
 def test_short_hash_is_deterministic_and_8_hex(utils):
     out = utils.short_hash("hello")
     assert len(out) == 8
