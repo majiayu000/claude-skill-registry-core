@@ -66,6 +66,9 @@ def _has_path_traversal(path: str) -> bool:
                 return True
     return False
 
+# Source files produced by discovery jobs may carry intentionally partial rows.
+DISCOVERY_SOURCE_FILES = frozenset({"discovered.json", "github_search.json", "crawled.json"})
+
 # Files we may legitimately skip — auto-generated indexes, blocklists, etc.
 NON_SKILL_TOPLEVEL_KEYS = ("entries", "blocked_repos", "plugins")
 EXPECTED_TOPLEVEL_KEYS = ("skills", *NON_SKILL_TOPLEVEL_KEYS)
@@ -339,9 +342,8 @@ def validate_file(path: Path, report: Report) -> None:
             report.add(Issue(file_label, "error", "E_SKILLS_TYPE", "skills must be an array"))
             return
 
-        curated_files = {"community.json", "anthropic.json", "skillsmp.json"}
-        is_curated = path.name in curated_files
-        if not is_curated:
+        is_discovery = path.name in DISCOVERY_SOURCE_FILES
+        if is_discovery:
             # Auto-discovered sources (discovered.json / github_search.json /
             # crawled.json) carry partial rows produced by crawlers — name and
             # category are derived later. Treat them as advisory: only check
@@ -360,7 +362,7 @@ def validate_file(path: Path, report: Report) -> None:
                 file=file_label,
                 location=f"skills[{i}]",
                 report=report,
-                require_category=is_curated,
+                require_category=True,
                 default_repo=default_repo,
             )
 
