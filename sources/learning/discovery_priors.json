@@ -1,7 +1,7 @@
 {
   "version": 1,
   "runs": 21,
-  "updated_at": "2026-05-04T02:21:12.193854Z",
+  "updated_at": "2026-05-09T16:14:41.778594Z",
   "repo_priors": {
     "shanraisshan/claude-code-best-practice": {
       "seen_runs": 21,
@@ -7726,9 +7726,9 @@
     },
     "conorluddy/ios-simulator-skill": {
       "reason": "not_found",
-      "count": 2,
-      "last_seen_at": "2026-05-03T02:21:29.789907Z",
-      "cooldown_until": "2026-05-06T02:21:29.789907Z",
+      "count": 3,
+      "last_seen_at": "2026-05-09T16:14:34.263129Z",
+      "cooldown_until": "2026-05-16T16:14:34.263129Z",
       "repo": "conorluddy/ios-simulator-skill",
       "path": ""
     }
