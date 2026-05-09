@@ -117,6 +117,26 @@ def test_discovery_files_only_check_repo_format(vs, sources, capsys):
     assert "errors=0" in captured.out
 
 
+def test_unknown_skill_catalog_uses_full_validation(vs, sources, capsys):
+    # Unknown sources/*.json catalogs are ingested by build_unified_registry,
+    # so they must not get the discovery-only relaxed validation path.
+    _write(
+        sources / "custom.json",
+        {
+            "name": "Custom",
+            "skills": [
+                {"repo": "owner/repo"},
+            ],
+        },
+    )
+    rc = vs.main(["--sources-dir", str(sources)])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "E_NAME" in out
+    assert "E_DESCRIPTION" in out
+    assert "W_CATEGORY_MISSING" in out
+
+
 # ---------------------------------------------------------------------------
 # Error paths (must exit 1)
 # ---------------------------------------------------------------------------
