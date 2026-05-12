@@ -29,6 +29,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -522,6 +523,65 @@ def validate_existing_archive_sources(
     return []
 
 
+def remove_ci_untracked_archive_files(output_dir: Path) -> int:
+    """Remove stale untracked archive files from CI data checkouts.
+
+    The core repo still has a legacy ``skills/`` tree. In GitHub Actions the
+    data repo is checked out into that same path, so old core files can remain
+    as untracked files inside the data checkout and then fail incremental scans.
+    Only do this cleanup in CI; local untracked files are user work.
+    """
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return 0
+    if not (output_dir / ".git").exists():
+        return 0
+
+    result = subprocess.run(
+        ["git", "-C", str(output_dir), "ls-files", "--others", "--exclude-standard", "-z"],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"Cannot list untracked archive files in {output_dir}: {stderr}")
+
+    output_root = output_dir.resolve()
+    removed = 0
+    touched_parents: set[Path] = set()
+    for raw_path in result.stdout.split(b"\0"):
+        if not raw_path:
+            continue
+        rel_path = Path(raw_path.decode("utf-8", errors="surrogateescape"))
+        if rel_path.is_absolute() or ".." in rel_path.parts:
+            raise RuntimeError(f"Refusing unsafe untracked archive path: {rel_path}")
+        target = (output_dir / rel_path).resolve()
+        try:
+            target.relative_to(output_root)
+        except ValueError as exc:
+            raise RuntimeError(f"Refusing untracked archive path outside output dir: {target}") from exc
+        if target.is_dir():
+            shutil.rmtree(target)
+        elif target.exists() or target.is_symlink():
+            target.unlink()
+        else:
+            continue
+        removed += 1
+        touched_parents.add(target.parent)
+
+    for parent in sorted(touched_parents, key=lambda path: len(path.parts), reverse=True):
+        current = parent
+        while current != output_root and current.exists():
+            try:
+                current.rmdir()
+            except OSError:
+                break
+            current = current.parent
+
+    if removed:
+        logger.warning("Removed %s CI-only untracked archive file(s) before download", removed)
+    return removed
+
+
 def build_branch_probe_order(
     repo: str,
     preferred_branch_by_repo: dict[str, str],
@@ -738,6 +798,7 @@ async def download_skills(
         security_blocklist,
         remove_blocked=True,
     )
+    removed_ci_untracked_files = remove_ci_untracked_archive_files(output_dir)
 
     # Check existing (across all categories)
     exclude = {".git", ".github-skills", ".template", ".templates", ".attic"}
@@ -834,6 +895,7 @@ async def download_skills(
             "prefiltered_no_repo": pending_skipped["no_repo"],
             "skipped_cooldown_not_found": pending_skipped["cooldown_not_found"],
             "blocked_archives_removed": len(removed_blocked_archives),
+            "ci_untracked_files_removed": removed_ci_untracked_files,
         }
 
     stats = {
@@ -850,6 +912,7 @@ async def download_skills(
         "prefiltered_no_repo": pending_skipped["no_repo"],
         "skipped_cooldown_not_found": pending_skipped["cooldown_not_found"],
         "blocked_archives_removed": len(removed_blocked_archives),
+        "ci_untracked_files_removed": removed_ci_untracked_files,
     }
     failures = defaultdict(list)
     observations: list[dict] = []

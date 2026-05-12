@@ -1,6 +1,7 @@
 import asyncio
 import importlib.util
 import json
+import subprocess
 import sys
 import types
 from datetime import timedelta
@@ -268,6 +269,41 @@ description: Existing blocked archive.
     assert stats["blocked_archives_removed"] == 1
     assert stats["downloaded"] == 0
     assert not skill_dir.exists()
+
+
+def test_download_removes_ci_untracked_archive_leftovers(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    stale_dir = output_dir / "other" / "old-core-leftover"
+    stale_dir.mkdir(parents=True)
+    (stale_dir / "SKILL.md").write_text(
+        """---
+name: old-core-leftover
+description: Stale file left by the core checkout.
+---
+
+# Demo
+""",
+        encoding="utf-8",
+    )
+    (stale_dir / "metadata.json").write_text("{}", encoding="utf-8")
+    registry_path.write_text(json.dumps({"skills": []}), encoding="utf-8")
+    install_fake_aiohttp(monkeypatch, {})
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+
+    subprocess_result = subprocess.run(
+        ["git", "init"],
+        cwd=output_dir,
+        check=True,
+        capture_output=True,
+    )
+    assert subprocess_result.returncode == 0
+
+    stats = asyncio.run(module.download_skills(registry_path, output_dir))
+
+    assert stats["ci_untracked_files_removed"] == 2
+    assert not stale_dir.exists()
 
 
 def test_existing_archive_blocks_security_listed_github_path(tmp_path):
