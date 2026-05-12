@@ -440,10 +440,17 @@ def filter_pending_skills(
 def validate_existing_archive_sources(
     output_dir: Path,
     security_blocklist: dict[str, dict],
-) -> None:
-    """Fail when existing archived skills are sourced from blocked repos."""
+    *,
+    remove_blocked: bool = False,
+) -> list[str]:
+    """Validate existing archives against the source blocklist.
+
+    By default this fails closed. The download pipeline passes
+    ``remove_blocked=True`` so the scheduled data sync can purge already
+    archived blocked sources and commit those deletions.
+    """
     exclude = {".git", ".github-skills", ".template", ".templates", ".attic"}
-    blocked_archives: list[str] = []
+    blocked_archives: list[tuple[Path, str]] = []
     metadata_errors: list[str] = []
 
     for dirpath, dirnames, filenames in os.walk(output_dir):
@@ -463,9 +470,13 @@ def validate_existing_archive_sources(
             continue
         blocked_entry, source_field = blocked_source
 
+        archive_dir = meta_path.parent
         blocked_archives.append(
-            f"{meta_path.parent}: {blocked_entry['repo']} "
-            f"via {source_field} ({blocked_entry.get('reason', 'security blocklist')})"
+            (
+                archive_dir,
+                f"{archive_dir}: {blocked_entry['repo']} "
+                f"via {source_field} ({blocked_entry.get('reason', 'security blocklist')})",
+            )
         )
 
     if metadata_errors:
@@ -476,11 +487,39 @@ def validate_existing_archive_sources(
         )
 
     if blocked_archives:
-        sample = "\n".join(blocked_archives[:50])
+        sample = "\n".join(summary for _, summary in blocked_archives[:50])
+        if remove_blocked:
+            output_root = output_dir.resolve()
+            removed_archives: list[str] = []
+            removed_dirs: set[Path] = set()
+            for archive_dir, summary in blocked_archives:
+                resolved_archive_dir = archive_dir.resolve()
+                try:
+                    resolved_archive_dir.relative_to(output_root)
+                except ValueError as exc:
+                    raise RuntimeError(
+                        "Refusing to remove blocked archive outside output dir: "
+                        f"{archive_dir}"
+                    ) from exc
+                if resolved_archive_dir in removed_dirs:
+                    continue
+                shutil.rmtree(archive_dir)
+                removed_dirs.add(resolved_archive_dir)
+                removed_archives.append(summary)
+
+            logger.warning(
+                "Removed %s existing blocked archived skills before download:\n%s",
+                len(removed_archives),
+                "\n".join(removed_archives[:50]),
+            )
+            return removed_archives
+
         raise RuntimeError(
             "Existing archive contains blocked source repos:\n"
             f"{sample}"
         )
+
+    return []
 
 
 def build_branch_probe_order(
@@ -692,7 +731,11 @@ async def download_skills(
     )
     security_blocklist = load_security_blocklist()
     logger.info("Security blocklist loaded: %s repos", len(security_blocklist))
-    validate_existing_archive_sources(output_dir, security_blocklist)
+    removed_blocked_archives = validate_existing_archive_sources(
+        output_dir,
+        security_blocklist,
+        remove_blocked=True,
+    )
 
     # Check existing (across all categories)
     exclude = {".git", ".github-skills", ".template", ".templates", ".attic"}
@@ -788,6 +831,7 @@ async def download_skills(
             "pending_before_shard": len(pending_all),
             "prefiltered_no_repo": pending_skipped["no_repo"],
             "skipped_cooldown_not_found": pending_skipped["cooldown_not_found"],
+            "blocked_archives_removed": len(removed_blocked_archives),
         }
 
     stats = {
@@ -803,6 +847,7 @@ async def download_skills(
         "pending_before_shard": len(pending_all),
         "prefiltered_no_repo": pending_skipped["no_repo"],
         "skipped_cooldown_not_found": pending_skipped["cooldown_not_found"],
+        "blocked_archives_removed": len(removed_blocked_archives),
     }
     failures = defaultdict(list)
     observations: list[dict] = []
