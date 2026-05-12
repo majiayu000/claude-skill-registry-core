@@ -42,7 +42,7 @@ sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from discover_by_topic import GitHubTopicDiscovery
-from security_blocklist import blocked_metadata_source, blocked_repo_entry, load_security_blocklist
+from security_blocklist import blocked_metadata_source, load_security_blocklist
 from utils import (
     build_legal_metadata,
     build_skill_key,
@@ -709,6 +709,7 @@ async def download_skills(
     from collections import defaultdict
 
     import aiohttp
+    from security_scanner import SecurityScanner
 
     GITHUB_RAW_BASE = "https://raw.githubusercontent.com"
     BRANCHES = ("main", "master")
@@ -731,6 +732,7 @@ async def download_skills(
     )
     security_blocklist = load_security_blocklist()
     logger.info("Security blocklist loaded: %s repos", len(security_blocklist))
+    security_scanner = SecurityScanner()
     removed_blocked_archives = validate_existing_archive_sources(
         output_dir,
         security_blocklist,
@@ -1119,12 +1121,28 @@ async def download_skills(
             failures["no_repo"].append(name)
             add_observation(skill, outcome="failed", failure_reason="no_repo")
             return False
-        blocked_entry = blocked_repo_entry(repo, security_blocklist)
-        if blocked_entry:
+        blocked_source = blocked_metadata_source(
+            {
+                **skill,
+                "repo": repo,
+                "path": path or skill.get("path", ""),
+                "github_path": skill.get("github_path", ""),
+            },
+            security_blocklist,
+        )
+        if blocked_source:
+            blocked_entry, source_field = blocked_source
             reason = blocked_entry.get("reason") or "blocked source repo"
-            failures["blocked_source"].append(f"{repo}: {name} ({reason})")
+            failures["blocked_source"].append(
+                f"{blocked_entry['repo']}: {name} via {source_field} ({reason})"
+            )
             add_observation(skill, outcome="failed", failure_reason="blocked_source")
-            logger.warning("Blocked security-listed source repo: %s (%s)", repo, name)
+            logger.warning(
+                "Blocked security-listed source before download: %s via %s (%s)",
+                blocked_entry["repo"],
+                source_field,
+                name,
+            )
             return False
 
         manifest_key = build_manifest_key(repo, path, name, category)
@@ -1221,6 +1239,38 @@ async def download_skills(
                                         }, indent=2, ensure_ascii=False),
                                         encoding="utf-8"
                                     )
+                                    is_safe, security_issues = security_scanner.scan_file(
+                                        skill_dir / "SKILL.md"
+                                    )
+                                    if not is_safe:
+                                        issue_types = sorted(
+                                            {
+                                                str(issue.get("type") or "unknown")
+                                                for issue in security_issues
+                                            }
+                                        )
+                                        shutil.rmtree(skill_dir, ignore_errors=True)
+                                        failures["security_scan_failed"].append(
+                                            f"{repo}: {name} ({', '.join(issue_types[:8])})"
+                                        )
+                                        stats["url_attempts"] += attempts
+                                        add_observation(
+                                            skill,
+                                            outcome="failed",
+                                            failure_reason="security_scan_failed",
+                                            attempts=attempts,
+                                            manifest_hit=manifest_entry is not None,
+                                            branch=branch,
+                                            relative_path=relative_path,
+                                            bundled_file_count=len(bundled_files),
+                                        )
+                                        logger.warning(
+                                            "Rejected downloaded skill after security scan: %s/%s (%s)",
+                                            repo,
+                                            relative_path,
+                                            ", ".join(issue_types[:8]),
+                                        )
+                                        return False
                                     preferred_branch_by_repo[repo] = branch
                                     manifest_entries[manifest_key] = {
                                         "repo": repo,
