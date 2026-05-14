@@ -302,6 +302,69 @@ def test_safe_write_registry_writes_compact_json(tmp_path):
     assert content == '{"skills":[{"name":"demo","repo":"owner/repo"}]}'
 
 
+def test_registry_shard_id_is_stable_for_install_and_branch():
+    skill = {
+        "name": "demo",
+        "repo": "owner/repo",
+        "path": "skills/demo/SKILL.md",
+        "branch": "main",
+    }
+
+    assert rebuild_registry.registry_shard_id(skill) == rebuild_registry.registry_shard_id(skill)
+
+
+def test_write_registry_shards_writes_manifest_entries_and_removes_stale(tmp_path):
+    shards_dir = tmp_path / "registry-shards"
+    shards_dir.mkdir()
+    stale = shards_dir / "stale.json"
+    stale.write_text("{}", encoding="utf-8")
+
+    skills = [
+        {
+            "name": "alpha",
+            "repo": "owner/repo",
+            "path": "skills/alpha/SKILL.md",
+            "branch": "main",
+        },
+        {
+            "name": "beta",
+            "repo": "owner/repo",
+            "path": "skills/beta/SKILL.md",
+            "branch": "main",
+        },
+    ]
+
+    entries = rebuild_registry.write_registry_shards(
+        skills,
+        shards_dir,
+        "2026-05-14T00:00:00Z",
+    )
+
+    assert not stale.exists()
+    assert len(entries) == 256
+    assert sum(entry["count"] for entry in entries) == 2
+    assert all((tmp_path / entry["path"]).exists() for entry in entries)
+    assert all((tmp_path / entry["gzip_path"]).exists() for entry in entries)
+    assert all(entry["sha256"] for entry in entries)
+
+
+def test_build_compatibility_registry_points_to_manifest_without_skills():
+    registry = rebuild_registry.build_compatibility_registry(
+        generated_at="2026-05-14T00:00:00Z",
+        total_count=2,
+        plugin_count=1,
+        archive_skill_md_count_raw=3,
+        archive_metadata_count_raw=3,
+        manifest_path="registry-manifest.json",
+    )
+
+    assert registry["total_count"] == 2
+    assert registry["registry_skill_count_dedup"] == 2
+    assert registry["manifest"] == "registry-manifest.json"
+    assert registry["deprecated_full_payload"] is True
+    assert "skills" not in registry
+
+
 def test_cleanup_orphan_metadata_removes_only_orphans(tmp_path):
     skills_dir = tmp_path / "skills"
     good_dir = skills_dir / "data" / "good-skill"

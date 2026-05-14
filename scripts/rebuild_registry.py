@@ -5,6 +5,8 @@ Rebuild registry.json from downloaded skills.
 Scans archived SKILL.md files recursively and rebuilds the registry index.
 """
 
+import gzip
+import hashlib
 import json
 import logging
 from collections import defaultdict
@@ -36,6 +38,159 @@ def safe_write_registry(registry_path: Path, registry: dict) -> bool:
         if temp_path.exists():
             temp_path.unlink()
         return False
+
+
+def safe_write_json(output_path: Path, payload: dict) -> None:
+    """Write compact JSON atomically."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = output_path.with_suffix(output_path.suffix + ".tmp")
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+    temp_path.replace(output_path)
+
+
+def safe_write_gzip_json(output_path: Path, payload: dict) -> None:
+    """Write compact gzipped JSON atomically."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = output_path.with_suffix(output_path.suffix + ".tmp")
+    with gzip.open(temp_path, "wt", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+    temp_path.replace(output_path)
+
+
+def skill_install_key(skill: dict) -> str:
+    """Build the stable install key used for registry sharding."""
+    repo = skill.get("repo", "")
+    path = skill.get("path", "")
+    name = skill.get("name", "unknown")
+    category = skill.get("category", "other")
+
+    if repo and path:
+        return f"{repo}/{path}"
+    if repo:
+        return repo
+    if path:
+        return f"local/{path}"
+    return f"local/{category}/{name}"
+
+
+def registry_shard_id(skill: dict) -> str:
+    """Return the two-character shard id for a skill."""
+    branch = skill.get("branch", "main") or "main"
+    key = f"{skill_install_key(skill)}|{branch}".encode("utf-8")
+    return hashlib.sha256(key).hexdigest()[:2]
+
+
+def remove_stale_shards(shards_dir: Path) -> int:
+    """Remove old shard JSON files before writing a fresh shard set."""
+    if not shards_dir.exists():
+        return 0
+
+    removed = 0
+    for pattern in ("*.json", "*.json.gz"):
+        for path in shards_dir.glob(pattern):
+            path.unlink()
+            removed += 1
+    return removed
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_registry_shards(
+    skills: list[dict],
+    shards_dir: Path,
+    generated_at: str,
+) -> list[dict]:
+    """Write 256 registry shards and return manifest entries."""
+    remove_stale_shards(shards_dir)
+    shards: dict[str, list[dict]] = {f"{idx:02x}": [] for idx in range(256)}
+
+    for skill in skills:
+        shards[registry_shard_id(skill)].append(skill)
+
+    manifest_entries: list[dict] = []
+    for shard_id, shard_skills in sorted(shards.items()):
+        shard_payload = {
+            "schema_version": 1,
+            "shard": shard_id,
+            "generated_at": generated_at,
+            "count": len(shard_skills),
+            "skills": shard_skills,
+        }
+        shard_path = shards_dir / f"{shard_id}.json"
+        gzip_path = shards_dir / f"{shard_id}.json.gz"
+        safe_write_json(shard_path, shard_payload)
+        safe_write_gzip_json(gzip_path, shard_payload)
+        manifest_entries.append(
+            {
+                "id": shard_id,
+                "path": shard_path.relative_to(shards_dir.parent).as_posix(),
+                "gzip_path": gzip_path.relative_to(shards_dir.parent).as_posix(),
+                "count": len(shard_skills),
+                "bytes": shard_path.stat().st_size,
+                "gzip_bytes": gzip_path.stat().st_size,
+                "sha256": file_sha256(shard_path),
+            }
+        )
+
+    return manifest_entries
+
+
+def build_registry_manifest(
+    *,
+    generated_at: str,
+    total_count: int,
+    plugin_count: int,
+    shards: list[dict],
+    summary_path: str,
+    plugins_path: str,
+    provenance: dict | None = None,
+) -> dict:
+    return {
+        "schema_version": 1,
+        "generated_at": generated_at,
+        "total_count": total_count,
+        "plugin_count": plugin_count,
+        "shard_strategy": "sha256-install-branch-prefix",
+        "shard_count": len(shards),
+        "record_key": "install|branch",
+        "provenance": provenance or {},
+        "summary": summary_path,
+        "shards": shards,
+        "plugins": {
+            "path": plugins_path,
+            "count": plugin_count,
+        },
+    }
+
+
+def build_compatibility_registry(
+    *,
+    generated_at: str,
+    total_count: int,
+    plugin_count: int,
+    archive_skill_md_count_raw: int,
+    archive_metadata_count_raw: int,
+    manifest_path: str,
+) -> dict:
+    return {
+        "version": "2.2.0",
+        "updated_at": generated_at,
+        "total_count": total_count,
+        "plugin_count": plugin_count,
+        "archive_skill_md_count_raw": archive_skill_md_count_raw,
+        "archive_metadata_count_raw": archive_metadata_count_raw,
+        "registry_skill_count_dedup": total_count,
+        "manifest": manifest_path,
+        "deprecated_full_payload": True,
+        "message": "Full registry payload moved to registry-shards/*.json",
+    }
 
 
 def scan_skills(skills_dir: Path) -> list:
@@ -197,6 +352,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Rebuild registry.json from downloaded skills")
     parser.add_argument("--skills-dir", default="skills", help="Skills directory to scan")
     parser.add_argument("--registry", default="registry.json", help="Output registry.json path")
+    parser.add_argument("--manifest", default="registry-manifest.json", help="Output shard manifest path")
+    parser.add_argument("--shards-dir", default="registry-shards", help="Output registry shards directory")
     parser.add_argument("--categories-dir", default="categories", help="Output categories directory")
     parser.add_argument("--skip-categories", action="store_true", help="Do not write category index files")
 
@@ -208,6 +365,8 @@ if __name__ == "__main__":
 
         skills_dir = (registry_dir / args.skills_dir).resolve()
         registry_path = (registry_dir / args.registry).resolve()
+        manifest_path = (registry_dir / args.manifest).resolve()
+        shards_dir = (registry_dir / args.shards_dir).resolve()
         categories_dir = (registry_dir / args.categories_dir).resolve()
         sources_dir = (registry_dir / "sources").resolve()
 
@@ -266,21 +425,44 @@ if __name__ == "__main__":
         archive_skill_md_count_raw = sum(1 for _ in skills_dir.rglob("SKILL.md"))
         archive_metadata_count_raw = sum(1 for _ in skills_dir.rglob("metadata.json"))
 
-        # Build registry
-        registry = {
-            "version": "2.1.0",
-            "updated_at": utc_now_isoformat(),
-            "total_count": len(unique_skills),
-            "plugin_count": len(plugins),
-            "archive_skill_md_count_raw": archive_skill_md_count_raw,
-            "archive_metadata_count_raw": archive_metadata_count_raw,
-            "registry_skill_count_dedup": len(unique_skills),
-            "skills": unique_skills,
-            "plugins": plugins,
-        }
+        generated_at = utc_now_isoformat()
+        manifest_rel_path = manifest_path.relative_to(registry_dir).as_posix()
+
+        print(f"Writing registry shards: {shards_dir}")
+        shard_entries = write_registry_shards(
+            unique_skills,
+            shards_dir,
+            generated_at,
+        )
+        print(f"Written {len(shard_entries)} registry shards")
+        print()
+
+        manifest = build_registry_manifest(
+            generated_at=generated_at,
+            total_count=len(unique_skills),
+            plugin_count=len(plugins),
+            shards=shard_entries,
+            summary_path="registry_summary.json",
+            plugins_path="sources/plugins.json",
+        )
+        safe_write_json(manifest_path, manifest)
+        print(f"Written {manifest_path}")
+        print()
+
+        registry = build_compatibility_registry(
+            generated_at=generated_at,
+            total_count=len(unique_skills),
+            plugin_count=len(plugins),
+            archive_skill_md_count_raw=archive_skill_md_count_raw,
+            archive_metadata_count_raw=archive_metadata_count_raw,
+            manifest_path=manifest_rel_path,
+        )
 
         if safe_write_registry(registry_path, registry):
-            print(f"Written {registry_path} with {len(unique_skills)} skills, {len(plugins)} plugins")
+            print(
+                f"Written compatibility {registry_path} "
+                f"with {len(unique_skills)} skills, {len(plugins)} plugins"
+            )
         else:
             print("Failed to write registry!")
             return

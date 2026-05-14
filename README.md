@@ -80,7 +80,11 @@ curl https://majiayu000.github.io/claude-skill-registry-core/ranking-index.json
 # Lightweight registry summary (counts only)
 curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry-core/main/registry_summary.json
 
-# Full registry
+# Full registry manifest and shards
+curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry-core/main/registry-manifest.json
+curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry-core/main/registry-shards/00.json
+
+# Compatibility registry pointer
 curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry-core/main/registry.json
 
 # Specific category
@@ -143,7 +147,9 @@ interface SkillMini {
 
 ```
 claude-skill-registry-core/
-├── registry.json           # Full registry (all skills)
+├── registry.json           # Compatibility pointer to sharded registry
+├── registry-manifest.json  # Full registry shard manifest
+├── registry-shards/        # Full registry shards
 ├── docs/                   # GitHub Pages
 │   ├── index.html          # Web search UI
 │   ├── search-index.json   # Lightweight search index
