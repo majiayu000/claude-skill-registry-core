@@ -38,7 +38,10 @@ category/search outputs.
 ## Decision
 
 Keep `claude-skill-registry-data` as the source of truth and introduce static
-generated shards in `claude-skill-registry-core` / `claude-skill-registry`.
+generated shards in the merged `claude-skill-registry` publish artifact. The
+core repo owns the generator and can rebuild the same artifacts locally, but
+the public full-registry URLs must target the merged publish artifact unless
+core also commits those generated files.
 
 Do not move catalog source-of-truth storage to an external database for this
 first fix.
@@ -265,7 +268,10 @@ Phase 1 keeps a small compatibility file:
 ```
 
 This intentionally stops publishing the full `skills` array in
-`registry.json`.
+`registry.json`. Core metadata commits may omit the `manifest` field when the
+manifest and shard files are not committed in the same repo tree; the merged
+publish artifact includes the pointer because it publishes those files
+together.
 
 ### Compressed Full Dump
 
@@ -450,7 +456,8 @@ Required workflow validation:
 
 ## Done When
 
-- No generated file in core or main exceeds 80 MiB after a normal daily run.
+- No generated file in the checked publish artifact exceeds 80 MiB after a
+  normal daily run.
 - Publish fails before any generated file exceeds 90 MiB.
 - `registry_summary.json` still reports the correct deduplicated skill count.
 - `registry-manifest.json` points to all full registry shards.

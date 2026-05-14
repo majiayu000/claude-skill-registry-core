@@ -102,13 +102,25 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def artifact_reference(path: Path, base_dir: Path) -> str:
+    """Return a portable artifact reference relative to base_dir when possible."""
+    resolved_path = path.resolve()
+    resolved_base = base_dir.resolve()
+    try:
+        return resolved_path.relative_to(resolved_base).as_posix()
+    except ValueError:
+        return resolved_path.as_posix()
+
+
 def write_registry_shards(
     skills: list[dict],
     shards_dir: Path,
     generated_at: str,
+    reference_base: Path | None = None,
 ) -> list[dict]:
     """Write 256 registry shards and return manifest entries."""
     remove_stale_shards(shards_dir)
+    reference_base = reference_base or shards_dir.parent
     shards: dict[str, list[dict]] = {f"{idx:02x}": [] for idx in range(256)}
 
     for skill in skills:
@@ -130,8 +142,8 @@ def write_registry_shards(
         manifest_entries.append(
             {
                 "id": shard_id,
-                "path": shard_path.relative_to(shards_dir.parent).as_posix(),
-                "gzip_path": gzip_path.relative_to(shards_dir.parent).as_posix(),
+                "path": artifact_reference(shard_path, reference_base),
+                "gzip_path": artifact_reference(gzip_path, reference_base),
                 "count": len(shard_skills),
                 "bytes": shard_path.stat().st_size,
                 "gzip_bytes": gzip_path.stat().st_size,
@@ -177,9 +189,13 @@ def build_compatibility_registry(
     plugin_count: int,
     archive_skill_md_count_raw: int,
     archive_metadata_count_raw: int,
-    manifest_path: str,
+    manifest_path: str | None = None,
 ) -> dict:
-    return {
+    message = "Full registry payload moved to registry-shards/*.json"
+    if not manifest_path:
+        message = "Full registry payload is published in the merged claude-skill-registry artifact"
+
+    registry = {
         "version": "2.2.0",
         "updated_at": generated_at,
         "total_count": total_count,
@@ -187,10 +203,12 @@ def build_compatibility_registry(
         "archive_skill_md_count_raw": archive_skill_md_count_raw,
         "archive_metadata_count_raw": archive_metadata_count_raw,
         "registry_skill_count_dedup": total_count,
-        "manifest": manifest_path,
         "deprecated_full_payload": True,
-        "message": "Full registry payload moved to registry-shards/*.json",
+        "message": message,
     }
+    if manifest_path:
+        registry["manifest"] = manifest_path
+    return registry
 
 
 def scan_skills(skills_dir: Path) -> list:
@@ -356,6 +374,11 @@ if __name__ == "__main__":
     parser.add_argument("--shards-dir", default="registry-shards", help="Output registry shards directory")
     parser.add_argument("--categories-dir", default="categories", help="Output categories directory")
     parser.add_argument("--skip-categories", action="store_true", help="Do not write category index files")
+    parser.add_argument(
+        "--compat-manifest-pointer",
+        action="store_true",
+        help="Include the shard manifest path in registry.json when manifest/shards are published with it",
+    )
 
     args = parser.parse_args()
 
@@ -426,13 +449,14 @@ if __name__ == "__main__":
         archive_metadata_count_raw = sum(1 for _ in skills_dir.rglob("metadata.json"))
 
         generated_at = utc_now_isoformat()
-        manifest_rel_path = manifest_path.relative_to(registry_dir).as_posix()
+        manifest_ref = artifact_reference(manifest_path, registry_path.parent)
 
         print(f"Writing registry shards: {shards_dir}")
         shard_entries = write_registry_shards(
             unique_skills,
             shards_dir,
             generated_at,
+            reference_base=manifest_path.parent,
         )
         print(f"Written {len(shard_entries)} registry shards")
         print()
@@ -455,7 +479,7 @@ if __name__ == "__main__":
             plugin_count=len(plugins),
             archive_skill_md_count_raw=archive_skill_md_count_raw,
             archive_metadata_count_raw=archive_metadata_count_raw,
-            manifest_path=manifest_rel_path,
+            manifest_path=manifest_ref if args.compat_manifest_pointer else None,
         )
 
         if safe_write_registry(registry_path, registry):

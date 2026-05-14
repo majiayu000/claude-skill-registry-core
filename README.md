@@ -80,12 +80,12 @@ curl https://majiayu000.github.io/claude-skill-registry-core/ranking-index.json
 # Lightweight registry summary (counts only)
 curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry-core/main/registry_summary.json
 
-# Full registry manifest and shards
-curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry-core/main/registry-manifest.json
-curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry-core/main/registry-shards/00.json
+# Full registry manifest and shards (merged publish artifact)
+curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry/main/registry-manifest.json
+curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry/main/registry-shards/00.json
 
-# Compatibility registry pointer
-curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry-core/main/registry.json
+# Compatibility registry pointer (merged publish artifact)
+curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry/main/registry.json
 
 # Specific category
 curl https://majiayu000.github.io/claude-skill-registry-core/categories/development.json
@@ -147,9 +147,7 @@ interface SkillMini {
 
 ```
 claude-skill-registry-core/
-├── registry.json           # Compatibility pointer to sharded registry
-├── registry-manifest.json  # Full registry shard manifest
-├── registry-shards/        # Full registry shards
+├── registry.json           # Lightweight core registry metadata
 ├── docs/                   # GitHub Pages
 │   ├── index.html          # Web search UI
 │   ├── search-index.json   # Lightweight search index
@@ -166,6 +164,9 @@ claude-skill-registry-core/
 │   └── ...
 └── (no committed skills/)  # skills/** lives in registry-data; mounted in CI when needed
 ```
+
+The merged `claude-skill-registry` publish artifact additionally contains
+`registry-manifest.json` and `registry-shards/**`.
 
 ---
 
