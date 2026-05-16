@@ -5,7 +5,8 @@
  */
 
 const CONFIG = {
-    INDEX_URL: 'search-index.json',
+    INDEX_URL: 'search-index-lite.json',
+    LEGACY_INDEX_URL: 'search-index.json',
     FEATURED_URL: 'featured.json',
     CATEGORIES_URL: 'categories/index.json',
     PLUGINS_URL: 'plugins.json',
@@ -41,6 +42,11 @@ const CATEGORY_NAMES = {
     'off': 'Official',
     'oth': 'Other'
 };
+
+// Full category name to short code mapping
+const CATEGORY_CODES_REVERSE = Object.fromEntries(
+    Object.entries(CATEGORY_NAMES).map(([code, name]) => [name.toLowerCase(), code])
+);
 
 // Category colors for charts
 const CATEGORY_COLORS = {
@@ -125,12 +131,88 @@ const elements = {
     themeIcon: document.getElementById('theme-icon')
 };
 
+async function fetchJson(url) {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`${url} returned ${response.status}`);
+    }
+    return response.json();
+}
+
+function normalizeCategoryCode(category) {
+    if (!category) {
+        return 'oth';
+    }
+
+    const normalized = String(category).trim().toLowerCase();
+    if (CATEGORY_NAMES[normalized]) {
+        return normalized;
+    }
+    return CATEGORY_CODES_REVERSE[normalized] || 'oth';
+}
+
+function normalizeSkillRecord(skill) {
+    if (skill.n) {
+        return skill;
+    }
+
+    return {
+        n: skill.name || 'Unknown skill',
+        d: skill.description || '',
+        c: normalizeCategoryCode(skill.category),
+        g: Array.isArray(skill.tags) ? skill.tags.slice(0, 5) : [],
+        r: Number(skill.stars || 0),
+        i: skill.install || skill.id || skill.name || '',
+        b: skill.branch || 'main'
+    };
+}
+
+function normalizeSearchIndex(indexData) {
+    if (Array.isArray(indexData.s)) {
+        return {
+            ...indexData,
+            s: indexData.s.map(normalizeSkillRecord),
+            includedCount: indexData.s.length,
+            isLite: false
+        };
+    }
+
+    if (Array.isArray(indexData.skills)) {
+        return {
+            v: indexData.version || indexData.updated_at || '',
+            t: Number(indexData.total_count || indexData.skills.length),
+            s: indexData.skills.map(normalizeSkillRecord),
+            includedCount: Number(indexData.included_count || indexData.skills.length),
+            isLite: true
+        };
+    }
+
+    throw new Error('Unsupported search index schema');
+}
+
+async function loadSearchIndex() {
+    try {
+        return normalizeSearchIndex(await fetchJson(CONFIG.INDEX_URL));
+    } catch (error) {
+        console.warn(`Failed to load ${CONFIG.INDEX_URL}; falling back to ${CONFIG.LEGACY_INDEX_URL}:`, error);
+        return normalizeSearchIndex(await fetchJson(CONFIG.LEGACY_INDEX_URL));
+    }
+}
+
+function formatResultCount(count) {
+    const base = `${count.toLocaleString()} results`;
+    if (state.index?.isLite) {
+        return `${base} in highlighted index`;
+    }
+    return base;
+}
+
 // Initialize
 async function init() {
     try {
         // Load index and featured in parallel
         const [indexData, featuredData, categoriesData, pluginsData] = await Promise.all([
-            fetch(CONFIG.INDEX_URL).then(r => r.json()),
+            loadSearchIndex(),
             fetch(CONFIG.FEATURED_URL).then(r => r.json()).catch(() => ({ skills: [] })),
             fetch(CONFIG.CATEGORIES_URL).then(r => r.json()).catch(() => ({ categories: [] })),
             fetch(CONFIG.PLUGINS_URL).then(r => r.json()).catch(() => ({ plugins: [] }))
@@ -146,6 +228,9 @@ async function init() {
 
         // Update UI
         elements.totalCount.textContent = state.index.t.toLocaleString();
+        if (state.index.isLite && state.index.includedCount < state.index.t) {
+            elements.totalCount.title = `Searching ${state.index.includedCount.toLocaleString()} highlighted skills out of ${state.index.t.toLocaleString()} total`;
+        }
         elements.lastUpdated.textContent = `Updated: ${state.index.v}`;
 
         // Populate category filters
@@ -347,7 +432,7 @@ function renderCategoryChart() {
     chartContainer.innerHTML = sorted.map(([code, count]) => {
         const name = CATEGORY_NAMES[code] || code;
         const color = CATEGORY_COLORS[code] || '#576574';
-        const percentage = ((count / state.index.t) * 100).toFixed(1);
+        const percentage = ((count / state.index.s.length) * 100).toFixed(1);
         const barWidth = (count / maxCount) * 100;
 
         return `
@@ -480,11 +565,6 @@ function createPluginCard(plugin) {
         </div>
     `;
 }
-
-// Reverse category code lookup
-const CATEGORY_CODES_REVERSE = Object.fromEntries(
-    Object.entries(CATEGORY_NAMES).map(([code, name]) => [name.toLowerCase(), code])
-);
 
 // Copy text to clipboard
 function copyToClipboard(event, text) {
@@ -650,7 +730,7 @@ function search(query) {
     const searchTimeMs = (endTime - startTime).toFixed(1);
 
     // Update UI
-    elements.resultCount.textContent = `${results.length.toLocaleString()} results`;
+    elements.resultCount.textContent = formatResultCount(results.length);
     elements.searchTime.textContent = `${searchTimeMs}ms`;
 
     if (results.length === 0) {
@@ -1223,7 +1303,7 @@ function searchWithFiltersOnly() {
 
     document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
 
-    elements.resultCount.textContent = `${results.length.toLocaleString()} results`;
+    elements.resultCount.textContent = formatResultCount(results.length);
     elements.searchTime.textContent = `${searchTimeMs}ms`;
 
     if (results.length === 0) {

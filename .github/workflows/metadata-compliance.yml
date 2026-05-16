@@ -20,6 +20,11 @@ on:
         required: false
         type: boolean
         default: false
+      allow_missing_data_repo:
+        description: "Allow advisory scan when the data repo checkout is unavailable"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -65,10 +70,20 @@ jobs:
           fetch-depth: 0
 
       - name: Ensure skills workspace exists
+        env:
+          ALLOW_MISSING_DATA_REPO: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.allow_missing_data_repo == 'true' }}
+          IS_FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
         run: |
+          mkdir -p .tmp
           mkdir -p skills
           if [ ! -d skills/.git ]; then
-            echo "::warning::skills data repo not available in this context; compliance scan will have zero targets."
+            if [ "$ALLOW_MISSING_DATA_REPO" = "true" ] || [ "$IS_FORK_PR" = "true" ]; then
+              echo "::warning::skills data repo not available in this context; metadata compliance will run with zero targets."
+              echo "skills data repo unavailable" > .tmp/metadata-advisory-zero-targets
+            else
+              echo "skills data repo checkout failed; refusing to run metadata compliance with zero targets."
+              exit 1
+            fi
           fi
 
       - name: Set up Python
@@ -91,6 +106,7 @@ jobs:
               git -C skills ls-files --others --exclude-standard
             } | sed 's#^#skills/#' | sort -u > .tmp/changed-files.txt
           else
+            echo "::warning::skills data repo unavailable; changed metadata target list is empty by explicit advisory path."
             : > .tmp/changed-files.txt
           fi
           echo "Changed skill files:"
