@@ -78,55 +78,82 @@ function createLeaderboardCard(skill, rank) {
 function showStats() {
     elements.statsSection.classList.remove('hidden');
 
-    // Calculate stats
-    const totalSkills = state.index.t;
-    const uniqueRepos = new Set(state.index.s.map(s => {
-        const parts = s.i.split('/');
-        return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : s.i;
-    })).size;
-    const officialCount = state.index.s.filter(s => s.c === 'off').length;
-    const categoryCount = state.categories.length;
+    const totalSkills = getTotalSkillCount();
+    const uniqueRepos = getNumericStat('unique_repo_count', countUniqueRepos(state.index.s));
+    const officialCount = getNumericStat('official_skill_count', getCategoryCount('off'));
+    const categoryCount = state.categories.length || getNumericStat('categories', 0);
+    const pluginCount = state.plugins.length || getNumericStat('total_plugins', 0);
 
-    // Update stat cards
     document.getElementById('stat-total').textContent = totalSkills.toLocaleString();
     document.getElementById('stat-repos').textContent = uniqueRepos.toLocaleString();
     document.getElementById('stat-official').textContent = officialCount.toLocaleString();
-    document.getElementById('stat-plugins').textContent = state.plugins.length;
+    document.getElementById('stat-plugins').textContent = pluginCount.toLocaleString();
     document.getElementById('stat-categories').textContent = categoryCount;
 
-    // Render category chart
     renderCategoryChart();
-
-    // Render top repos chart
     renderReposChart();
+}
+
+function getNumericStat(key, fallback) {
+    const rawValue = state.stats?.[key];
+    if (rawValue === null || rawValue === undefined || rawValue === '') {
+        return fallback;
+    }
+
+    const value = Number(rawValue);
+    return Number.isFinite(value) ? value : fallback;
+}
+
+function getTotalSkillCount() {
+    return getNumericStat(
+        'registry_skill_count_dedup',
+        Number(state.index?.t || state.index?.s?.length || 0)
+    );
+}
+
+function getCategoryCount(code) {
+    const category = state.categories.find(cat => cat.code === code);
+    return Number(category?.count || 0);
+}
+
+function getRepoFromInstall(install) {
+    const parts = String(install || '').split('/');
+    return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : String(install || '');
+}
+
+function countUniqueRepos(skills) {
+    return new Set(skills.map(skill => getRepoFromInstall(skill.i)).filter(Boolean)).size;
 }
 
 // Render category distribution chart
 function renderCategoryChart() {
     const chartContainer = document.getElementById('category-chart');
 
-    // Count by category
-    const categoryCounts = {};
-    state.index.s.forEach(skill => {
-        const cat = skill.c || 'oth';
-        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-    });
-
-    // Sort by count
-    const sorted = Object.entries(categoryCounts)
+    const sorted = state.categories
+        .map(category => [
+            category.code,
+            Number(category.count || 0),
+            category.name || CATEGORY_NAMES[category.code] || category.code
+        ])
+        .filter(([, count]) => count > 0)
         .sort((a, b) => b[1] - a[1]);
 
-    const maxCount = sorted[0][1];
+    if (sorted.length === 0) {
+        chartContainer.innerHTML = '';
+        return;
+    }
 
-    chartContainer.innerHTML = sorted.map(([code, count]) => {
-        const name = CATEGORY_NAMES[code] || code;
+    const maxCount = sorted[0][1];
+    const totalSkills = getTotalSkillCount();
+
+    chartContainer.innerHTML = sorted.map(([code, count, name]) => {
         const color = CATEGORY_COLORS[code] || '#576574';
-        const percentage = ((count / state.index.s.length) * 100).toFixed(1);
+        const percentage = totalSkills > 0 ? ((count / totalSkills) * 100).toFixed(1) : '0.0';
         const barWidth = (count / maxCount) * 100;
 
         return `
             <div class="chart-row">
-                <div class="chart-label">${name}</div>
+                <div class="chart-label">${escapeHtml(name)}</div>
                 <div class="chart-bar-container">
                     <div class="chart-bar" style="width: ${barWidth}%; background: ${color}"></div>
                 </div>
@@ -140,20 +167,12 @@ function renderCategoryChart() {
 function renderReposChart() {
     const chartContainer = document.getElementById('repos-chart');
 
-    // Count by repo
-    const repoCounts = {};
-    state.index.s.forEach(skill => {
-        const parts = skill.i.split('/');
-        if (parts.length >= 2) {
-            const repo = `${parts[0]}/${parts[1]}`;
-            repoCounts[repo] = (repoCounts[repo] || 0) + 1;
-        }
-    });
+    const sorted = getTopRepositories();
 
-    // Sort by count and take top 10
-    const sorted = Object.entries(repoCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
+    if (sorted.length === 0) {
+        chartContainer.innerHTML = '';
+        return;
+    }
 
     const maxCount = sorted[0][1];
 
@@ -164,7 +183,7 @@ function renderReposChart() {
 
         return `
             <div class="chart-row">
-                <div class="chart-label" title="${repo}">${repo.length > 25 ? repo.slice(0, 25) + '...' : repo}</div>
+                <div class="chart-label" title="${escapeHtml(repo)}">${escapeHtml(repo.length > 25 ? repo.slice(0, 25) + '...' : repo)}</div>
                 <div class="chart-bar-container">
                     <div class="chart-bar" style="width: ${barWidth}%; background: ${colors[index % colors.length]}"></div>
                 </div>
@@ -172,6 +191,26 @@ function renderReposChart() {
             </div>
         `;
     }).join('');
+}
+
+function getTopRepositories() {
+    if (Array.isArray(state.stats?.top_repositories) && state.stats.top_repositories.length > 0) {
+        return state.stats.top_repositories
+            .map(entry => [entry.repo, Number(entry.count || 0)])
+            .filter(([repo, count]) => repo && count > 0)
+            .slice(0, 10);
+    }
+
+    const repoCounts = {};
+    state.index.s.forEach(skill => {
+        const repo = getRepoFromInstall(skill.i);
+        if (repo) {
+            repoCounts[repo] = (repoCounts[repo] || 0) + 1;
+        }
+    });
+    return Object.entries(repoCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
 }
 
 // Show plugins

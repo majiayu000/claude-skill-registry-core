@@ -110,6 +110,12 @@ def test_build_plugins_index_and_stats_use_plugin_keys(tmp_path):
     assert stats_data["lite_index_included_count"] == 1
     assert stats_data["search_shard_count"] == 1
     assert stats_data["category_shard_count"] == 1
+    assert stats_data["category_counts"] == [
+        {"name": "development", "code": "dev", "count": 1}
+    ]
+    assert stats_data["unique_repo_count"] == 1
+    assert stats_data["official_skill_count"] == 0
+    assert stats_data["top_repositories"] == [{"repo": "owner/repo", "count": 1}]
     assert stats_data["largest_generated_file_bytes"] > 0
     assert search_pointer["deprecated_full_payload"] is True
     assert search_pointer["manifest"] == "search-index-manifest.json"

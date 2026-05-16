@@ -19,6 +19,7 @@ import gzip
 import hashlib
 import json
 import logging
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -592,6 +593,26 @@ def build_search_index(
     logger.info(f"  featured.json: {len(featured_skills)} skills")
 
     # Write stats
+    repo_counts: Counter[str] = Counter()
+    for record in search_index["s"]:
+        install = str(record.get("i") or "")
+        parts = install.split("/")
+        repo = f"{parts[0]}/{parts[1]}" if len(parts) >= 2 else install
+        if repo:
+            repo_counts[repo] += 1
+
+    category_counts = [
+        {
+            "name": category["name"],
+            "code": category["code"],
+            "count": category["count"],
+        }
+        for category in category_artifacts.categories
+    ]
+    official_skill_count = sum(
+        category["count"] for category in category_counts if category["code"] == "off"
+    )
+
     plugins_count_path = output_dir / "plugins.json"
     plugin_count = 0
     if plugins_count_path.exists():
@@ -610,6 +631,13 @@ def build_search_index(
         "registry_skill_count_dedup": registry_skill_count_dedup,
         "total_plugins": plugin_count,
         "categories": len(categories),
+        "category_counts": category_counts,
+        "unique_repo_count": len(repo_counts),
+        "official_skill_count": official_skill_count,
+        "top_repositories": [
+            {"repo": repo, "count": count}
+            for repo, count in repo_counts.most_common(10)
+        ],
         "featured_count": len(featured_skills),
         "index_size_bytes": search_artifacts.index_size_bytes,
         "index_size_gzip_bytes": search_artifacts.index_size_gzip_bytes,

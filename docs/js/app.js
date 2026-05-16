@@ -9,6 +9,7 @@ const CONFIG = {
     LEGACY_INDEX_URL: 'search-index.json',
     FEATURED_URL: 'featured.json',
     CATEGORIES_URL: 'categories/index.json',
+    STATS_URL: 'stats.json',
     PLUGINS_URL: 'plugins.json',
     PAGE_SIZE: 20,
     LEADERBOARD_SIZE: 50,
@@ -71,6 +72,7 @@ let state = {
     featured: [],
     plugins: [],
     categories: [],
+    stats: {},
     results: [],
     displayedCount: 0,
     currentQuery: '',
@@ -219,10 +221,10 @@ async function loadSearchIndexUrl(url) {
 
 async function loadSearchIndex() {
     try {
-        return loadSearchIndexUrl(CONFIG.INDEX_URL);
+        return await loadSearchIndexUrl(CONFIG.INDEX_URL);
     } catch (error) {
         console.warn(`Failed to load ${CONFIG.INDEX_URL}; falling back to ${CONFIG.LEGACY_INDEX_URL}:`, error);
-        return loadSearchIndexUrl(CONFIG.LEGACY_INDEX_URL);
+        return await loadSearchIndexUrl(CONFIG.LEGACY_INDEX_URL);
     }
 }
 
@@ -238,10 +240,11 @@ function formatResultCount(count) {
 async function init() {
     try {
         // Load index and featured in parallel
-        const [indexData, featuredData, categoriesData, pluginsData] = await Promise.all([
+        const [indexData, featuredData, categoriesData, statsData, pluginsData] = await Promise.all([
             loadSearchIndex(),
             fetch(CONFIG.FEATURED_URL).then(r => r.json()).catch(() => ({ skills: [] })),
             fetch(CONFIG.CATEGORIES_URL).then(r => r.json()).catch(() => ({ categories: [] })),
+            fetch(CONFIG.STATS_URL).then(r => r.json()).catch(() => ({})),
             fetch(CONFIG.PLUGINS_URL).then(r => r.json()).catch(() => ({ plugins: [] }))
         ]);
 
@@ -249,6 +252,7 @@ async function init() {
         state.featured = featuredData.skills || [];
         state.plugins = pluginsData.plugins || [];
         state.categories = categoriesData.categories || [];
+        state.stats = statsData || {};
 
         // Initialize Fuse.js
         state.fuse = new Fuse(state.index.s, CONFIG.FUSE_OPTIONS);
