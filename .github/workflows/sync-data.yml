@@ -413,6 +413,15 @@ jobs:
             --plugins sources/plugins.json \
             --output registry_summary.json
 
+      - name: Check generated artifact sizes
+        run: |
+          python scripts/check_generated_file_sizes.py \
+            --root . \
+            --include registry.json \
+            --include registry-shards \
+            --include docs \
+            --limit 12
+
       - name: Commit & push data repo changes
         run: |
           cd skills

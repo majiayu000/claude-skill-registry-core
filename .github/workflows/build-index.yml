@@ -133,6 +133,13 @@ jobs:
           echo "Index sizes:"
           du -sh docs/*.json docs/*.gz 2>/dev/null || true
 
+      - name: Check generated artifact sizes
+        run: |
+          python scripts/check_generated_file_sizes.py \
+            --root . \
+            --include docs \
+            --limit 12
+
       - name: Setup Pages
         uses: actions/configure-pages@v6
 
