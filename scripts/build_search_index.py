@@ -46,8 +46,8 @@ CATEGORY_CODES = {
 # Known category directories (for scanning)
 KNOWN_CATEGORIES = set(CATEGORY_CODES.keys()) | {"data", "other"}
 
-# First-paint catalog index. Full search still uses search-index.json until
-# server-side search or sharded search details are introduced.
+# First-paint catalog index used by the static Pages app. Full search-index.json
+# remains available as the compatibility fallback.
 LITE_INDEX_LIMIT = 5000
 
 
