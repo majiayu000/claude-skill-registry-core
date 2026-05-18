@@ -86,13 +86,26 @@ def get_stable_id(install: str, branch: str) -> str:
     return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=").lower()
 
 
+def is_root_mounted_path(path: str) -> bool:
+    """Empty or '.' path means SKILL.md lives at the repo root."""
+    if path is None:
+        return True
+    stripped = str(path).strip()
+    return stripped == "" or stripped == "."
+
+
+def has_install_location(path: str) -> bool:
+    """True when path identifies a real install location (subdir or repo root)."""
+    return bool(path) or is_root_mounted_path(path)
+
+
 def infer_install_status(repo: str, path: str, install: str) -> str:
     """Classify whether the install path is clearly usable from registry metadata."""
     if not install:
         return "broken"
     if install.startswith("local/"):
         return "unknown"
-    if repo and path:
+    if repo and has_install_location(path):
         return "known_good"
     if repo:
         return "unknown"
@@ -145,7 +158,7 @@ def score_skill_quality(skill: Dict[str, Any], install_status: str, security_sta
     components = {
         "description": 20 if len(description) >= 80 else 12 if len(description) >= 30 else 4,
         "repo": 15 if repo and "/" in repo else 0,
-        "path": 15 if path else 0,
+        "path": 15 if has_install_location(path) else 0,
         "tags": 10 if len(tags) >= 3 else 6 if tags else 0,
         "install": 20 if install_status == "known_good" else 8 if install_status == "unknown" else 0,
         "security": 10 if security_status == "passed" else 4 if security_status == "unknown" else 0,
@@ -349,7 +362,7 @@ def build_search_index(
         trust_score = min(
             100,
             (30 if repo and "/" in repo else 0)
-            + (25 if path else 0)
+            + (25 if has_install_location(path) else 0)
             + (20 if install_status == "known_good" else 8 if install_status == "unknown" else 0)
             + (15 if security_status != "failed" else 0)
             + (10 if stars > 0 else 0),
