@@ -5,7 +5,9 @@ on:
     paths:
       - 'crawler/**'
       - 'scripts/**'
+      - 'taxonomy/**'
       - 'tests/**'
+      - 'docs/plan/**'
       - 'pyproject.toml'
       - 'requirements.txt'
       - '.github/workflows/python-tests.yml'
@@ -14,7 +16,9 @@ on:
     paths:
       - 'crawler/**'
       - 'scripts/**'
+      - 'taxonomy/**'
       - 'tests/**'
+      - 'docs/plan/**'
       - 'pyproject.toml'
       - 'requirements.txt'
       - '.github/workflows/python-tests.yml'
@@ -42,3 +46,6 @@ jobs:
 
       - name: Run full pytest suite with coverage gate
         run: python -m pytest -q --cov-fail-under=50
+
+      - name: Validate taxonomy governance
+        run: python scripts/check_taxonomy_governance.py

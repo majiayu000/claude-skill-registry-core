@@ -140,6 +140,9 @@ jobs:
             --include docs \
             --limit 12
 
+      - name: Check category artifacts remain sharded
+        run: python scripts/check_category_artifacts.py --categories-dir docs/categories
+
       - name: Setup Pages
         uses: actions/configure-pages@v6
 
