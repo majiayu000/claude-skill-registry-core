@@ -97,3 +97,35 @@ def test_apply_depth_plan_preserves_existing_target_with_suffix(tmp_path):
     assert metadata["category"] == "security"
     assert metadata["dir_name"] == "auth-audit-acme-security-pack"
     assert not (skills_dir / "other" / "other" / "auth-audit").exists()
+
+
+def test_apply_depth_plan_moves_child_before_parent(tmp_path):
+    module = _load_module()
+    skills_dir = tmp_path / "skills"
+    _write_skill(
+        skills_dir,
+        "other/other/parent",
+        {
+            "name": "parent",
+            "category": "other",
+            "repo": "acme/parent",
+        },
+    )
+    _write_skill(
+        skills_dir,
+        "other/other/parent/child",
+        {
+            "name": "child",
+            "category": "other",
+            "repo": "acme/child",
+        },
+    )
+
+    plan = module.build_depth_plan(skills_dir)
+    assert plan["move_count"] == 2
+
+    module.apply_depth_plan(skills_dir, plan)
+
+    assert (skills_dir / "other" / "parent" / "SKILL.md").exists()
+    assert (skills_dir / "other" / "child" / "SKILL.md").exists()
+    assert not (skills_dir / "other" / "other" / "parent").exists()

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -158,8 +157,11 @@ def build_depth_plan(skills_dir: Path) -> dict[str, Any]:
 
 
 def apply_depth_plan(skills_dir: Path, plan: dict[str, Any]) -> None:
-    temp_moves: list[tuple[Path, Path, dict[str, Any]]] = []
-    for move in plan["moves"]:
+    moves = sorted(
+        plan["moves"],
+        key=lambda move: (-len(Path(move["source_path"]).parts), move["source_path"]),
+    )
+    for move in moves:
         source = skills_dir / move["source_path"]
         target = skills_dir / move["target_path"]
         if not source.exists():
@@ -167,14 +169,7 @@ def apply_depth_plan(skills_dir: Path, plan: dict[str, Any]) -> None:
         if target.exists():
             raise FileExistsError(f"Planned target already exists: {target}")
         target.parent.mkdir(parents=True, exist_ok=True)
-        temp = target.parent / f".tmp-depth-{short_hash(move['source_path'] + move['target_path'])}"
-        if temp.exists():
-            shutil.rmtree(temp)
-        source.rename(temp)
-        temp_moves.append((temp, target, move))
-
-    for temp, target, move in temp_moves:
-        temp.rename(target)
+        source.rename(target)
         meta = load_metadata(target)
         meta.setdefault("name", move["name"])
         meta["category"] = move["category"]
