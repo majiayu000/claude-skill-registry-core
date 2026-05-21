@@ -120,6 +120,36 @@ def test_build_unified_registry_inherits_top_level_repo(tmp_path):
     assert registry["skills"][0]["repo"] == "anthropics/skills"
 
 
+def test_build_unified_registry_dedupes_root_path_spellings(tmp_path):
+    module = load_module()
+    sources_dir = tmp_path / "sources"
+    sources_dir.mkdir()
+    output_path = tmp_path / "registry.json"
+    root_skill = {
+        "name": "root-skill",
+        "repo": "owner/root-skill",
+        "description": "Repo-root skill.",
+        "category": "productivity",
+    }
+    (sources_dir / "community.json").write_text(
+        json.dumps({"name": "Community", "skills": [root_skill]}),
+        encoding="utf-8",
+    )
+    (sources_dir / "custom.json").write_text(
+        json.dumps(
+            {
+                "name": "Custom",
+                "skills": [{**root_skill, "path": "."}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert module.build_unified_registry(sources_dir, output_path) == 1
+    registry = json.loads(output_path.read_text(encoding="utf-8"))
+    assert registry["skills"][0]["path"] == ""
+
+
 def test_download_blocks_security_listed_source_repo(tmp_path, monkeypatch):
     module = load_module()
     registry_path = tmp_path / "registry.json"
