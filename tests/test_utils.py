@@ -335,6 +335,12 @@ def test_build_skill_key_priority(utils):
     assert utils.build_skill_key(path="x/y", name="foo") == ":foo"
 
 
+def test_build_skill_key_coerces_non_string_repo_and_path(utils):
+    assert utils.build_skill_key(repo="o/r", path=123) == "o/r:123"
+    assert utils.build_skill_key(repo=123, path="x/y") == "123:x/y"
+    assert utils.build_skill_key(repo="o/r", path={"bad": "path"}) == "o/r:{'bad': 'path'}"
+
+
 def test_iter_source_skills_inherits_top_level_repo(utils):
     source = {
         "repo": "anthropics/skills",
