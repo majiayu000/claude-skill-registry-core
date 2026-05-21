@@ -65,6 +65,12 @@ def test_sync_data_runs_generated_size_guard_after_registry_rebuild():
     assert "--include docs" in workflow
 
 
+def test_sync_data_stages_registry_shard_artifacts():
+    workflow = read_repo_file(".github/workflows/sync-data.yml")
+
+    assert "git add registry.json registry_summary.json registry-manifest.json registry-shards/" in workflow
+
+
 def test_metadata_compliance_refuses_unexpected_zero_target_scan():
     workflow = read_repo_file(".github/workflows/metadata-compliance.yml")
 
