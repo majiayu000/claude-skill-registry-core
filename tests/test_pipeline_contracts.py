@@ -14,7 +14,21 @@ def test_pages_app_prefers_lite_index_with_full_index_fallback():
     assert "LEGACY_INDEX_URL: 'search-index.json'" in app_js
     assert "function normalizeSearchIndex" in app_js
     assert "function loadSearchIndex" in app_js
+    assert "return await loadSearchIndexUrl(CONFIG.INDEX_URL)" in app_js
+    assert "return await loadSearchIndexUrl(CONFIG.LEGACY_INDEX_URL)" in app_js
     assert "in highlighted index" in app_js
+
+
+def test_pages_leaderboard_loads_full_data_before_ranking():
+    app_js = read_repo_file("docs/js/app.js")
+    render_js = read_repo_file("docs/js/app-render.js")
+
+    assert "fullIndex: null" in app_js
+    assert "async function loadFullSearchSkills()" in app_js
+    assert "loadSearchIndexUrl(CONFIG.LEGACY_INDEX_URL)" in app_js
+    assert "async function showLeaderboard" in render_js
+    assert "await loadCategorySkills(categoryFilter)" in render_js
+    assert "await loadFullSearchSkills()" in render_js
 
 
 def test_publish_sync_runs_generated_size_guard_after_rebuild():
