@@ -719,13 +719,41 @@ def build_search_index(
     return stats
 
 
-def load_from_registry(registry_path: Path) -> List[Dict]:
-    """Load skills from registry.json (fallback mode)."""
-    with open(registry_path, 'r', encoding='utf-8') as f:
-        registry = json.load(f)
+def resolve_registry_artifact(base_dir: Path, artifact_ref: str) -> Path:
+    """Resolve a registry artifact path relative to a manifest or registry directory."""
+    artifact_path = Path(artifact_ref)
+    if artifact_path.is_absolute():
+        return artifact_path
+    return (base_dir / artifact_path).resolve()
 
-    skills = registry.get('skills', [])
 
+def load_registry_manifest_shards(registry_path: Path, registry: Dict) -> List[Dict]:
+    """Load full registry skills from a compatibility registry manifest pointer."""
+    manifest_ref = registry.get("manifest")
+    if not isinstance(manifest_ref, str) or not manifest_ref.strip():
+        return []
+
+    manifest_path = resolve_registry_artifact(registry_path.parent, manifest_ref)
+    with open(manifest_path, 'r', encoding='utf-8') as f:
+        manifest = json.load(f)
+
+    skills: List[Dict] = []
+    for shard in manifest.get("shards", []):
+        shard_ref = shard.get("path") if isinstance(shard, dict) else None
+        if not isinstance(shard_ref, str) or not shard_ref.strip():
+            raise ValueError(f"Invalid registry shard reference in {manifest_path}: {shard!r}")
+        shard_path = resolve_registry_artifact(manifest_path.parent, shard_ref)
+        with open(shard_path, 'r', encoding='utf-8') as f:
+            shard_payload = json.load(f)
+        shard_skills = shard_payload.get("skills")
+        if not isinstance(shard_skills, list):
+            raise ValueError(f"Registry shard is missing skills array: {shard_path}")
+        skills.extend(shard_skills)
+    return skills
+
+
+def add_registry_install_fields(skills: List[Dict]) -> List[Dict]:
+    """Populate install fields for registry fallback rows."""
     for skill in skills:
         repo = skill.get('repo', '')
         path = skill.get('path', '')
@@ -740,6 +768,18 @@ def load_from_registry(registry_path: Path) -> List[Dict]:
             skill['install'] = f"local/{name}"
 
     return skills
+
+
+def load_from_registry(registry_path: Path) -> List[Dict]:
+    """Load skills from registry.json or its manifest shards (fallback mode)."""
+    with open(registry_path, 'r', encoding='utf-8') as f:
+        registry = json.load(f)
+
+    skills = registry.get('skills')
+    if not isinstance(skills, list):
+        skills = load_registry_manifest_shards(registry_path, registry)
+
+    return add_registry_install_fields(skills)
 
 
 def main():
