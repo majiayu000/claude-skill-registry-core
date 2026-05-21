@@ -8,7 +8,7 @@ import os
 import json
 import time
 import logging
-import shutil
+import tempfile
 from collections import defaultdict
 import requests
 from datetime import datetime
@@ -337,10 +337,6 @@ class GitHubTopicDiscovery:
                     # Save skill (case-safe)
                     category = "other"
                     key = build_skill_key(repo, path, name=skill_dir, category=category)
-                    skill_path = ensure_unique_dir(output_dir / category, skill_dir, key, repo=repo)
-                    skill_path.mkdir(parents=True, exist_ok=True)
-
-                    (skill_path / 'SKILL.md').write_text(content, encoding='utf-8')
 
                     # Save metadata
                     legal_meta = build_legal_metadata(
@@ -355,20 +351,30 @@ class GitHubTopicDiscovery:
                         'github_branch': branch,
                         'category': category,
                         'source': f'github.com/{repo}',
-                        'dir_name': skill_path.name,
+                        'dir_name': skill_dir,
                         'downloaded_at': datetime.utcnow().isoformat() + 'Z',
                         **legal_meta,
                     }
-                    (skill_path / 'metadata.json').write_text(
-                        json.dumps(metadata, indent=2), encoding='utf-8'
-                    )
 
-                    is_safe, issues = self.security_scanner.scan_file(skill_path / 'SKILL.md')
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    with tempfile.TemporaryDirectory(
+                        prefix=".discover-scan-",
+                        dir=output_dir,
+                    ) as temp_dir:
+                        temp_skill_path = Path(temp_dir) / skill_dir
+                        temp_skill_path.mkdir(parents=True, exist_ok=True)
+                        (temp_skill_path / 'SKILL.md').write_text(content, encoding='utf-8')
+                        (temp_skill_path / 'metadata.json').write_text(
+                            json.dumps(metadata, indent=2), encoding='utf-8'
+                        )
+                        is_safe, issues = self.security_scanner.scan_file(
+                            temp_skill_path / 'SKILL.md'
+                        )
+
                     if not is_safe:
                         issue_types = sorted(
                             {str(issue.get("type") or "unknown") for issue in issues}
                         )
-                        shutil.rmtree(skill_path, ignore_errors=True)
                         logger.warning(
                             "Rejected discovered skill after security scan: %s/%s (%s)",
                             repo,
@@ -376,6 +382,15 @@ class GitHubTopicDiscovery:
                             ", ".join(issue_types[:8]),
                         )
                         return False
+
+                    skill_path = ensure_unique_dir(output_dir / category, skill_dir, key, repo=repo)
+                    skill_path.mkdir(parents=True, exist_ok=True)
+
+                    metadata['dir_name'] = skill_path.name
+                    (skill_path / 'SKILL.md').write_text(content, encoding='utf-8')
+                    (skill_path / 'metadata.json').write_text(
+                        json.dumps(metadata, indent=2), encoding='utf-8'
+                    )
 
                     return True
             except Exception as e:
