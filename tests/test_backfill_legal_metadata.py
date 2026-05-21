@@ -64,6 +64,27 @@ def test_backfill_metadata_uses_repo_license_cache():
     assert updated["license_class"] == "compatible"
 
 
+def test_backfill_metadata_uses_repo_license_for_placeholder_values():
+    module = load_module()
+    metadata = {
+        "name": "demo",
+        "repo": "owner/repo",
+        "category": "development",
+        "dir_name": "demo",
+        "github_path": ".github/skills/demo",
+        "license": "unknown",
+        "copyright": "n/a",
+    }
+
+    updated = module.backfill_metadata(
+        metadata,
+        {"license": "MIT", "copyright": "Copyright (c) 2026 Owner"},
+    )
+
+    assert updated["license"] == "MIT"
+    assert updated["copyright"] == "Copyright (c) 2026 Owner"
+
+
 def test_extract_copyright_notice_ignores_apache_definition_lines():
     module = load_module()
     license_text = """
@@ -119,6 +140,59 @@ def test_fetch_repo_license_degrades_after_incomplete_read(monkeypatch):
 
     assert result["license"] == "NOASSERTION"
     assert result["error"].startswith("fetch_error:IncompleteRead")
+
+
+def test_load_or_fetch_license_refetches_dry_run_placeholder(monkeypatch):
+    module = load_module()
+    cache = {"owner/repo": {"license": "NOASSERTION", "copyright": "", "error": "not_fetched"}}
+
+    monkeypatch.setattr(
+        module,
+        "fetch_repo_license",
+        lambda *args, **kwargs: {
+            "license": "MIT",
+            "copyright": "Copyright (c) 2026 Owner",
+        },
+    )
+
+    result = module.load_or_fetch_license(
+        "owner/repo",
+        cache,
+        fetch=True,
+        token="",
+        timeout=1,
+        sleep_seconds=0,
+    )
+
+    assert result["license"] == "MIT"
+    assert cache["owner/repo"]["license"] == "MIT"
+
+
+def test_load_or_fetch_license_does_not_cache_transient_fetch_errors(monkeypatch):
+    module = load_module()
+    cache = {}
+
+    monkeypatch.setattr(
+        module,
+        "fetch_repo_license",
+        lambda *args, **kwargs: {
+            "license": "NOASSERTION",
+            "copyright": "",
+            "error": "fetch_error:tls eof",
+        },
+    )
+
+    result = module.load_or_fetch_license(
+        "owner/repo",
+        cache,
+        fetch=True,
+        token="",
+        timeout=1,
+        sleep_seconds=0,
+    )
+
+    assert result["error"] == "fetch_error:tls eof"
+    assert "owner/repo" not in cache
 
 
 def test_license_classification_covers_backfill_spdx_values():
