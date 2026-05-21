@@ -100,6 +100,8 @@ Defaults:
 - API key source: `MIMO_API_KEY`.
 - Candidate actions: `heuristic_reclassify` and `resolve_source_conflict`.
 - Selection order: `risky-first`, reviewing `low`, then `medium`, then `high`.
+- Optional checkpoint: `--checkpoint-jsonl <path>` appends one JSONL row per
+  completed review and `--resume` skips matching completed `review_key` values.
 - Apply mode: `review-only`.
 
 The review report contains:
@@ -108,7 +110,7 @@ The review report contains:
   `policy`, `summary`, `reviews`, and `notes`.
 - Per review: candidate path/name/action, current category, heuristic proposed
   category, model proposed category, model confidence, decision, parse status,
-  reason, and evidence.
+  reason, evidence, and a stable `review_key`.
 - `decision`: `agree`, `override`, or `uncertain`.
 - `parse_status`: `ok`, `invalid_json`, `unknown_category`,
   `invalid_confidence`, or `api_error`.
@@ -116,6 +118,8 @@ The review report contains:
 Secrets must not be written to files or committed. The report records the
 environment variable name, never the API key value. API errors are represented
 as `uncertain` review rows so failed model calls are visible in the audit trail.
+Checkpoint rows are append-only audit records. Malformed checkpoint lines are
+ignored for resume and counted in `malformed_checkpoint_row_count`.
 
 ## Confidence Rules
 
