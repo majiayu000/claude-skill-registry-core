@@ -266,6 +266,117 @@ def test_review_report_can_preserve_plan_order_sleep_and_raw(monkeypatch):
     assert report["reviews"][0]["raw_response"].startswith('{"category":"data"')
 
 
+def test_candidate_review_key_changes_when_candidate_changes():
+    reviewer = _load_module()
+    first = _change("other/a/SKILL.md", confidence="low", proposed_category="data")
+    second = _change("other/a/SKILL.md", confidence="low", proposed_category="security")
+
+    assert reviewer.candidate_review_key(first) != reviewer.candidate_review_key(second)
+
+
+def test_review_report_writes_checkpoint_and_resume_skips_completed(tmp_path):
+    reviewer = _load_module()
+    checkpoint_path = tmp_path / "review.checkpoint.jsonl"
+    plan = {
+        "changes": [
+            _change("other/a/SKILL.md", confidence="low", proposed_category="data"),
+            _change("other/b/SKILL.md", confidence="medium", proposed_category="security"),
+        ]
+    }
+    client = FakeClient(
+        [
+            '{"category":"data","confidence":0.9,"reason":"etl","evidence":["csv"]}',
+            '{"category":"security","confidence":0.9,"reason":"audit","evidence":["scan"]}',
+        ]
+    )
+
+    report = reviewer.build_review_report(
+        plan,
+        client=client,
+        model="m",
+        base_url="u",
+        api_key_env="KEY",
+        limit=2,
+        checkpoint_path=checkpoint_path,
+    )
+
+    checkpoint_rows = [
+        json.loads(line) for line in checkpoint_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert len(client.messages) == 2
+    assert len(checkpoint_rows) == 2
+    assert {row["review_key"] for row in checkpoint_rows} == {
+        review["review_key"] for review in report["reviews"]
+    }
+    assert report["summary"]["new_review_count"] == 2
+    assert report["summary"]["skipped_checkpoint_count"] == 0
+
+    resume_client = FakeClient([])
+    resumed = reviewer.build_review_report(
+        plan,
+        client=resume_client,
+        model="m",
+        base_url="u",
+        api_key_env="KEY",
+        limit=2,
+        checkpoint_path=checkpoint_path,
+        resume=True,
+    )
+
+    assert resume_client.messages == []
+    assert [review["path"] for review in resumed["reviews"]] == [
+        "other/a/SKILL.md",
+        "other/b/SKILL.md",
+    ]
+    assert resumed["summary"]["new_review_count"] == 0
+    assert resumed["summary"]["skipped_checkpoint_count"] == 2
+    assert checkpoint_path.read_text(encoding="utf-8").count("\n") == 2
+
+
+def test_resume_ignores_malformed_checkpoint_rows(tmp_path):
+    reviewer = _load_module()
+    change = _change("other/a/SKILL.md", confidence="low", proposed_category="data")
+    review_key = reviewer.candidate_review_key(change)
+    checkpoint_path = tmp_path / "review.checkpoint.jsonl"
+    checkpoint_path.write_text(
+        "not-json\n"
+        + json.dumps(
+            {
+                "review_key": review_key,
+                "path": "other/a/SKILL.md",
+                "name": "a",
+                "action": "heuristic_reclassify",
+                "current_category": "other",
+                "heuristic_proposed_category": "data",
+                "llm_proposed_category": "data",
+                "llm_confidence": 0.9,
+                "decision": "agree",
+                "parse_status": "ok",
+                "review_required": True,
+                "reason": "checkpointed",
+                "evidence": [],
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = reviewer.build_review_report(
+        {"changes": [change]},
+        client=FakeClient([]),
+        model="m",
+        base_url="u",
+        api_key_env="KEY",
+        checkpoint_path=checkpoint_path,
+        resume=True,
+    )
+
+    assert report["reviews"][0]["reason"] == "checkpointed"
+    assert report["summary"]["malformed_checkpoint_row_count"] == 1
+    assert report["summary"]["skipped_checkpoint_count"] == 1
+
+
 def test_review_report_marks_api_error_without_raising():
     reviewer = _load_module()
     client = FakeClient([reviewer.LLMReviewError("temporary outage")])
@@ -313,10 +424,41 @@ def test_main_requires_api_key(monkeypatch, tmp_path):
         reviewer.main(["--plan", str(plan_path)])
 
 
+def test_main_requires_checkpoint_for_resume(monkeypatch, tmp_path):
+    reviewer = _load_module()
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text('{"changes":[]}', encoding="utf-8")
+    monkeypatch.setenv("MIMO_API_KEY", "secret")
+
+    with pytest.raises(SystemExit, match="--resume requires --checkpoint-jsonl"):
+        reviewer.main(["--plan", str(plan_path), "--resume"])
+
+
+def test_main_rejects_same_output_and_checkpoint(monkeypatch, tmp_path):
+    reviewer = _load_module()
+    plan_path = tmp_path / "plan.json"
+    output_path = tmp_path / "review.json"
+    plan_path.write_text('{"changes":[]}', encoding="utf-8")
+    monkeypatch.setenv("MIMO_API_KEY", "secret")
+
+    with pytest.raises(SystemExit, match="must be different paths"):
+        reviewer.main(
+            [
+                "--plan",
+                str(plan_path),
+                "--output",
+                str(output_path),
+                "--checkpoint-jsonl",
+                str(output_path),
+            ]
+        )
+
+
 def test_main_writes_json_report(monkeypatch, tmp_path, capsys):
     reviewer = _load_module()
     plan_path = tmp_path / "plan.json"
     output_path = tmp_path / "review.json"
+    checkpoint_path = tmp_path / "review.checkpoint.jsonl"
     plan_path.write_text(
         json.dumps(
             {
@@ -348,6 +490,8 @@ def test_main_writes_json_report(monkeypatch, tmp_path, capsys):
                 "--json",
                 "--limit",
                 "1",
+                "--checkpoint-jsonl",
+                str(checkpoint_path),
             ]
         )
         == 0
@@ -356,3 +500,4 @@ def test_main_writes_json_report(monkeypatch, tmp_path, capsys):
     output = json.loads(output_path.read_text(encoding="utf-8"))
     assert json.loads(stdout)["summary"]["reviewed_count"] == 1
     assert output["reviews"][0]["decision"] == "agree"
+    assert checkpoint_path.exists()

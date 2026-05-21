@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import time
@@ -22,6 +23,7 @@ DEFAULT_MODEL = "mimo-v2.5-pro"
 DEFAULT_API_KEY_ENV = "MIMO_API_KEY"
 DEFAULT_ACTIONS = ("heuristic_reclassify", "resolve_source_conflict")
 CONFIDENCE_PRIORITY = {"low": 0, "medium": 1, "high": 2}
+CHECKPOINT_SCHEMA_VERSION = 1
 
 
 class ChatClient(Protocol):
@@ -119,6 +121,29 @@ def select_changes(
     return changes[: max(limit, 0)]
 
 
+def candidate_review_key(change: dict[str, Any]) -> str:
+    payload = {
+        "path": change.get("path", ""),
+        "name": change.get("name", ""),
+        "action": change.get("action", ""),
+        "current_category": change.get("current_category", ""),
+        "proposed_category": change.get("proposed_category", ""),
+        "raw_sources": change.get("raw_sources", {}),
+        "resolved_sources": change.get("resolved_sources", {}),
+        "signals": change.get("signals", []),
+        "reason": change.get("reason", ""),
+        "score": change.get("score"),
+        "current_score": change.get("current_score"),
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def build_messages(
     change: dict[str, Any],
     *,
@@ -206,6 +231,7 @@ def build_review_entry(
     taxonomy: CategoryTaxonomy,
     override_confidence: float,
     include_raw: bool,
+    review_key: str,
 ) -> dict[str, Any]:
     parsed, parse_status = parse_json_content(content)
     raw_category = parsed.get("category") if parsed else ""
@@ -227,6 +253,8 @@ def build_review_entry(
         override_confidence=override_confidence,
     )
     entry = {
+        "checkpoint_schema_version": CHECKPOINT_SCHEMA_VERSION,
+        "review_key": review_key,
         "path": change.get("path", ""),
         "name": change.get("name", ""),
         "action": change.get("action", ""),
@@ -245,8 +273,10 @@ def build_review_entry(
     return entry
 
 
-def build_error_entry(change: dict[str, Any], error: Exception) -> dict[str, Any]:
+def build_error_entry(change: dict[str, Any], error: Exception, *, review_key: str) -> dict[str, Any]:
     return {
+        "checkpoint_schema_version": CHECKPOINT_SCHEMA_VERSION,
+        "review_key": review_key,
         "path": change.get("path", ""),
         "name": change.get("name", ""),
         "action": change.get("action", ""),
@@ -260,6 +290,38 @@ def build_error_entry(change: dict[str, Any], error: Exception) -> dict[str, Any
         "reason": str(error),
         "evidence": [],
     }
+
+
+def load_checkpoint_reviews(checkpoint_path: Path | None) -> tuple[dict[str, dict[str, Any]], int]:
+    if checkpoint_path is None or not checkpoint_path.exists():
+        return {}, 0
+
+    reviews: dict[str, dict[str, Any]] = {}
+    malformed_row_count = 0
+    for line in checkpoint_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            malformed_row_count += 1
+            continue
+        if not isinstance(payload, dict):
+            malformed_row_count += 1
+            continue
+        review_key = payload.get("review_key")
+        if not isinstance(review_key, str) or not review_key:
+            malformed_row_count += 1
+            continue
+        reviews[review_key] = payload
+    return reviews, malformed_row_count
+
+
+def append_checkpoint_review(checkpoint_path: Path, review: dict[str, Any]) -> None:
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    with checkpoint_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(review, ensure_ascii=False, sort_keys=True) + "\n")
+        handle.flush()
 
 
 def build_review_report(
@@ -277,6 +339,8 @@ def build_review_report(
     override_confidence: float = 0.8,
     include_raw: bool = False,
     source_plan: str = "",
+    checkpoint_path: Path | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     taxonomy = get_taxonomy()
     categories = active_category_payload(taxonomy)
@@ -287,24 +351,40 @@ def build_review_report(
         limit=limit,
         priority=priority,
     )
+    checkpoint_reviews, malformed_checkpoint_rows = load_checkpoint_reviews(
+        checkpoint_path if resume else None
+    )
     reviews: list[dict[str, Any]] = []
-    for index, change in enumerate(selected_changes):
-        if index and sleep_seconds > 0:
+    skipped_checkpoint_count = 0
+    new_review_count = 0
+    for change in selected_changes:
+        review_key = candidate_review_key(change)
+        checkpoint_review = checkpoint_reviews.get(review_key)
+        if checkpoint_review:
+            reviews.append(checkpoint_review)
+            skipped_checkpoint_count += 1
+            continue
+
+        if new_review_count and sleep_seconds > 0:
             time.sleep(sleep_seconds)
         messages = build_messages(change, categories=categories)
         try:
             content = client.complete(messages)
-            reviews.append(
-                build_review_entry(
-                    change,
-                    content=content,
-                    taxonomy=taxonomy,
-                    override_confidence=override_confidence,
-                    include_raw=include_raw,
-                )
+            review = build_review_entry(
+                change,
+                content=content,
+                taxonomy=taxonomy,
+                override_confidence=override_confidence,
+                include_raw=include_raw,
+                review_key=review_key,
             )
         except LLMReviewError as exc:
-            reviews.append(build_error_entry(change, exc))
+            review = build_error_entry(change, exc, review_key=review_key)
+
+        if checkpoint_path:
+            append_checkpoint_review(checkpoint_path, review)
+        reviews.append(review)
+        new_review_count += 1
 
     decision_counts = Counter(review["decision"] for review in reviews)
     parse_status_counts = Counter(review["parse_status"] for review in reviews)
@@ -326,11 +406,16 @@ def build_review_report(
             "sleep_seconds": sleep_seconds,
             "override_confidence": override_confidence,
             "api_key_env": api_key_env,
+            "checkpoint_jsonl": str(checkpoint_path) if checkpoint_path else "",
+            "resume": resume,
             "apply_mode": "review-only",
         },
         "summary": {
             "candidate_count": len(selected_changes),
             "reviewed_count": len(reviews),
+            "new_review_count": new_review_count,
+            "skipped_checkpoint_count": skipped_checkpoint_count,
+            "malformed_checkpoint_row_count": malformed_checkpoint_rows,
             "decision_counts": dict(sorted(decision_counts.items())),
             "parse_status_counts": dict(sorted(parse_status_counts.items())),
             "category_pair_counts": [
@@ -349,6 +434,7 @@ def build_review_report(
         "notes": [
             "This report does not modify files.",
             f"API credentials are read from {api_key_env} and are not written to the report.",
+            "Checkpoint JSONL rows are append-only review records keyed by review_key.",
             "LLM recommendations require human review before any archive migration is applied.",
         ],
     }
@@ -359,6 +445,8 @@ def print_text_report(report: dict[str, Any], *, limit: int) -> None:
     print("LLM category review")
     print(f"Candidates: {summary['candidate_count']}")
     print(f"Reviewed: {summary['reviewed_count']}")
+    print(f"New reviews: {summary['new_review_count']}")
+    print(f"Skipped from checkpoint: {summary['skipped_checkpoint_count']}")
     print(f"Decisions: {summary['decision_counts']}")
     print(f"Parse status: {summary['parse_status_counts']}")
     for review in report["reviews"][:limit]:
@@ -385,6 +473,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--priority", choices=["risky-first", "plan"], default="risky-first")
     parser.add_argument("--sleep-seconds", type=float, default=0.0)
     parser.add_argument("--override-confidence", type=float, default=0.8)
+    parser.add_argument("--checkpoint-jsonl", type=Path)
+    parser.add_argument("--resume", action="store_true")
     parser.add_argument("--include-raw", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--print-limit", type=int, default=20)
@@ -398,6 +488,14 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"Missing API key environment variable: {args.api_key_env}")
     if not args.plan.exists():
         raise SystemExit(f"Category migration plan not found: {args.plan}")
+    if args.resume and not args.checkpoint_jsonl:
+        raise SystemExit("--resume requires --checkpoint-jsonl")
+    if (
+        args.output
+        and args.checkpoint_jsonl
+        and args.output.resolve() == args.checkpoint_jsonl.resolve()
+    ):
+        raise SystemExit("--output and --checkpoint-jsonl must be different paths")
 
     plan = json.loads(args.plan.read_text(encoding="utf-8"))
     if not isinstance(plan, dict):
@@ -425,6 +523,8 @@ def main(argv: list[str] | None = None) -> int:
         override_confidence=args.override_confidence,
         include_raw=args.include_raw,
         source_plan=str(args.plan),
+        checkpoint_path=args.checkpoint_jsonl,
+        resume=args.resume,
     )
     payload = json.dumps(report, indent=2, ensure_ascii=False)
     if args.output:
