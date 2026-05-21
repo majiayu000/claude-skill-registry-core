@@ -72,6 +72,7 @@ async def download_skills(
     failure_report_path: Path | None = None,
     observations_output_path: Path | None = None,
     learning_priors_path: Path | None = None,
+    cleanup_ci_untracked: bool = True,
 ) -> dict:
     """Download skills using optimized downloader."""
     logger.info("=" * 60)
@@ -111,7 +112,9 @@ async def download_skills(
         security_blocklist,
         remove_blocked=True,
     )
-    removed_ci_untracked_files = remove_ci_untracked_archive_files(output_dir)
+    removed_ci_untracked_files = (
+        remove_ci_untracked_archive_files(output_dir) if cleanup_ci_untracked else 0
+    )
 
     # Check existing (across all categories)
     exclude = {".git", ".github-skills", ".template", ".templates", ".attic"}

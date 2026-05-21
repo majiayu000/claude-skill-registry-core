@@ -319,6 +319,47 @@ description: Stale file left by the core checkout.
     assert not stale_dir.exists()
 
 
+def test_download_can_skip_ci_untracked_archive_cleanup(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    discovered_dir = output_dir / "other" / "new-discovery"
+    discovered_dir.mkdir(parents=True)
+    (discovered_dir / "SKILL.md").write_text(
+        """---
+name: new-discovery
+description: Newly discovered in this workflow run.
+---
+
+# Demo
+""",
+        encoding="utf-8",
+    )
+    (discovered_dir / "metadata.json").write_text("{}", encoding="utf-8")
+    registry_path.write_text(json.dumps({"skills": []}), encoding="utf-8")
+    install_fake_aiohttp(monkeypatch, {})
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+
+    subprocess_result = subprocess.run(
+        ["git", "init"],
+        cwd=output_dir,
+        check=True,
+        capture_output=True,
+    )
+    assert subprocess_result.returncode == 0
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            cleanup_ci_untracked=False,
+        )
+    )
+
+    assert stats["ci_untracked_files_removed"] == 0
+    assert (discovered_dir / "SKILL.md").exists()
+
+
 def test_existing_archive_blocks_security_listed_github_path(tmp_path):
     module = load_module()
     output_dir = tmp_path / "skills"
@@ -1012,3 +1053,43 @@ def test_main_allows_existing_archive_when_all_pending_fail(monkeypatch):
     )
 
     module.main()
+
+
+def test_main_passes_skip_ci_untracked_cleanup(monkeypatch):
+    module = load_module()
+    captured = {}
+
+    async def fake_download_skills(*args, **kwargs):
+        captured.update(kwargs)
+        return {"downloaded": 0, "failed": 0, "skipped": 0, "total": 0}
+
+    monkeypatch.setattr(module, "download_skills", fake_download_skills)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["sync_and_download.py", "--download-only", "--skip-ci-untracked-cleanup"],
+    )
+
+    module.main()
+
+    assert captured["cleanup_ci_untracked"] is False
+
+
+def test_main_cleanup_only_runs_ci_archive_cleanup(monkeypatch):
+    module = load_module()
+    captured = {}
+
+    def fake_cleanup(output_dir):
+        captured["output_dir"] = output_dir
+        return 2
+
+    monkeypatch.setattr(module, "remove_ci_untracked_archive_files", fake_cleanup)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["sync_and_download.py", "--cleanup-ci-untracked-archive-files-only"],
+    )
+
+    module.main()
+
+    assert captured["output_dir"].name == "skills"
