@@ -91,6 +91,8 @@ class OpenAICompatibleClient:
         except (OSError, URLError, json.JSONDecodeError) as exc:
             raise LLMReviewError(f"chat API request failed: {exc}") from exc
 
+        if not isinstance(response_payload, dict):
+            raise LLMReviewError("chat API response was not a JSON object")
         choices = response_payload.get("choices")
         if not isinstance(choices, list) or not choices:
             raise LLMReviewError("chat API response did not include choices")

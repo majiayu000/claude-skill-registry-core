@@ -198,6 +198,15 @@ def test_openai_compatible_client_reports_api_shape_errors(monkeypatch):
         client.complete([{"role": "user", "content": "hello"}])
 
 
+def test_openai_compatible_client_reports_non_object_payload(monkeypatch):
+    reviewer = _load_module()
+    monkeypatch.setattr(reviewer, "urlopen", lambda request, timeout: FakeResponse(["error"]))
+    client = reviewer.OpenAICompatibleClient(api_key="secret")
+
+    with pytest.raises(reviewer.LLMReviewError, match="JSON object"):
+        client.complete([{"role": "user", "content": "hello"}])
+
+
 def test_openai_compatible_client_reports_http_errors(monkeypatch):
     reviewer = _load_module()
 
