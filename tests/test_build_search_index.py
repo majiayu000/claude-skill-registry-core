@@ -23,6 +23,7 @@ from build_search_index import (  # noqa: E402
     infer_install_status,
     is_root_mounted_path,
     score_skill_quality,
+    score_skill_trust,
 )
 
 
@@ -136,3 +137,34 @@ def test_quality_score_clears_visibility_threshold_for_root_mounted_skill():
     assert status == "known_good"
     assert quality["quality_score"] >= 70
     assert quality["quality_grade"] in {"A", "S"}
+
+
+def test_quality_security_component_only_rewards_passed_security():
+    skill = _skill()
+    install_status = infer_install_status(skill["repo"], skill["path"], skill["repo"])
+
+    passed = score_skill_quality(skill, install_status, "passed")
+    unknown = score_skill_quality(skill, install_status, "unknown")
+    failed = score_skill_quality(skill, install_status, "failed")
+
+    assert passed["score_inputs"]["security"] == 10
+    assert unknown["score_inputs"]["security"] == 0
+    assert failed["score_inputs"]["security"] == 0
+
+
+def test_trust_score_only_rewards_passed_security():
+    skill = _skill(stars=5)
+    install_status = infer_install_status(skill["repo"], skill["path"], skill["repo"])
+
+    passed = score_skill_trust(
+        skill["repo"], skill["path"], install_status, "passed", skill["stars"]
+    )
+    unknown = score_skill_trust(
+        skill["repo"], skill["path"], install_status, "unknown", skill["stars"]
+    )
+    failed = score_skill_trust(
+        skill["repo"], skill["path"], install_status, "failed", skill["stars"]
+    )
+
+    assert passed == unknown + 15
+    assert unknown == failed

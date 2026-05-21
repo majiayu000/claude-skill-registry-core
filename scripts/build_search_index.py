@@ -136,7 +136,7 @@ def score_skill_quality(skill: Dict[str, Any], install_status: str, security_sta
         "path": 15 if has_install_location(path) else 0,
         "tags": 10 if len(tags) >= 3 else 6 if tags else 0,
         "install": 20 if install_status == "known_good" else 8 if install_status == "unknown" else 0,
-        "security": 10 if security_status == "passed" else 4 if security_status == "unknown" else 0,
+        "security": 10 if security_status == "passed" else 0,
         "popularity": 10 if stars >= 1000 else 6 if stars >= 100 else 3 if stars > 0 else 0,
     }
     score = sum(components.values())
@@ -163,6 +163,18 @@ def score_skill_quality(skill: Dict[str, Any], install_status: str, security_sta
         "quality_grade": grade,
         "score_inputs": components,
     }
+
+
+def score_skill_trust(repo: str, path: str, install_status: str, security_status: str, stars: int) -> int:
+    """Compute trust score without treating missing security evidence as clean."""
+    return min(
+        100,
+        (30 if repo and "/" in repo else 0)
+        + (25 if has_install_location(path) else 0)
+        + (20 if install_status == "known_good" else 8 if install_status == "unknown" else 0)
+        + (15 if security_status == "passed" else 0)
+        + (10 if stars > 0 else 0),
+    )
 
 
 def scan_skills_v2(skills_dir: Path) -> List[Dict]:
@@ -336,14 +348,7 @@ def build_search_index(
         quality = score_skill_quality(skill, install_status, security_status)
         quality_score = quality["quality_score"]
         quality_grade = quality["quality_grade"]
-        trust_score = min(
-            100,
-            (30 if repo and "/" in repo else 0)
-            + (25 if has_install_location(path) else 0)
-            + (20 if install_status == "known_good" else 8 if install_status == "unknown" else 0)
-            + (15 if security_status != "failed" else 0)
-            + (10 if stars > 0 else 0),
-        )
+        trust_score = score_skill_trust(repo, path, install_status, security_status, stars)
 
         # Minimal record
         mini_record = {
