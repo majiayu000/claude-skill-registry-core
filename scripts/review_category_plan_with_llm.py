@@ -26,6 +26,21 @@ DEFAULT_MAX_COMPLETION_TOKENS = 1024
 DEFAULT_THINKING = "disabled"
 CONFIDENCE_PRIORITY = {"low": 0, "medium": 1, "high": 2}
 CHECKPOINT_SCHEMA_VERSION = 1
+CHECKPOINT_REQUIRED_REVIEW_FIELDS = (
+    "review_key",
+    "path",
+    "name",
+    "action",
+    "current_category",
+    "heuristic_proposed_category",
+    "llm_proposed_category",
+    "llm_confidence",
+    "decision",
+    "parse_status",
+    "review_required",
+    "reason",
+    "evidence",
+)
 
 
 class ChatClient(Protocol):
@@ -300,6 +315,33 @@ def build_error_entry(
     }
 
 
+def is_valid_checkpoint_review(payload: dict[str, Any]) -> bool:
+    if any(field not in payload for field in CHECKPOINT_REQUIRED_REVIEW_FIELDS):
+        return False
+    review_key = payload.get("review_key")
+    if not isinstance(review_key, str) or not review_key:
+        return False
+    for field in (
+        "path",
+        "name",
+        "action",
+        "current_category",
+        "heuristic_proposed_category",
+        "llm_proposed_category",
+        "decision",
+        "parse_status",
+        "reason",
+    ):
+        if not isinstance(payload.get(field), str):
+            return False
+    if not isinstance(payload.get("review_required"), bool):
+        return False
+    if not isinstance(payload.get("evidence"), list):
+        return False
+    confidence = payload.get("llm_confidence")
+    return confidence is None or isinstance(confidence, (int, float))
+
+
 def load_checkpoint_reviews(checkpoint_path: Path | None) -> tuple[dict[str, dict[str, Any]], int]:
     if checkpoint_path is None or not checkpoint_path.exists():
         return {}, 0
@@ -317,10 +359,10 @@ def load_checkpoint_reviews(checkpoint_path: Path | None) -> tuple[dict[str, dic
         if not isinstance(payload, dict):
             malformed_row_count += 1
             continue
-        review_key = payload.get("review_key")
-        if not isinstance(review_key, str) or not review_key:
+        if not is_valid_checkpoint_review(payload):
             malformed_row_count += 1
             continue
+        review_key = payload["review_key"]
         reviews[review_key] = payload
     return reviews, malformed_row_count
 
@@ -515,6 +557,8 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"Category migration plan not found: {args.plan}")
     if args.resume and not args.checkpoint_jsonl:
         raise SystemExit("--resume requires --checkpoint-jsonl")
+    if args.checkpoint_jsonl and args.plan.resolve() == args.checkpoint_jsonl.resolve():
+        raise SystemExit("--plan and --checkpoint-jsonl must be different paths")
     if (
         args.output
         and args.checkpoint_jsonl

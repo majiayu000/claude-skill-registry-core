@@ -406,6 +406,57 @@ def test_resume_ignores_malformed_checkpoint_rows(tmp_path):
     assert report["summary"]["skipped_checkpoint_count"] == 1
 
 
+def test_resume_ignores_checkpoint_rows_missing_required_fields(tmp_path):
+    reviewer = _load_module()
+    change = _change("other/a/SKILL.md", confidence="low", proposed_category="data")
+    review_key = reviewer.candidate_review_key(change)
+    checkpoint_path = tmp_path / "review.checkpoint.jsonl"
+    checkpoint_path.write_text(
+        json.dumps({"review_key": review_key}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    client = FakeClient(
+        ['{"category":"data","confidence":0.9,"reason":"fresh","evidence":["csv"]}']
+    )
+
+    report = reviewer.build_review_report(
+        {"changes": [change]},
+        client=client,
+        model="m",
+        base_url="u",
+        api_key_env="KEY",
+        checkpoint_path=checkpoint_path,
+        resume=True,
+    )
+
+    assert len(client.messages) == 1
+    assert report["reviews"][0]["reason"] == "fresh"
+    assert report["summary"]["malformed_checkpoint_row_count"] == 1
+    assert report["summary"]["skipped_checkpoint_count"] == 0
+    assert report["summary"]["new_review_count"] == 1
+
+
+def test_main_rejects_checkpoint_path_aliasing_plan(tmp_path, monkeypatch):
+    reviewer = _load_module()
+    monkeypatch.setenv("KEY", "test-key")
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps({"changes": []}) + "\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="--plan and --checkpoint-jsonl must be different paths"):
+        reviewer.main(
+            [
+                "--plan",
+                str(plan_path),
+                "--checkpoint-jsonl",
+                str(plan_path),
+                "--api-key-env",
+                "KEY",
+                "--limit",
+                "0",
+            ]
+        )
+
+
 def test_review_report_marks_api_error_without_raising():
     reviewer = _load_module()
     client = FakeClient([reviewer.LLMReviewError("temporary outage")])
