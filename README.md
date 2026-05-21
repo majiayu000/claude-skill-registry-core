@@ -67,6 +67,11 @@ sk install anthropics/skills/skills/docx
 
 ### Option 3: Direct API
 
+The public JSON surface is versioned in
+[docs/artifact-api-contract.md](docs/artifact-api-contract.md). Use that
+contract when integrating with pointer files, manifests, shards, gzip variants,
+and deprecation markers.
+
 ```bash
 # Startup search index and bounded full-search shards
 curl https://majiayu000.github.io/claude-skill-registry-core/search-index.json
