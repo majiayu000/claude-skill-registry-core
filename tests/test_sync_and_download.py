@@ -466,6 +466,72 @@ def test_probe_order_removes_duplicates():
     assert path_order == ["skills/demo/SKILL.md", "SKILL.md"]
 
 
+def test_download_skills_can_disable_acquisition_manifest(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure_report.json"
+    default_manifest = tmp_path / "default_manifest.json"
+    stale_manifest = {
+        "entries": {
+            "acme/demo:skills/demo": {
+                "repo": "acme/demo",
+                "branch": "release",
+                "relative_path": "stale/SKILL.md",
+                "updated_at": "2026-04-10T00:00:00Z",
+            }
+        }
+    }
+    default_manifest.write_text(json.dumps(stale_manifest), encoding="utf-8")
+    monkeypatch.setitem(
+        module.download_skills.__globals__,
+        "DEFAULT_MANIFEST_PATH",
+        default_manifest,
+    )
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "skills/demo",
+                        "category": "development",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            "https://raw.githubusercontent.com/acme/demo/main/skills/demo/SKILL.md": FakeResponse(
+                200,
+                text=(
+                    "---\nname: demo\n"
+                    "description: Demo skill without manifest help.\n---\n"
+                    "# Demo\nUse this skill directly.\n"
+                ),
+            ),
+        },
+    )
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            manifest_path=None,
+            failure_report_path=failure_report_path,
+        )
+    )
+
+    assert stats["downloaded"] == 1
+    assert stats["manifest_hits"] == 0
+    assert stats["manifest_misses"] == 0
+    assert json.loads(default_manifest.read_text(encoding="utf-8")) == stale_manifest
+
+
 def test_skill_source_dir_resolves_skill_parent():
     module = load_module()
 
