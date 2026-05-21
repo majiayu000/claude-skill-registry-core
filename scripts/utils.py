@@ -115,8 +115,8 @@ def build_source_url(repo: str = "", path: str = "", branch: str = "main") -> st
     if not path:
         return f"https://github.com/{repo}"
 
-    # path may be folder or file path
-    if not path.lower().endswith("skill.md"):
+    # path may be a folder or a direct markdown file path
+    if not path.lower().endswith(".md"):
         path = f"{path}/SKILL.md"
     return f"https://github.com/{repo}/blob/{branch}/{path}"
 

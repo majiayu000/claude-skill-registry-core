@@ -144,6 +144,10 @@ def test_build_source_url_handles_repo_only_and_path(utils):
         utils.build_source_url(repo="owner/repo", path="skills/demo/SKILL.md")
         == "https://github.com/owner/repo/blob/main/skills/demo/SKILL.md"
     )
+    assert (
+        utils.build_source_url(repo="owner/repo", path="packs/core/skills/memory-protocol.md")
+        == "https://github.com/owner/repo/blob/main/packs/core/skills/memory-protocol.md"
+    )
 
 
 def test_build_source_url_passthrough_for_external_url(utils):
