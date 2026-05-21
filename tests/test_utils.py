@@ -517,6 +517,42 @@ def test_extract_description_truncates_at_max_length(utils):
     assert len(desc) == 100
 
 
+def test_skill_semantic_fields_prefer_frontmatter(utils, tmp_path):
+    skill_dir = tmp_path / "skill-c"
+    skill_dir.mkdir()
+    content = (
+        "---\n"
+        "name: frontmatter-name\n"
+        "description: Docker Kubernetes CI CD deploy infrastructure workflow.\n"
+        "tags:\n"
+        "  - docker\n"
+        "  - kubernetes\n"
+        "---\n"
+    )
+    frontmatter = utils.extract_frontmatter(content)
+    metadata = {
+        "name": "metadata-name",
+        "description": "",
+        "tags": ["metadata-tag"],
+    }
+
+    fields = utils.skill_semantic_fields(
+        skill_dir,
+        metadata=metadata,
+        frontmatter=frontmatter,
+        rel=Path("other/skill-c/SKILL.md"),
+        content=content,
+    )
+
+    assert fields["name"] == "frontmatter-name"
+    assert fields["description"].startswith("Docker Kubernetes")
+    assert fields["tags"] == ["docker", "kubernetes"]
+    assert fields["sources"]["name"] == "frontmatter"
+    assert fields["sources"]["description"] == "frontmatter"
+    assert fields["sources"]["tags"] == "frontmatter:list"
+    assert "metadata-tag" not in fields["text"]
+
+
 def test_load_metadata_returns_dict_or_empty(utils, tmp_path):
     skill_dir = tmp_path / "skill-a"
     skill_dir.mkdir()

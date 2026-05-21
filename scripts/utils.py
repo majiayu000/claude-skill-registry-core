@@ -8,6 +8,7 @@ import json
 import logging
 import re
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import yaml
@@ -431,6 +432,83 @@ def extract_description(content: str, max_length: int = 200) -> str:
             line = re.sub(r"[*_`]", "", line)
             return line[:max_length]
     return ""
+
+
+def _semantic_text(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
+
+
+def _semantic_tags(value: Any) -> tuple[list[str], str]:
+    if isinstance(value, list):
+        tags = [str(item).strip() for item in value if str(item).strip()]
+        return tags, "list" if tags else ""
+    tag_text = _semantic_text(value)
+    if tag_text:
+        return [tag_text], "string"
+    return [], ""
+
+
+def skill_semantic_fields(
+    skill_dir: Path,
+    *,
+    metadata: dict[str, Any],
+    frontmatter: dict[str, Any],
+    rel: Path | None = None,
+    content: str = "",
+    content_chars: int = 0,
+) -> dict[str, Any]:
+    """Build SKILL.md-first semantic fields for classification and audit text."""
+    sources: dict[str, str] = {}
+
+    name = _semantic_text(frontmatter.get("name"))
+    if name:
+        sources["name"] = "frontmatter"
+    else:
+        name = _semantic_text(metadata.get("name"))
+        sources["name"] = "metadata" if name else "directory"
+    if not name:
+        name = skill_dir.name
+
+    description = _semantic_text(frontmatter.get("description"))
+    if description:
+        sources["description"] = "frontmatter"
+    else:
+        description = _semantic_text(metadata.get("description"))
+        if description:
+            sources["description"] = "metadata"
+        elif content:
+            description = extract_description(content)
+            if description:
+                sources["description"] = "body"
+
+    tags, tag_shape = _semantic_tags(frontmatter.get("tags"))
+    if tags:
+        sources["tags"] = f"frontmatter:{tag_shape}"
+    else:
+        tags, tag_shape = _semantic_tags(metadata.get("tags"))
+        if tags:
+            sources["tags"] = f"metadata:{tag_shape}"
+
+    tag_text = " ".join(tags)
+    text_parts = [
+        name,
+        description,
+        tag_text,
+        str(rel) if rel else "",
+        content[:content_chars] if content_chars > 0 else "",
+    ]
+    text = " ".join(part for part in text_parts if part)
+
+    return {
+        "name": name,
+        "description": description,
+        "tags": tags,
+        "tag_text": tag_text,
+        "text": text,
+        "sources": sources,
+    }
 
 
 def load_metadata(skill_dir: Path) -> dict:

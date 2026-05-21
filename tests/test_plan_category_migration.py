@@ -119,3 +119,34 @@ def test_plan_reports_source_conflict_before_deprecation(tmp_path):
     assert change["current_category"] == "docs"
     assert change["proposed_category"] == "docs"
     assert change["review_required"] is True
+
+
+def test_plan_uses_frontmatter_description_when_metadata_description_missing(tmp_path):
+    planner = _load_module()
+    skills_dir = tmp_path / "skills"
+    _write_skill(
+        skills_dir,
+        "other",
+        "frontmatter-devops",
+        {
+            "name": "frontmatter-devops",
+            "category": "other",
+        },
+        (
+            "---\n"
+            "name: frontmatter-devops\n"
+            "description: Docker Kubernetes CI CD deploy infrastructure workflow.\n"
+            "tags:\n"
+            "  - docker\n"
+            "  - kubernetes\n"
+            "---\n"
+        ),
+    )
+
+    plan = planner.build_plan(skills_dir, min_score=2, min_delta=2)
+    change = {item["path"]: item for item in plan["changes"]}[
+        "other/frontmatter-devops/SKILL.md"
+    ]
+
+    assert change["action"] == "heuristic_reclassify"
+    assert change["proposed_category"] == "devops"
