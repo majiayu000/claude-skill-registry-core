@@ -175,6 +175,33 @@ def test_build_unified_registry_accepts_non_string_path_values(tmp_path):
     assert module.build_unified_registry(sources_dir, output_path) == 2
 
 
+def test_build_unified_registry_dedupes_boolean_root_path(tmp_path):
+    module = load_module()
+    sources_dir = tmp_path / "sources"
+    sources_dir.mkdir()
+    output_path = tmp_path / "registry.json"
+    root_skill = {
+        "name": "root-skill",
+        "repo": "owner/root-skill",
+        "description": "Repo-root skill.",
+        "category": "productivity",
+    }
+    (sources_dir / "community.json").write_text(
+        json.dumps(
+            {
+                "name": "Community",
+                "skills": [
+                    root_skill,
+                    {**root_skill, "path": False},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert module.build_unified_registry(sources_dir, output_path) == 1
+
+
 def test_download_blocks_security_listed_source_repo(tmp_path, monkeypatch):
     module = load_module()
     registry_path = tmp_path / "registry.json"
