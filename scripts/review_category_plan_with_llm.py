@@ -341,7 +341,9 @@ def is_valid_checkpoint_review(payload: dict[str, Any]) -> bool:
     if not isinstance(payload.get("evidence"), list):
         return False
     confidence = payload.get("llm_confidence")
-    return confidence is None or isinstance(confidence, (int, float))
+    return confidence is None or (
+        not isinstance(confidence, bool) and isinstance(confidence, (int, float))
+    )
 
 
 def load_checkpoint_reviews(checkpoint_path: Path | None) -> tuple[dict[str, dict[str, Any]], int]:
