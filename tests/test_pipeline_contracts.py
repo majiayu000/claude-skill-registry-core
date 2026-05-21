@@ -19,6 +19,67 @@ def test_pages_app_prefers_lite_index_with_full_index_fallback():
     assert "in highlighted index" in app_js
 
 
+def test_readme_links_static_artifact_api_contract():
+    readme = read_repo_file("README.md")
+
+    assert "[docs/artifact-api-contract.md](docs/artifact-api-contract.md)" in readme
+
+
+def test_static_artifact_api_contract_names_public_entrypoints():
+    contract = read_repo_file("docs/artifact-api-contract.md")
+    expected_paths = [
+        "search-index-lite.json",
+        "search-index.json",
+        "search-index-manifest.json",
+        "search-shards/part-000.json",
+        "featured.json",
+        "plugins.json",
+        "stats.json",
+        "quality-index.json",
+        "quality-index-manifest.json",
+        "quality-shards/part-000.json",
+        "security-index.json",
+        "security-index-manifest.json",
+        "security-shards/part-000.json",
+        "ranking-index.json",
+        "ranking-index-manifest.json",
+        "ranking-shards/part-000.json",
+        "categories/index.json",
+        "categories/<category>.json",
+        "categories/<category>/manifest.json",
+        "categories/<category>/part-000.json",
+        "registry_summary.json",
+        "registry.json",
+        "registry-manifest.json",
+        "registry-shards/00.json",
+        "provenance/merge-source.json",
+    ]
+
+    for path in expected_paths:
+        assert path in contract
+
+
+def test_static_artifact_api_contract_covers_pointer_and_manifest_fields():
+    contract = read_repo_file("docs/artifact-api-contract.md")
+    expected_terms = [
+        "deprecated_full_payload: true",
+        "manifest",
+        "replacement",
+        "compat_since",
+        "compat_until",
+        "schema_version",
+        "sha256",
+        "gzip_path",
+        "shards",
+        "parts",
+        "records",
+        "skills",
+    ]
+
+    for term in expected_terms:
+        assert term in contract
+
+
 def test_pages_leaderboard_loads_full_data_before_ranking():
     app_js = read_repo_file("docs/js/app.js")
     render_js = read_repo_file("docs/js/app-render.js")
