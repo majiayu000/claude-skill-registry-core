@@ -116,6 +116,8 @@ def test_review_report_records_agree_override_and_uncertain():
         "uncertain": 1,
     }
     assert report["policy"]["apply_mode"] == "review-only"
+    assert report["policy"]["max_completion_tokens"] == reviewer.DEFAULT_MAX_COMPLETION_TOKENS
+    assert report["policy"]["thinking"] == reviewer.DEFAULT_THINKING
     assert "MIMO_API_KEY" in report["notes"][1]
 
 
@@ -157,7 +159,34 @@ def test_openai_compatible_client_posts_chat_completion(monkeypatch):
     assert captured["headers"]["Authorization"] == "Bearer secret"
     assert captured["payload"]["model"] == "m"
     assert captured["payload"]["max_completion_tokens"] == 123
+    assert captured["payload"]["thinking"] == {"type": "disabled"}
     assert captured["payload"]["stream"] is False
+
+
+def test_openai_compatible_client_can_omit_thinking_for_non_mimo(monkeypatch):
+    reviewer = _load_module()
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"category":"data","confidence":0.8,"reason":"etl","evidence":[]}'
+                        }
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(reviewer, "urlopen", fake_urlopen)
+    client = reviewer.OpenAICompatibleClient(api_key="secret", thinking="default")
+
+    client.complete([{"role": "user", "content": "hello"}])
+
+    assert "thinking" not in captured["payload"]
 
 
 def test_openai_compatible_client_reports_api_shape_errors(monkeypatch):
@@ -461,11 +490,7 @@ def test_main_writes_json_report(monkeypatch, tmp_path, capsys):
     checkpoint_path = tmp_path / "review.checkpoint.jsonl"
     plan_path.write_text(
         json.dumps(
-            {
-                "changes": [
-                    _change("other/a/SKILL.md", confidence="low", proposed_category="data")
-                ]
-            }
+            {"changes": [_change("other/a/SKILL.md", confidence="low", proposed_category="data")]}
         ),
         encoding="utf-8",
     )
@@ -473,10 +498,12 @@ def test_main_writes_json_report(monkeypatch, tmp_path, capsys):
     class FakeOpenAICompatibleClient:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
+            created_clients.append(kwargs)
 
         def complete(self, messages):
             return '{"category":"data","confidence":0.9,"reason":"etl","evidence":["csv"]}'
 
+    created_clients = []
     monkeypatch.setenv("MIMO_API_KEY", "secret")
     monkeypatch.setattr(reviewer, "OpenAICompatibleClient", FakeOpenAICompatibleClient)
 
@@ -490,6 +517,10 @@ def test_main_writes_json_report(monkeypatch, tmp_path, capsys):
                 "--json",
                 "--limit",
                 "1",
+                "--max-completion-tokens",
+                "2048",
+                "--thinking",
+                "default",
                 "--checkpoint-jsonl",
                 str(checkpoint_path),
             ]
@@ -499,5 +530,9 @@ def test_main_writes_json_report(monkeypatch, tmp_path, capsys):
     stdout = capsys.readouterr().out
     output = json.loads(output_path.read_text(encoding="utf-8"))
     assert json.loads(stdout)["summary"]["reviewed_count"] == 1
+    assert created_clients[0]["max_completion_tokens"] == 2048
+    assert created_clients[0]["thinking"] == "default"
+    assert output["policy"]["max_completion_tokens"] == 2048
+    assert output["policy"]["thinking"] == "default"
     assert output["reviews"][0]["decision"] == "agree"
     assert checkpoint_path.exists()
