@@ -134,10 +134,25 @@ def fetch_repo_license(repo: str, token: str, timeout: int) -> dict[str, str]:
     }
 
 
-def is_refetchable_license_result(result: dict[str, str]) -> bool:
-    """Return True for cache entries produced without durable GitHub license data."""
+def should_refetch_cached_license(result: dict[str, str]) -> bool:
+    """Return True for durable cache entries that should be refreshed with GitHub fetch."""
     error = str(result.get("error") or "")
-    return error == "not_fetched" or error.startswith("fetch_error:") or error == "fetch_failed"
+    return error == "not_fetched"
+
+
+def is_transient_license_result(result: dict[str, str]) -> bool:
+    """Return True for fetch failures that should not be persisted across runs."""
+    error = str(result.get("error") or "")
+    return error.startswith("fetch_error:") or error == "fetch_failed"
+
+
+def durable_license_cache(cache: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+    """Return cache entries safe to persist between backfill runs."""
+    return {
+        repo: result
+        for repo, result in cache.items()
+        if not is_transient_license_result(result)
+    }
 
 
 def load_or_fetch_license(
@@ -150,15 +165,14 @@ def load_or_fetch_license(
     sleep_seconds: float,
 ) -> dict[str, str]:
     cached = cache.get(repo)
-    if cached and not (fetch and is_refetchable_license_result(cached)):
+    if cached and not (fetch and should_refetch_cached_license(cached)):
         return cached
     if not fetch:
         cache[repo] = {"license": "NOASSERTION", "copyright": "", "error": "not_fetched"}
         return cache[repo]
 
     result = fetch_repo_license(repo, token=token, timeout=timeout)
-    if not is_refetchable_license_result(result):
-        cache[repo] = result
+    cache[repo] = result
     if sleep_seconds > 0:
         time.sleep(sleep_seconds)
     return result
@@ -230,7 +244,7 @@ def main() -> int:
         return 1
 
     token = os.environ.get(args.token_env, "")
-    cache: dict[str, dict[str, str]] = load_json(cache_path, {})
+    cache: dict[str, dict[str, str]] = durable_license_cache(load_json(cache_path, {}))
     changed_files: list[str] = []
     skipped_repos: set[str] = set()
     stats = {
@@ -277,7 +291,7 @@ def main() -> int:
             sleep_seconds=args.sleep,
         )
         if not had_cache:
-            write_json(cache_path, cache)
+            write_json(cache_path, durable_license_cache(cache))
         updated = backfill_metadata(metadata, repo_license)
         if updated == metadata:
             stats["unchanged"] += 1
@@ -293,7 +307,7 @@ def main() -> int:
 
     stats["repos_seen"] = len(repos_seen)
     stats["repos_skipped_by_limit"] = len(skipped_repos)
-    write_json(cache_path, cache)
+    write_json(cache_path, durable_license_cache(cache))
 
     report = {
         **stats,
