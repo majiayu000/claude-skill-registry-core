@@ -341,6 +341,12 @@ def test_build_skill_key_coerces_non_string_repo_and_path(utils):
     assert utils.build_skill_key(repo="o/r", path={"bad": "path"}) == "o/r:{'bad': 'path'}"
 
 
+def test_build_skill_key_treats_boolean_repo_and_path_as_missing(utils):
+    assert utils.build_skill_key(repo="o/r", path=False) == "o/r"
+    assert utils.build_skill_key(repo="o/r", path=True) == "o/r"
+    assert utils.build_skill_key(repo=False, path="x/y", category="dev", name="foo") == "dev:foo"
+
+
 def test_iter_source_skills_inherits_top_level_repo(utils):
     source = {
         "repo": "anthropics/skills",

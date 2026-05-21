@@ -232,7 +232,7 @@ def normalize_category(category: str) -> str:
 
 
 def _skill_key_text(value) -> str:
-    if value is None:
+    if value is None or isinstance(value, bool):
         return ""
     if isinstance(value, str):
         return value
