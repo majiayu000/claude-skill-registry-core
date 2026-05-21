@@ -51,6 +51,7 @@ def test_publish_sync_metadata_compliance_is_strict_for_notices():
 
     assert "scripts/check_metadata_compliance.py" in notices_block
     assert "--notices \"$main_dir/THIRD_PARTY_NOTICES.md\"" in notices_block
+    assert "--strict" in notices_block
     assert "--report-only" not in notices_block
 
 
