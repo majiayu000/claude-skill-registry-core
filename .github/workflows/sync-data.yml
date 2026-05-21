@@ -92,6 +92,9 @@ jobs:
           echo "profile=$profile" >> "$GITHUB_OUTPUT"
           echo "Discovery profile: $profile (event=$EVENT_NAME schedule=$EVENT_SCHEDULE full_scan=$INPUT_FULL_SCAN skip_discovery=$INPUT_SKIP_DISCOVERY)"
 
+      - name: Clean CI archive leftovers before discovery
+        run: python scripts/sync_and_download.py --cleanup-ci-untracked-archive-files-only
+
       - name: Discover new skills from GitHub (full)
         if: steps.discovery.outputs.profile == 'full'
         id: discover_full
@@ -157,6 +160,7 @@ jobs:
           echo "⬇️ Downloading skills from existing registry (full mode)..."
           python scripts/sync_and_download.py \
             --download-only \
+            --skip-ci-untracked-cleanup \
             --fail-on-empty-download \
             --observations-output sources/learning/discovery_observations.jsonl \
             --learning-priors sources/learning/discovery_priors.json 2>&1 | tee download.log
@@ -173,6 +177,7 @@ jobs:
           python scripts/sync_and_download.py \
             --download-only \
             --max-pending 3000 \
+            --skip-ci-untracked-cleanup \
             --fail-on-empty-download \
             --observations-output sources/learning/discovery_observations.jsonl \
             --learning-priors sources/learning/discovery_priors.json 2>&1 | tee download.log

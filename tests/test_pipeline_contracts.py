@@ -71,6 +71,18 @@ def test_sync_data_stages_registry_shard_artifacts():
     assert "git add registry.json registry_summary.json registry-manifest.json registry-shards/" in workflow
 
 
+def test_sync_data_cleans_ci_archive_leftovers_before_discovery():
+    workflow = read_repo_file(".github/workflows/sync-data.yml")
+
+    cleanup_pos = workflow.index("Clean CI archive leftovers before discovery")
+    discovery_pos = workflow.index("Discover new skills from GitHub")
+    download_pos = workflow.index("Download skills from registry")
+
+    assert cleanup_pos < discovery_pos < download_pos
+    assert "--cleanup-ci-untracked-archive-files-only" in workflow
+    assert workflow.count("--skip-ci-untracked-cleanup") == 2
+
+
 def test_metadata_compliance_refuses_unexpected_zero_target_scan():
     workflow = read_repo_file(".github/workflows/metadata-compliance.yml")
 
