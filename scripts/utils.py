@@ -231,10 +231,19 @@ def normalize_category(category: str) -> str:
     return name[:32] if name else "other"
 
 
+def _normalize_skill_key_path(path: str = "") -> str:
+    normalized = (path or "").strip().replace("\\", "/").strip("/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    if normalized == "." or normalized.lower() == "skill.md":
+        return ""
+    return normalized
+
+
 def build_skill_key(repo: str = "", path: str = "", name: str = "", category: str = "") -> str:
     """Build a stable key for a skill to detect duplicates."""
     repo = (repo or "").strip()
-    path = (path or "").strip().lstrip("/")
+    path = _normalize_skill_key_path(path)
     if repo and path:
         return f"{repo}:{path}"
     if repo:

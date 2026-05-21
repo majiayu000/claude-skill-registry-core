@@ -326,6 +326,9 @@ def test_build_skill_key_priority(utils):
     # Per implementation: repo+path > repo > category:name > "".
     assert utils.build_skill_key(repo="o/r", path="x/y") == "o/r:x/y"
     assert utils.build_skill_key(repo="o/r") == "o/r"
+    assert utils.build_skill_key(repo="o/r", path=".") == "o/r"
+    assert utils.build_skill_key(repo="o/r", path="SKILL.md") == "o/r"
+    assert utils.build_skill_key(repo="o/r", path="./SKILL.md") == "o/r"
     assert utils.build_skill_key(category="dev", name="foo") == "dev:foo"
     assert utils.build_skill_key() == ""
     # path alone is ignored once repo is missing — the category:name fallback wins.
