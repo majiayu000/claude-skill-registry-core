@@ -157,28 +157,6 @@ def build_plan(
         )
 
         source_values = set(resolved_sources.values())
-        migration_target = taxonomy.migration_target(current_category)
-        if migration_target:
-            definition = taxonomy.categories[current_category]
-            changes.append(
-                build_change(
-                    action="taxonomy_deprecation",
-                    confidence="high",
-                    rel=rel,
-                    skill_dir=skill_dir,
-                    name=name,
-                    current_category=current_category,
-                    proposed_category=migration_target,
-                    raw_sources=raw_sources,
-                    resolved_sources=resolved_sources,
-                    reason=(
-                        f"taxonomy marks {current_category} as {definition.status} "
-                        f"with migrate_to={migration_target}"
-                    ),
-                )
-            )
-            continue
-
         alias_sources = [
             source
             for source, value in raw_sources.items()
@@ -214,6 +192,28 @@ def build_plan(
                     raw_sources=raw_sources,
                     resolved_sources=resolved_sources,
                     reason="directory, metadata, or frontmatter categories disagree",
+                )
+            )
+            continue
+
+        migration_target = taxonomy.migration_target(current_category)
+        if migration_target:
+            definition = taxonomy.categories[current_category]
+            changes.append(
+                build_change(
+                    action="taxonomy_deprecation",
+                    confidence="high",
+                    rel=rel,
+                    skill_dir=skill_dir,
+                    name=name,
+                    current_category=current_category,
+                    proposed_category=migration_target,
+                    raw_sources=raw_sources,
+                    resolved_sources=resolved_sources,
+                    reason=(
+                        f"taxonomy marks {current_category} as {definition.status} "
+                        f"with migrate_to={migration_target}"
+                    ),
                 )
             )
             continue
