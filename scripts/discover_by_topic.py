@@ -8,6 +8,7 @@ import os
 import json
 import time
 import logging
+import shutil
 import tempfile
 from collections import defaultdict
 import requests
@@ -384,9 +385,38 @@ class GitHubTopicDiscovery:
                         return False
 
                     skill_path = ensure_unique_dir(output_dir / category, skill_dir, key, repo=repo)
-                    skill_path.mkdir(parents=True, exist_ok=True)
-
                     metadata['dir_name'] = skill_path.name
+
+                    with tempfile.TemporaryDirectory(
+                        prefix=".discover-final-scan-",
+                        dir=output_dir,
+                    ) as temp_dir:
+                        staged_skill_path = Path(temp_dir) / skill_path.name
+                        if skill_path.exists():
+                            shutil.copytree(skill_path, staged_skill_path)
+                        else:
+                            staged_skill_path.mkdir(parents=True, exist_ok=True)
+                        (staged_skill_path / 'SKILL.md').write_text(content, encoding='utf-8')
+                        (staged_skill_path / 'metadata.json').write_text(
+                            json.dumps(metadata, indent=2), encoding='utf-8'
+                        )
+                        is_safe, issues = self.security_scanner.scan_file(
+                            staged_skill_path / 'SKILL.md'
+                        )
+
+                    if not is_safe:
+                        issue_types = sorted(
+                            {str(issue.get("type") or "unknown") for issue in issues}
+                        )
+                        logger.warning(
+                            "Rejected discovered skill after final archive scan: %s/%s (%s)",
+                            repo,
+                            path,
+                            ", ".join(issue_types[:8]),
+                        )
+                        return False
+
+                    skill_path.mkdir(parents=True, exist_ok=True)
                     (skill_path / 'SKILL.md').write_text(content, encoding='utf-8')
                     (skill_path / 'metadata.json').write_text(
                         json.dumps(metadata, indent=2), encoding='utf-8'
