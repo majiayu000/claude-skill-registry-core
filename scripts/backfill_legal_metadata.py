@@ -134,6 +134,12 @@ def fetch_repo_license(repo: str, token: str, timeout: int) -> dict[str, str]:
     }
 
 
+def is_refetchable_license_result(result: dict[str, str]) -> bool:
+    """Return True for cache entries produced without durable GitHub license data."""
+    error = str(result.get("error") or "")
+    return error == "not_fetched" or error.startswith("fetch_error:") or error == "fetch_failed"
+
+
 def load_or_fetch_license(
     repo: str,
     cache: dict[str, dict[str, str]],
@@ -143,14 +149,16 @@ def load_or_fetch_license(
     timeout: int,
     sleep_seconds: float,
 ) -> dict[str, str]:
-    if repo in cache:
-        return cache[repo]
+    cached = cache.get(repo)
+    if cached and not (fetch and is_refetchable_license_result(cached)):
+        return cached
     if not fetch:
         cache[repo] = {"license": "NOASSERTION", "copyright": "", "error": "not_fetched"}
         return cache[repo]
 
     result = fetch_repo_license(repo, token=token, timeout=timeout)
-    cache[repo] = result
+    if not is_refetchable_license_result(result):
+        cache[repo] = result
     if sleep_seconds > 0:
         time.sleep(sleep_seconds)
     return result
@@ -158,8 +166,18 @@ def load_or_fetch_license(
 
 def backfill_metadata(metadata: dict[str, Any], repo_license: dict[str, str]) -> dict[str, Any]:
     repo = normalize_repo(str(metadata.get("repo") or ""))
-    license_name = metadata.get("license") or repo_license.get("license") or "NOASSERTION"
-    copyright_text = metadata.get("copyright") or repo_license.get("copyright") or ""
+    current_license = metadata.get("license")
+    current_copyright = metadata.get("copyright")
+    license_name = (
+        current_license
+        if not is_missing(current_license)
+        else repo_license.get("license") or "NOASSERTION"
+    )
+    copyright_text = (
+        current_copyright
+        if not is_missing(current_copyright)
+        else repo_license.get("copyright") or ""
+    )
 
     legal = build_legal_metadata(
         repo=repo,
