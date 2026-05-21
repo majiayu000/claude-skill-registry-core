@@ -79,7 +79,6 @@ echo "Generating third-party notices..."
 python "$main_dir/scripts/check_metadata_compliance.py" \
   --skills-dir "$main_dir/skills" \
   --metadata-schema "$main_dir/schema/metadata.schema.json" \
-  --notices "$main_dir/THIRD_PARTY_NOTICES.md" \
-  --report-only
+  --notices "$main_dir/THIRD_PARTY_NOTICES.md"
 
 echo "Done."
