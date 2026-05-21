@@ -168,19 +168,20 @@ def test_load_or_fetch_license_refetches_dry_run_placeholder(monkeypatch):
     assert cache["owner/repo"]["license"] == "MIT"
 
 
-def test_load_or_fetch_license_does_not_cache_transient_fetch_errors(monkeypatch):
+def test_load_or_fetch_license_caches_transient_fetch_errors_for_run(monkeypatch):
     module = load_module()
     cache = {}
+    calls = []
 
-    monkeypatch.setattr(
-        module,
-        "fetch_repo_license",
-        lambda *args, **kwargs: {
+    def fetch_repo_license(*args, **kwargs):
+        calls.append(args[0])
+        return {
             "license": "NOASSERTION",
             "copyright": "",
             "error": "fetch_error:tls eof",
-        },
-    )
+        }
+
+    monkeypatch.setattr(module, "fetch_repo_license", fetch_repo_license)
 
     result = module.load_or_fetch_license(
         "owner/repo",
@@ -192,7 +193,78 @@ def test_load_or_fetch_license_does_not_cache_transient_fetch_errors(monkeypatch
     )
 
     assert result["error"] == "fetch_error:tls eof"
-    assert "owner/repo" not in cache
+    assert cache["owner/repo"]["error"] == "fetch_error:tls eof"
+
+    second = module.load_or_fetch_license(
+        "owner/repo",
+        cache,
+        fetch=True,
+        token="",
+        timeout=1,
+        sleep_seconds=0,
+    )
+
+    assert second["error"] == "fetch_error:tls eof"
+    assert calls == ["owner/repo"]
+
+
+def test_durable_license_cache_excludes_transient_fetch_errors():
+    module = load_module()
+    cache = {
+        "owner/transient": {
+            "license": "NOASSERTION",
+            "copyright": "",
+            "error": "fetch_error:tls eof",
+        },
+        "owner/durable": {
+            "license": "NOASSERTION",
+            "copyright": "",
+            "error": "not_fetched",
+        },
+    }
+
+    assert module.durable_license_cache(cache) == {"owner/durable": cache["owner/durable"]}
+
+
+def test_main_keeps_transient_fetch_failure_stable_but_not_persisted(
+    tmp_path,
+    monkeypatch,
+):
+    module = load_module()
+    first_metadata = tmp_path / "skills" / "development" / "demo-a" / "metadata.json"
+    second_metadata = tmp_path / "skills" / "development" / "demo-b" / "metadata.json"
+    write_metadata(first_metadata)
+    write_metadata(second_metadata)
+    cache_path = tmp_path / "cache.json"
+    calls = []
+
+    def fetch_repo_license(repo, *args, **kwargs):
+        calls.append(repo)
+        return {
+            "license": "NOASSERTION",
+            "copyright": "",
+            "error": "fetch_error:tls eof",
+        }
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(module, "fetch_repo_license", fetch_repo_license)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "backfill_legal_metadata.py",
+            "--skills-dir",
+            "skills",
+            "--cache",
+            "cache.json",
+            "--fetch-github",
+            "--apply",
+        ],
+    )
+
+    assert module.main() == 0
+    assert calls == ["owner/repo"]
+    assert json.loads(cache_path.read_text(encoding="utf-8")) == {}
 
 
 def test_license_classification_covers_backfill_spdx_values():
