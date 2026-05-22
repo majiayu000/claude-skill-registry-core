@@ -106,14 +106,14 @@ def test_publish_sync_runs_generated_size_guard_after_rebuild():
     assert "--categories-dir" in sync_script
 
 
-def test_publish_sync_metadata_compliance_is_strict_for_notices():
+def test_publish_sync_metadata_compliance_is_advisory_for_historical_notices():
     sync_script = read_repo_file("scripts/sync_main_repo.sh")
-    notices_block = sync_script[sync_script.index("Generating third-party notices...") :]
+    notices_block = sync_script[sync_script.index("Generating third-party notices") :]
 
     assert "scripts/check_metadata_compliance.py" in notices_block
     assert "--notices \"$main_dir/THIRD_PARTY_NOTICES.md\"" in notices_block
-    assert "--strict" in notices_block
-    assert "--report-only" not in notices_block
+    assert "--report-only" in notices_block
+    assert "--strict" not in notices_block
 
 
 def test_build_index_fails_closed_when_security_report_is_missing():
