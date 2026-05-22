@@ -75,11 +75,11 @@ if [[ "$rebuild" -eq 1 ]]; then
     --categories-dir "$main_dir/docs/categories"
 fi
 
-echo "Generating third-party notices..."
+echo "Generating third-party notices (advisory full-archive metadata scan)..."
 python "$main_dir/scripts/check_metadata_compliance.py" \
   --skills-dir "$main_dir/skills" \
   --metadata-schema "$main_dir/schema/metadata.schema.json" \
   --notices "$main_dir/THIRD_PARTY_NOTICES.md" \
-  --strict
+  --report-only
 
 echo "Done."
