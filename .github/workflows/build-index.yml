@@ -122,7 +122,11 @@ jobs:
       - name: Build search index
         run: |
           echo "Building search index from archive tree (recursive)..."
-          python scripts/build_search_index.py --skills-dir skills --registry registry.json --output docs
+          SECURITY_EVIDENCE_ARGS=()
+          if [ -f security-report-missing.allowed ]; then
+            SECURITY_EVIDENCE_ARGS+=(--allow-missing-security-evidence)
+          fi
+          python scripts/build_search_index.py --skills-dir skills --registry registry.json --output docs "${SECURITY_EVIDENCE_ARGS[@]}"
 
           echo ""
           echo "Index files generated:"

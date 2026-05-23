@@ -89,7 +89,9 @@ def test_should_fail_on_empty_download_only_when_all_attempts_fail():
     assert module.should_fail_on_empty_download({"downloaded": 0, "failed": 3}) is True
     assert module.should_fail_on_empty_download({"downloaded": 2, "failed": 3}) is False
     assert module.should_fail_on_empty_download({"downloaded": 0, "failed": 0}) is False
-    assert module.should_fail_on_empty_download({"downloaded": 0, "failed": 3, "skipped": 10}) is False
+    assert (
+        module.should_fail_on_empty_download({"downloaded": 0, "failed": 3, "skipped": 10}) is False
+    )
 
 
 def test_build_unified_registry_inherits_top_level_repo(tmp_path):
@@ -627,7 +629,10 @@ def test_bundled_file_allowlist_is_scoped_and_size_limited():
     module = load_module()
 
     assert module.bundled_relative_path("", "package.json") == "package.json"
-    assert module.bundled_relative_path("skills/demo", "skills/demo/scripts/run.sh") == "scripts/run.sh"
+    assert (
+        module.bundled_relative_path("skills/demo", "skills/demo/scripts/run.sh")
+        == "scripts/run.sh"
+    )
     assert module.bundled_relative_path("skills/demo", "other/scripts/run.sh") == ""
     assert module.should_recurse_bundled_dir("scripts") is True
     assert module.should_recurse_bundled_dir("references/nested") is True
@@ -647,10 +652,13 @@ def test_bundled_file_allowlist_is_scoped_and_size_limited():
     assert module.is_safe_bundled_file("examples/SKILL.md", 1024) is False
     assert module.is_safe_bundled_file("docs/helper.py", 1024) is False
     assert module.is_safe_bundled_file("references/.env", 10) is False
-    assert module.is_safe_bundled_file(
-        "references/huge.py",
-        module.MAX_BUNDLED_FILE_BYTES + 1,
-    ) is False
+    assert (
+        module.is_safe_bundled_file(
+            "references/huge.py",
+            module.MAX_BUNDLED_FILE_BYTES + 1,
+        )
+        is False
+    )
 
 
 def test_bundled_download_failure_does_not_publish_partial_archive(tmp_path, monkeypatch):
@@ -925,7 +933,7 @@ def test_optional_bundled_download_failure_degrades_to_skill_md(
     assert "bundled_download_failed" not in failure_report["failure_reasons"]
 
 
-def test_bundled_references_are_archived_with_directory_mode(tmp_path, monkeypatch):
+def test_bundled_references_and_rules_are_archived_with_directory_mode(tmp_path, monkeypatch):
     module = load_module()
     registry_path = tmp_path / "registry.json"
     output_dir = tmp_path / "skills"
@@ -954,7 +962,7 @@ def test_bundled_references_are_archived_with_directory_mode(tmp_path, monkeypat
                 text=(
                     "---\nname: demo\n"
                     "description: Demo skill with references.\n---\n"
-                    "# Demo\nSee references/guide.md.\n"
+                    "# Demo\nSee references/guide.md and rules/rule.md.\n"
                 ),
             ),
             "https://api.github.com/repos/acme/demo/contents?ref=main": FakeResponse(
@@ -962,6 +970,7 @@ def test_bundled_references_are_archived_with_directory_mode(tmp_path, monkeypat
                 json_payload=[
                     {"type": "file", "path": "SKILL.md", "size": 80},
                     {"type": "dir", "path": "references", "size": 0},
+                    {"type": "dir", "path": "rules", "size": 0},
                 ],
             ),
             "https://api.github.com/repos/acme/demo/contents/references?ref=main": FakeResponse(
@@ -976,6 +985,18 @@ def test_bundled_references_are_archived_with_directory_mode(tmp_path, monkeypat
                 ],
             ),
             "https://download.example/guide.md": FakeResponse(200, body=b"# Guide\n"),
+            "https://api.github.com/repos/acme/demo/contents/rules?ref=main": FakeResponse(
+                200,
+                json_payload=[
+                    {
+                        "type": "file",
+                        "path": "rules/rule.md",
+                        "download_url": "https://download.example/rule.md",
+                        "size": 12,
+                    }
+                ],
+            ),
+            "https://download.example/rule.md": FakeResponse(200, body=b"# Rule\n"),
         },
     )
 
@@ -990,12 +1011,13 @@ def test_bundled_references_are_archived_with_directory_mode(tmp_path, monkeypat
 
     assert stats["downloaded"] == 1
     assert stats["failed"] == 0
-    assert stats["bundled_files"] == 1
+    assert stats["bundled_files"] == 2
     skill_dir = next(output_dir.glob("development/*"))
     metadata = json.loads((skill_dir / "metadata.json").read_text(encoding="utf-8"))
     assert metadata["archive_mode"] == "directory"
-    assert metadata["bundled_files"] == ["references/guide.md"]
+    assert metadata["bundled_files"] == ["references/guide.md", "rules/rule.md"]
     assert (skill_dir / "references" / "guide.md").read_text(encoding="utf-8") == "# Guide\n"
+    assert (skill_dir / "rules" / "rule.md").read_text(encoding="utf-8") == "# Rule\n"
 
 
 def test_bundled_collection_skips_github_submodule_entries(tmp_path, monkeypatch):
