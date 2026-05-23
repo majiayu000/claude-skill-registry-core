@@ -184,11 +184,19 @@ The report records:
 - mutually exclusive primary reason counts;
 - overlapping blocker reason counts;
 - target category/status distributions and bounded representative examples.
+- optional stable-key conflict details via `--conflict-detail-limit`, including
+  source/target paths, metadata identity fields, SKILL content hashes, and
+  equality flags.
 
 Residual reason buckets include low confidence, target category/status excluded
 by policy, target `other`, classification status/path failures, stable-key
 conflicts, source missing, current archive category filtered out, and movable
 candidates under the selected policy.
+
+Stable-key conflict details are diagnostic only. Matching stable keys are not
+enough to delete or merge archive entries; a follow-up cleanup must first prove
+whether the source and target SKILL bodies are identical or intentionally
+different.
 
 ## Governance Gates
 
