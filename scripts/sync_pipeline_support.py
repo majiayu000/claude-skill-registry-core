@@ -83,6 +83,7 @@ BUNDLED_DIR_ALLOWLIST = {
     "templates",
     "examples",
     "prompts",
+    "rules",
 }
 BUNDLED_ROOT_FILE_ALLOWLIST = {
     "audit.md",
