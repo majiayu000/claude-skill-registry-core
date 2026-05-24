@@ -149,8 +149,11 @@ def load_security_report_decisions(
             if require_security_evidence:
                 raise ValueError(f"Security report result is missing path: skills[{index}]")
             continue
+        decision = result.get("security_decision")
+        if not isinstance(decision, dict) and not require_security_evidence:
+            continue
         decisions[archive_path] = validate_security_decision(
-            result.get("security_decision"),
+            decision,
             archive_path,
         )
 

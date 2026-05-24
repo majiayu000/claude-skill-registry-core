@@ -239,3 +239,72 @@ def test_build_search_index_fails_when_required_security_report_is_missing(tmp_p
             tmp_path / "docs",
             require_security_evidence=True,
         )
+
+
+def test_build_search_index_skips_missing_security_decision_when_optional(tmp_path):
+    output_dir = tmp_path / "docs"
+    output_dir.mkdir()
+    output_dir.joinpath("security-report.json").write_text(
+        json.dumps(
+            {
+                "total": 1,
+                "passed": 1,
+                "failed": 0,
+                "skills": [
+                    {
+                        "path": "development/demo/SKILL.md",
+                        "safe": True,
+                        "issues": [],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    build_search_index(
+        [
+            _skill(
+                path="skills/demo",
+                install="acme/example/skills/demo",
+                archive_path="development/demo/SKILL.md",
+            )
+        ],
+        output_dir,
+        require_security_evidence=False,
+    )
+
+    manifest = json.loads((output_dir / "security-index-manifest.json").read_text())
+    shard = json.loads((output_dir / manifest["shards"][0]["path"]).read_text())
+    record = shard["records"][0]
+    assert record["security_status"] == "unknown"
+    assert "security_decision" not in record
+
+
+def test_build_search_index_requires_security_decision_when_required(tmp_path):
+    output_dir = tmp_path / "docs"
+    output_dir.mkdir()
+    output_dir.joinpath("security-report.json").write_text(
+        json.dumps(
+            {
+                "total": 1,
+                "passed": 1,
+                "failed": 0,
+                "skills": [{"path": "development/demo/SKILL.md", "safe": True}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Missing security_decision"):
+        build_search_index(
+            [
+                _skill(
+                    path="skills/demo",
+                    install="acme/example/skills/demo",
+                    archive_path="development/demo/SKILL.md",
+                )
+            ],
+            output_dir,
+            require_security_evidence=True,
+        )
