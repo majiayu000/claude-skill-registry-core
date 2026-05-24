@@ -122,6 +122,40 @@ def test_build_unified_registry_inherits_top_level_repo(tmp_path):
     assert registry["skills"][0]["repo"] == "anthropics/skills"
 
 
+def test_build_unified_registry_preserves_legal_metadata(tmp_path):
+    module = load_module()
+    sources_dir = tmp_path / "sources"
+    sources_dir.mkdir()
+    output_path = tmp_path / "registry.json"
+    (sources_dir / "community.json").write_text(
+        json.dumps(
+            {
+                "name": "Community",
+                "skills": [
+                    {
+                        "name": "product-manager-skills",
+                        "repo": "Digidai/product-manager-skills",
+                        "description": "Product management skill.",
+                        "category": "product",
+                        "author": "Gene Dai",
+                        "source_url": "https://github.com/Digidai/product-manager-skills/blob/main/SKILL.md",
+                        "license": "CC-BY-NC-SA-4.0",
+                        "distribution": "restricted",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert module.build_unified_registry(sources_dir, output_path) == 1
+    skill = json.loads(output_path.read_text(encoding="utf-8"))["skills"][0]
+    assert skill["author"] == "Gene Dai"
+    assert skill["source_url"].endswith("/Digidai/product-manager-skills/blob/main/SKILL.md")
+    assert skill["license"] == "CC-BY-NC-SA-4.0"
+    assert skill["distribution"] == "restricted"
+
+
 def test_build_unified_registry_dedupes_root_path_spellings(tmp_path):
     module = load_module()
     sources_dir = tmp_path / "sources"
@@ -638,11 +672,13 @@ def test_bundled_file_allowlist_is_scoped_and_size_limited():
     assert module.should_recurse_bundled_dir("references/nested") is True
     assert module.should_recurse_bundled_dir("reference") is True
     assert module.should_recurse_bundled_dir("connectors") is True
+    assert module.should_recurse_bundled_dir("knowledge") is True
     assert module.should_recurse_bundled_dir("prompts") is True
     assert module.should_recurse_bundled_dir("docs") is False
     assert module.is_safe_bundled_file("references/helper.py", 1024) is True
     assert module.is_safe_bundled_file("reference/environment.md", 1024) is True
     assert module.is_safe_bundled_file("connectors/slack.md", 1024) is True
+    assert module.is_safe_bundled_file("knowledge/finance-metrics.md", 1024) is True
     assert module.is_safe_bundled_file("prompts/audit-system-prompt.md", 1024) is True
     assert module.is_safe_bundled_file("scripts/listen.mjs", 1024) is True
     assert module.is_safe_bundled_file("package.json", 1024) is True
@@ -933,7 +969,9 @@ def test_optional_bundled_download_failure_degrades_to_skill_md(
     assert "bundled_download_failed" not in failure_report["failure_reasons"]
 
 
-def test_bundled_references_and_rules_are_archived_with_directory_mode(tmp_path, monkeypatch):
+def test_bundled_references_rules_and_knowledge_are_archived_with_directory_mode(
+    tmp_path, monkeypatch
+):
     module = load_module()
     registry_path = tmp_path / "registry.json"
     output_dir = tmp_path / "skills"
@@ -962,7 +1000,7 @@ def test_bundled_references_and_rules_are_archived_with_directory_mode(tmp_path,
                 text=(
                     "---\nname: demo\n"
                     "description: Demo skill with references.\n---\n"
-                    "# Demo\nSee references/guide.md and rules/rule.md.\n"
+                    "# Demo\nSee references/guide.md, rules/rule.md, and knowledge/framework.md.\n"
                 ),
             ),
             "https://api.github.com/repos/acme/demo/contents?ref=main": FakeResponse(
@@ -971,6 +1009,7 @@ def test_bundled_references_and_rules_are_archived_with_directory_mode(tmp_path,
                     {"type": "file", "path": "SKILL.md", "size": 80},
                     {"type": "dir", "path": "references", "size": 0},
                     {"type": "dir", "path": "rules", "size": 0},
+                    {"type": "dir", "path": "knowledge", "size": 0},
                 ],
             ),
             "https://api.github.com/repos/acme/demo/contents/references?ref=main": FakeResponse(
@@ -997,6 +1036,18 @@ def test_bundled_references_and_rules_are_archived_with_directory_mode(tmp_path,
                 ],
             ),
             "https://download.example/rule.md": FakeResponse(200, body=b"# Rule\n"),
+            "https://api.github.com/repos/acme/demo/contents/knowledge?ref=main": FakeResponse(
+                200,
+                json_payload=[
+                    {
+                        "type": "file",
+                        "path": "knowledge/framework.md",
+                        "download_url": "https://download.example/framework.md",
+                        "size": 12,
+                    }
+                ],
+            ),
+            "https://download.example/framework.md": FakeResponse(200, body=b"# Framework\n"),
         },
     )
 
@@ -1011,11 +1062,18 @@ def test_bundled_references_and_rules_are_archived_with_directory_mode(tmp_path,
 
     assert stats["downloaded"] == 1
     assert stats["failed"] == 0
-    assert stats["bundled_files"] == 2
+    assert stats["bundled_files"] == 3
     skill_dir = next(output_dir.glob("development/*"))
     metadata = json.loads((skill_dir / "metadata.json").read_text(encoding="utf-8"))
     assert metadata["archive_mode"] == "directory"
-    assert metadata["bundled_files"] == ["references/guide.md", "rules/rule.md"]
+    assert metadata["bundled_files"] == [
+        "knowledge/framework.md",
+        "references/guide.md",
+        "rules/rule.md",
+    ]
+    assert (skill_dir / "knowledge" / "framework.md").read_text(
+        encoding="utf-8"
+    ) == "# Framework\n"
     assert (skill_dir / "references" / "guide.md").read_text(encoding="utf-8") == "# Guide\n"
     assert (skill_dir / "rules" / "rule.md").read_text(encoding="utf-8") == "# Rule\n"
 
