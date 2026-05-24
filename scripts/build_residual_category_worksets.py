@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from collections import Counter
 from datetime import datetime, timezone
@@ -18,6 +19,18 @@ from plan_category_migration import iter_skill_dirs
 from utils import extract_frontmatter, load_metadata, skill_semantic_fields
 
 SCHEMA_VERSION = 1
+
+
+def file_sha256(path: Path) -> str:
+    if not path.exists() or not path.is_file():
+        return ""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def text_sha256(value: str) -> str:
+    if not value:
+        return ""
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def sorted_counter(counter: Counter[str]) -> dict[str, int]:
@@ -35,6 +48,8 @@ def work_item_for_skill(
     content_chars: int = 1600,
 ) -> dict[str, Any]:
     content = read_text_prefix(skill_dir / "SKILL.md", max_chars=max(content_chars, 8192))
+    source_sha256 = file_sha256(skill_dir / "SKILL.md")
+    metadata_sha256 = file_sha256(skill_dir / "metadata.json")
     metadata = load_metadata(skill_dir)
     frontmatter = extract_frontmatter(content)
     semantics = skill_semantic_fields(
@@ -62,6 +77,9 @@ def work_item_for_skill(
             "category": metadata.get("category", ""),
         },
         "semantic_sources": semantics["sources"],
+        "source_sha256": source_sha256,
+        "metadata_sha256": metadata_sha256,
+        "semantic_text_sha256": text_sha256(str(semantics.get("text") or "")),
         "content_excerpt": content[:content_chars],
     }
     if classification:
