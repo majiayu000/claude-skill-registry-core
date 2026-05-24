@@ -40,6 +40,9 @@ Each category declares:
 - `keywords`: deterministic text signals used for audit scoring.
 - `status`: `active`; missing status is `active`.
 - `description`: inclusion rule or migration context.
+- `inclusion_rule`: required user-facing boundary for active categories.
+- `exclusion_rule`: required neighboring-category boundary for active categories.
+- `examples`: required concrete examples for active categories.
 - `parent`: optional reporting relationship.
 
 Only `active` categories are publishable. `other` is an active fallback bucket,
@@ -129,6 +132,9 @@ The manifest command sequence is:
    high-confidence, active-category move plan.
 4. Run `scripts/audit_category_residuals.py` to explain what remains blocked
    before the next batch starts.
+5. Run `scripts/build_residual_category_worksets.py` to split classification
+   gaps, low-confidence rows, target-`other` rows, and inactive targets into
+   explicit next-batch inputs.
 
 This contract is intentionally batch-first. Large `other` migrations must be
 split into reviewable chunks; a single blind mega-apply is not a valid publish
@@ -186,6 +192,8 @@ Taxonomy gate:
 - `--strict-canonical` fails if taxonomy definitions still contain non-active
   transitional categories, inbound aliases, or category-level migration targets.
 - `--publish-category <slug>` fails when a publish target is unknown or legacy.
+- Active categories must declare `inclusion_rule`, `exclusion_rule`, and at
+  least one example.
 - The default report includes canonical and noncanonical category counts so
   category cleanup progress is visible.
 
@@ -206,6 +214,9 @@ Category artifact gate:
 - `scripts/check_canonical_categories.py` verifies archive directories,
   metadata categories, registry shards, search docs, stats, and category
   artifacts use only active canonical categories and category codes.
+- It also checks category count consistency across
+  `docs/categories/index.json`, category pointers, category manifests, manifest
+  part counts, category parts, and `docs/stats.json`.
 
 ## Operating Flow
 

@@ -39,6 +39,8 @@ def build_manifest(
     apply_plan = output_dir / "apply-plan.json"
     sample_audit = output_dir / "sample-audit.json"
     residual_report = output_dir / "residual-report.json"
+    residual_worksets_report = output_dir / "residual-worksets.json"
+    residual_worksets_dir = output_dir / "residual-worksets"
     from_category_flags = " ".join(
         f"--from-category {category}" for category in sorted(from_categories)
     )
@@ -71,6 +73,8 @@ def build_manifest(
             "apply_plan": str(apply_plan),
             "sample_audit": str(sample_audit),
             "residual_report": str(residual_report),
+            "residual_worksets_report": str(residual_worksets_report),
+            "residual_worksets_dir": str(residual_worksets_dir),
         },
         "commands": [
             (
@@ -103,12 +107,21 @@ def build_manifest(
                 f"{from_category_flags} --min-confidence 0.9 "
                 f"--output {residual_report}"
             ),
+            (
+                "python scripts/build_residual_category_worksets.py "
+                f"--skills-dir {skills_dir} "
+                f"--classification-jsonl {classify_output} "
+                f"{from_category_flags} --min-confidence 0.9 "
+                f"--output {residual_worksets_report} "
+                f"--workset-output-dir {residual_worksets_dir}"
+            ),
         ],
         "notes": [
             "This manifest and its input JSONL do not modify archive files.",
             "Each input row carries SKILL.md and metadata SHA-256 provenance.",
             "Run the sample audit before applying any generated move plan.",
             "The apply step refuses inactive categories and changed source hashes.",
+            "Residual worksets explain classification gaps, low-confidence rows, target-other rows, and inactive targets before the next batch.",
         ],
     }
 

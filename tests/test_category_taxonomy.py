@@ -21,6 +21,9 @@ def test_taxonomy_loads_current_category_set():
     assert loaded.default_category == "other"
     assert "development" in loaded.categories
     assert "other" in loaded.categories
+    assert loaded.categories["development"].inclusion_rule
+    assert loaded.categories["development"].exclusion_rule
+    assert loaded.categories["development"].examples
     assert len(loaded.categories) >= 42
     assert "docs" not in loaded.categories
     assert loaded.migration_target("docs") == "documents"

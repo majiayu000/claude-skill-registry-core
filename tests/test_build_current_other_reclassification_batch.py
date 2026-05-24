@@ -67,4 +67,8 @@ def test_builds_current_other_input_and_manifest(tmp_path):
     assert rows[0]["source_sha256"]
     assert rows[0]["metadata_sha256"]
     assert rows[0]["semantic_text_sha256"]
-    assert "sample_category_classification_audit.py" in "\n".join(saved_manifest["commands"])
+    commands = "\n".join(saved_manifest["commands"])
+    assert "sample_category_classification_audit.py" in commands
+    assert "build_residual_category_worksets.py" in commands
+    assert "residual_worksets_report" in saved_manifest["artifacts"]
+    assert "residual_worksets_dir" in saved_manifest["artifacts"]

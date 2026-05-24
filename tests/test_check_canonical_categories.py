@@ -117,6 +117,51 @@ def test_docs_gate_rejects_legacy_category_artifacts_and_search_codes(tmp_path):
     assert report["error_count"] >= 8
 
 
+def test_docs_gate_rejects_category_count_drift(tmp_path):
+    gate = _load_module()
+    docs_dir = tmp_path / "docs"
+    _write_json(
+        docs_dir / "categories" / "index.json",
+        {
+            "categories": [
+                {
+                    "name": "documents",
+                    "code": "doc",
+                    "count": 2,
+                    "manifest": "categories/documents/manifest.json",
+                }
+            ]
+        },
+    )
+    _write_json(
+        docs_dir / "categories" / "documents.json",
+        {"category": "documents", "code": "doc", "count": 1},
+    )
+    _write_json(
+        docs_dir / "categories" / "documents" / "manifest.json",
+        {
+            "category": "documents",
+            "code": "doc",
+            "count": 1,
+            "part_count": 1,
+            "parts": [{"path": "categories/documents/part-000.json", "count": 1}],
+        },
+    )
+    _write_json(
+        docs_dir / "categories" / "documents" / "part-000.json",
+        {"category": "documents", "code": "doc", "count": 1, "skills": []},
+    )
+    _write_json(
+        docs_dir / "stats.json",
+        {"category_counts": [{"name": "documents", "code": "doc", "count": 1}]},
+    )
+
+    report = gate.build_report(docs_dirs=[docs_dir])
+    codes = [item["code"] for item in report["errors"]]
+
+    assert "category-count-mismatch" in codes
+
+
 def test_publish_gate_accepts_canonical_shapes(tmp_path):
     gate = _load_module()
     skills_dir = tmp_path / "skills"
@@ -133,17 +178,29 @@ def test_publish_gate_accepts_canonical_shapes(tmp_path):
         {
             "category": "documents",
             "code": "doc",
+            "count": 1,
             "deprecated_full_payload": True,
             "manifest": "categories/documents/manifest.json",
         },
     )
     _write_json(
         docs_dir / "categories" / "documents" / "manifest.json",
-        {"category": "documents", "code": "doc", "parts": []},
+        {
+            "category": "documents",
+            "code": "doc",
+            "count": 1,
+            "part_count": 1,
+            "parts": [{"path": "categories/documents/part-000.json", "count": 1}],
+        },
     )
     _write_json(
         docs_dir / "categories" / "documents" / "part-000.json",
-        {"category": "documents", "code": "doc", "skills": [{"category": "documents"}]},
+        {
+            "category": "documents",
+            "code": "doc",
+            "count": 1,
+            "skills": [{"category": "documents"}],
+        },
     )
     _write_json(docs_dir / "search-index-lite.json", {"skills": [{"category": "documents"}]})
     _write_json(docs_dir / "search-shards" / "part-000.json", {"s": [{"c": "doc"}]})
