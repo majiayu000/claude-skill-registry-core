@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from audit_category_quality import best_suggestion, read_text_prefix
-from category_taxonomy import category_slug, get_taxonomy
+from category_taxonomy import get_taxonomy
 from utils import extract_frontmatter, load_metadata, normalize_name, skill_semantic_fields
 
 CONFIDENCE_ORDER = {"high": 0, "medium": 1, "low": 2}
@@ -92,7 +92,12 @@ def build_change(
         "action": action,
         "confidence": confidence,
         "review_required": confidence != "high"
-        or action in {"resolve_source_conflict", "normalize_alias"},
+        or action
+        in {
+            "legacy_category_migration",
+            "legacy_category_review",
+            "resolve_source_conflict",
+        },
         "path": str(rel),
         "name": name or skill_dir.name,
         "current_category": current_category,
@@ -154,42 +159,6 @@ def build_plan(
         text = str(semantics["text"])
 
         source_values = set(resolved_sources.values())
-        alias_sources = [
-            source
-            for source, value in raw_sources.items()
-            if category_slug(value) in taxonomy.aliases
-        ]
-        if alias_sources:
-            alias_targets = {
-                source: taxonomy.alias_target(raw_sources[source])
-                for source in alias_sources
-            }
-            proposed_targets = {
-                target for target in alias_targets.values() if isinstance(target, str)
-            }
-            changes.append(
-                build_change(
-                    action="normalize_alias",
-                    confidence="medium",
-                    rel=rel,
-                    skill_dir=skill_dir,
-                    name=name,
-                    current_category=current_category,
-                    proposed_category=(
-                        sorted(proposed_targets)[0]
-                        if len(proposed_targets) == 1
-                        else current_category
-                    ),
-                    raw_sources=raw_sources,
-                    resolved_sources=resolved_sources,
-                    reason=(
-                        "category source(s) use legacy alias requiring review: "
-                        f"{', '.join(sorted(alias_sources))}"
-                    ),
-                )
-            )
-            continue
-
         if len(source_values) > 1:
             changes.append(
                 build_change(
@@ -207,13 +176,22 @@ def build_plan(
             )
             continue
 
-        migration_target = taxonomy.migration_target(current_category)
+        legacy_sources = [
+            source
+            for source, value in raw_sources.items()
+            if taxonomy.legacy_migration(value) is not None
+        ]
+        legacy_migration = taxonomy.legacy_migration(current_category)
+        migration_target = legacy_migration.target if legacy_migration else None
         if migration_target:
-            definition = taxonomy.categories[current_category]
             changes.append(
                 build_change(
-                    action="taxonomy_deprecation",
-                    confidence="high",
+                    action="legacy_category_migration",
+                    confidence=(
+                        "medium"
+                        if legacy_migration and legacy_migration.review_required
+                        else "high"
+                    ),
                     rel=rel,
                     skill_dir=skill_dir,
                     name=name,
@@ -222,8 +200,27 @@ def build_plan(
                     raw_sources=raw_sources,
                     resolved_sources=resolved_sources,
                     reason=(
-                        f"taxonomy marks {current_category} as {definition.status} "
-                        f"with migrate_to={migration_target}"
+                        f"legacy category {current_category} maps to {migration_target}: "
+                        f"{legacy_migration.reason if legacy_migration else ''}"
+                    ),
+                )
+            )
+            continue
+        if legacy_sources or legacy_migration:
+            changes.append(
+                build_change(
+                    action="legacy_category_review",
+                    confidence="low",
+                    rel=rel,
+                    skill_dir=skill_dir,
+                    name=name,
+                    current_category=current_category,
+                    proposed_category=taxonomy.default_category,
+                    raw_sources=raw_sources,
+                    resolved_sources=resolved_sources,
+                    reason=(
+                        "legacy category requires SKILL.md-first reclassification: "
+                        f"{legacy_migration.reason if legacy_migration else ', '.join(sorted(legacy_sources))}"
                     ),
                 )
             )
