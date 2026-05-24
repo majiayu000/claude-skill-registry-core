@@ -91,7 +91,8 @@ def build_change(
     return {
         "action": action,
         "confidence": confidence,
-        "review_required": confidence != "high" or action in {"resolve_source_conflict"},
+        "review_required": confidence != "high"
+        or action in {"resolve_source_conflict", "normalize_alias"},
         "path": str(rel),
         "name": name or skill_dir.name,
         "current_category": current_category,
@@ -159,18 +160,32 @@ def build_plan(
             if category_slug(value) in taxonomy.aliases
         ]
         if alias_sources:
+            alias_targets = {
+                source: taxonomy.alias_target(raw_sources[source])
+                for source in alias_sources
+            }
+            proposed_targets = {
+                target for target in alias_targets.values() if isinstance(target, str)
+            }
             changes.append(
                 build_change(
                     action="normalize_alias",
-                    confidence="high" if len(source_values) == 1 else "medium",
+                    confidence="medium",
                     rel=rel,
                     skill_dir=skill_dir,
                     name=name,
                     current_category=current_category,
-                    proposed_category=current_category,
+                    proposed_category=(
+                        sorted(proposed_targets)[0]
+                        if len(proposed_targets) == 1
+                        else current_category
+                    ),
                     raw_sources=raw_sources,
                     resolved_sources=resolved_sources,
-                    reason=f"category source(s) use alias: {', '.join(sorted(alias_sources))}",
+                    reason=(
+                        "category source(s) use legacy alias requiring review: "
+                        f"{', '.join(sorted(alias_sources))}"
+                    ),
                 )
             )
             continue

@@ -112,7 +112,7 @@ def active_category_payload(taxonomy: CategoryTaxonomy) -> list[dict[str, str]]:
             "description": definition.description,
         }
         for definition in sorted(taxonomy.categories.values(), key=lambda item: item.slug)
-        if definition.status != "deprecated"
+        if definition.status == "active"
     ]
 
 
@@ -260,7 +260,7 @@ def build_review_entry(
     raw_category = parsed.get("category") if parsed else ""
     llm_category = taxonomy.resolve(str(raw_category), allow_unknown=True) if raw_category else ""
     allowed_category = llm_category in taxonomy.categories and (
-        taxonomy.categories[llm_category].status != "deprecated"
+        taxonomy.categories[llm_category].status == "active"
     )
     llm_confidence = normalized_confidence(parsed.get("confidence") if parsed else None)
     if parse_status == "ok" and not allowed_category:

@@ -26,11 +26,19 @@ def test_taxonomy_loads_current_category_set():
     assert loaded.migration_target("docs") == "documents"
 
 
-def test_taxonomy_resolves_aliases_and_codes():
+def test_taxonomy_rejects_aliases_by_default_and_codes():
     taxonomy = _load_module()
-    assert taxonomy.resolve_category("Engineering") == "development"
+    with pytest.raises(taxonomy.UnknownCategoryError):
+        taxonomy.resolve_category("Engineering")
+    assert taxonomy.resolve_category("Engineering", allow_unknown=True) == "engineering"
+    assert taxonomy.resolve_category("Engineering", allow_alias=True) == "development"
     assert taxonomy.get_category_code("development") == "dev"
+    assert taxonomy.get_category_code("Engineering") == "engineering"
+    assert taxonomy.get_category_code("Engineering", allow_alias=True) == "dev"
     assert taxonomy.get_category_code("unknown-new-bucket") == "unknown-new-bucket"
+    assert "development" in taxonomy.publishable_categories()
+    assert "docs" not in taxonomy.publishable_categories()
+    assert "applied" not in taxonomy.publishable_categories()
 
 
 def test_taxonomy_rejects_alias_category_conflict(tmp_path):

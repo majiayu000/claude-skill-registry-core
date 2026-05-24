@@ -1133,11 +1133,11 @@ def test_filter_pending_skills_prefilters_no_repo_and_cooldown():
     assert "cooldown_not_found" in reasons
 
 
-def test_sync_pipeline_category_sanitization_uses_taxonomy_aliases():
+def test_sync_pipeline_category_sanitization_does_not_use_legacy_aliases():
     module = load_support_module()
-    assert module.sanitize_category("dev") == "development"
-    assert module.sanitize_category("Engineering") == "development"
-    assert module.skill_key({"name": "demo", "category": "dev"}) == "development:demo"
+    assert module.sanitize_category("dev") == "dev"
+    assert module.sanitize_category("Engineering") == "engineering"
+    assert module.skill_key({"name": "demo", "category": "dev"}) == "dev:demo"
 
 
 def test_negative_cache_helpers_prune_and_cooldown():

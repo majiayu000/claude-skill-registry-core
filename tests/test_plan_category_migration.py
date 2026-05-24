@@ -92,6 +92,7 @@ def test_plan_reports_alias_and_source_conflict(tmp_path):
 
     assert changes["engineering/builder/SKILL.md"]["action"] == "normalize_alias"
     assert changes["engineering/builder/SKILL.md"]["proposed_category"] == "development"
+    assert changes["engineering/builder/SKILL.md"]["review_required"] is True
     assert changes["development/conflicted/SKILL.md"]["action"] == "resolve_source_conflict"
     assert changes["development/conflicted/SKILL.md"]["review_required"] is True
 

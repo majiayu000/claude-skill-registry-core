@@ -223,7 +223,8 @@ def normalize_name(name: str) -> str:
 def normalize_category(category: str) -> str:
     """
     Normalize category name for directory creation.
-    Resolve declared aliases through the canonical taxonomy, then normalize.
+    Do not resolve legacy aliases here: source intake should either provide a
+    canonical category slug or be routed into an explicit review queue.
     """
     if not category:
         return "other"
