@@ -104,6 +104,7 @@ BUNDLED_SCAN_DIRS = (
     "reference",
     "scripts",
     "assets",
+    "knowledge",
     "templates",
     "examples",
     "prompts",
