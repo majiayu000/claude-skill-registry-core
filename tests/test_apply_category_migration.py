@@ -295,5 +295,5 @@ def test_filters_exclude_low_confidence_review_targets_and_other_targets(tmp_pat
     assert plan["summary"]["reject_reasons"] == {
         "classification target matches current category": 1,
         "confidence below threshold": 1,
-        "target category status 'review' excluded by filter": 1,
+            "target category status 'legacy' excluded by filter": 1,
     }

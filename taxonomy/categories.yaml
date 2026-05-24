@@ -1,24 +1,147 @@
 schema_version: 2
 default_category: other
 governance:
-  status_values: [active, review, deprecated]
+  status_values: [active]
   migration_plan_schema_version: 1
-  review_required_for: [review, deprecated, unknown, source-conflict]
+  review_required_for: [legacy, unknown, source-conflict]
   confidence_bands:
-    high: "score >= 4 and delta >= 3, or a declared taxonomy deprecation"
+    high: "score >= 4 and delta >= 3, or a deterministic legacy migration target"
     medium: "score >= 3 with a clear target but not enough evidence to apply"
     low: "weak signal or conflicting category sources"
-categories:
+legacy_migrations:
+  - slug: machine-learning
+    target: ai-ml
+    reason: "Legacy synonym for AI / ML."
+  - slug: dev
+    target: development
+    reason: "Legacy short-form source category for Development."
+  - slug: engineering
+    target: development
+    reason: "Legacy source category for Development."
+  - slug: software-engineering
+    target: development
+    reason: "Legacy source category for Development."
+  - slug: programming
+    target: development
+    reason: "Legacy source category for Development."
+  - slug: documentation
+    target: documents
+    reason: "Legacy synonym for Documents."
+  - slug: docs
+    target: documents
+    reason: "Historical short-form duplicate of Documents."
+  - slug: test
+    target: testing
+    reason: "Historical singular duplicate of Testing."
+  - slug: specialized-testing
+    target: testing
+    reason: "Historical duplicate of Testing."
+  - slug: testing-methodologies
+    target: testing
+    reason: "Historical duplicate of Testing."
+  - slug: technical-integration
+    target: integration
+    reason: "Historical duplicate of Integration."
+  - slug: development-code
+    target: development
+    reason: "Development Code is redundant with Development."
+  - slug: data-access
+    target: data
+    reason: "Data Access is included by the Data category."
   - slug: adb-meta-automation
-    code: adb-meta-automation
-    display_name: ADB Meta Automation
+    target: platform
+    reason: "Device/platform automation belongs under Platform."
+  - slug: agent-coordination
+    target: orchestration
+    reason: "Agent coordination is an orchestration workflow."
+  - slug: analysis-methods
+    target: analysis
+    reason: "Analysis Methods is a subtopic of Analysis."
+  - slug: artifact-generation
+    target: generation
+    reason: "Artifact Generation is covered by Generation."
+  - slug: business-monetization
+    target: business
+    reason: "Monetization is a business workflow."
+  - slug: business-productivity
+    target: productivity
+    reason: "Business productivity is covered by Productivity."
+  - slug: design-principles
+    target: design
+    reason: "Design Principles is a subtopic of Design."
+  - slug: development-tools
+    target: development
+    reason: "Development Tools is covered by Development."
+  - slug: document-processing
+    target: documents
+    reason: "Document Processing is covered by Documents."
+  - slug: framework
+    target: development
+    reason: "Framework skills are development workflows."
+  - slug: github-integration
+    target: integration
+    reason: "GitHub Integration is a service integration."
+  - slug: github-skills
+    target: skills
+    reason: "GitHub Skills is a skill-authoring/source-specific bucket."
+  - slug: messaging
+    target: communication
+    reason: "Messaging is covered by Communication."
+  - slug: meta
+    target: skills
+    reason: "Registry/self-referential skill work belongs under Skills."
+  - slug: official
+    review_required: true
+    reason: "Source provenance is not a category; reclassify by skill capability."
+  - slug: programming-languages
+    target: development
+    reason: "Programming language skills are development workflows."
+  - slug: research-analysis
+    target: analysis
+    reason: "Research Analysis is covered by Analysis."
+  - slug: security-compliance
+    target: security
+    reason: "Security Compliance is covered by Security."
+  - slug: security-operations
+    target: security
+    reason: "Security Operations is covered by Security."
+  - slug: story-analysis
+    target: analysis
+    reason: "Story Analysis is an analysis workflow."
+  - slug: wix-extensions
+    target: integration
+    reason: "Wix Extensions are platform integrations."
+  - slug: applied
+    review_required: true
+    reason: "Historical broad bucket; reclassify from SKILL.md semantics."
+  - slug: core
+    review_required: true
+    reason: "Historical broad bucket; reclassify as Development, Platform, or another concrete capability."
+  - slug: extended
+    review_required: true
+    reason: "Historical broad bucket; reclassify from SKILL.md semantics."
+  - slug: foundation
+    review_required: true
+    reason: "Historical broad bucket; reclassify from SKILL.md semantics."
+  - slug: project
+    review_required: true
+    reason: "Historical broad bucket; reclassify as Product, Planning, Development, or Documents."
+  - slug: specialized
+    review_required: true
+    reason: "Historical broad bucket; reclassify into a concrete capability or domain."
+  - slug: string
+    review_required: true
+    reason: "Implementation-detail bucket; reclassify by the skill's actual user task."
+  - slug: template
+    review_required: true
+    reason: "Format bucket; reclassify as Examples, Documents, or a concrete capability."
+  - slug: utility
+    review_required: true
+    reason: "Broad utility bucket; reclassify as Productivity, Workflow, or another concrete capability."
+categories:
   - slug: agent
     code: agent
     display_name: Agent
-  - slug: agent-coordination
-    code: agent-coordination
-    display_name: Agent Coordination
-    parent: agent
   - slug: ai-llm
     code: ai-llm
     display_name: AI / LLM
@@ -26,27 +149,15 @@ categories:
   - slug: ai-ml
     code: ai-ml
     display_name: AI / ML
-    aliases: [machine-learning]
     keywords: [ai, ml, machine-learning, model, training]
   - slug: analysis
     code: analysis
     display_name: Analysis
     keywords: [analysis, analyze, insights]
-  - slug: analysis-methods
-    code: analysis-methods
-    display_name: Analysis Methods
   - slug: api
     code: api
     display_name: API
     keywords: [api, sdk, endpoint, openapi]
-  - slug: applied
-    code: applied
-    display_name: Applied
-    status: review
-    description: "Legacy broad bucket; review whether each skill belongs in a user-facing capability category."
-  - slug: artifact-generation
-    code: artifact-generation
-    display_name: Artifact Generation
   - slug: bash
     code: bash
     display_name: Bash
@@ -55,12 +166,6 @@ categories:
     code: business
     display_name: Business
     keywords: [business, operations, strategy]
-  - slug: business-monetization
-    code: business-monetization
-    display_name: Business Monetization
-  - slug: business-productivity
-    code: business-productivity
-    display_name: Business Productivity
   - slug: c-level
     code: c-level
     display_name: C-Level
@@ -71,11 +176,6 @@ categories:
   - slug: context-management
     code: context-management
     display_name: Context Management
-  - slug: core
-    code: core
-    display_name: Core
-    status: review
-    description: "Broad infrastructure bucket; review whether skills belong in Development, Platform, or another concrete category."
   - slug: creative
     code: creative
     display_name: Creative
@@ -85,57 +185,25 @@ categories:
     display_name: Data
     description: "Data engineering, analytics, databases, ETL, SQL, and visualization workflows."
     keywords: [data, analytics, sql, database, etl, pipeline, visualization]
-  - slug: data-access
-    code: data-access
-    display_name: Data Access
-    status: review
-    parent: data
-    description: "Potential data subcategory; review against Data before adding more fine-grained buckets."
   - slug: design
     code: des
     display_name: Design
     description: "UI, UX, visual design, frontend styling, Figma, components, and interaction design."
     keywords: [design, ui, ux, css, frontend, component, tailwind, figma, animation]
-  - slug: design-principles
-    code: design-principles
-    display_name: Design Principles
-    parent: design
   - slug: development
     code: dev
     display_name: Development
     description: "Software development workflows, coding, frameworks, builds, debugging, and refactoring."
-    aliases: [dev, engineering, software-engineering, programming]
     keywords: [dev, code, programming, framework, build, software, compile, debug, refactor]
-  - slug: development-code
-    code: development-code
-    display_name: Development Code
-    status: review
-    parent: development
-    description: "Potentially redundant with Development; review before using for new skills."
-  - slug: development-tools
-    code: development-tools
-    display_name: Development Tools
-    parent: development
   - slug: devops
     code: ops
     display_name: DevOps
     description: "CI/CD, infrastructure, Docker, Kubernetes, deployment, and operational automation."
     keywords: [devops, ci, cd, docker, kubernetes, deploy, infra, infrastructure]
-  - slug: docs
-    code: docs
-    display_name: Docs
-    status: deprecated
-    migrate_to: documents
-    description: "Deprecated short-form duplicate of Documents."
-  - slug: document-processing
-    code: document-processing
-    display_name: Document Processing
-    parent: documents
   - slug: documents
     code: doc
     display_name: Documents
     description: "Document creation, conversion, summarization, office formats, markdown, and PDFs."
-    aliases: [documentation]
     keywords: [doc, docs, pdf, word, excel, pptx, xlsx, docx, markdown, documentation]
   - slug: domains
     code: domains
@@ -143,34 +211,15 @@ categories:
   - slug: examples
     code: examples
     display_name: Examples
-  - slug: extended
-    code: extended
-    display_name: Extended
-    status: review
-    description: "Legacy broad bucket; requires review before accepting more skills."
   - slug: forensics
     code: forensics
     display_name: Forensics
-  - slug: foundation
-    code: foundation
-    display_name: Foundation
-    status: review
-    description: "Legacy broad bucket; classify into a concrete capability where possible."
-  - slug: framework
-    code: framework
-    display_name: Framework
   - slug: gaming
     code: gaming
     display_name: Gaming
   - slug: generation
     code: generation
     display_name: Generation
-  - slug: github-integration
-    code: github-integration
-    display_name: GitHub Integration
-  - slug: github-skills
-    code: github-skills
-    display_name: GitHub Skills
   - slug: integration
     code: integration
     display_name: Integration
@@ -185,20 +234,10 @@ categories:
     code: mkt
     display_name: Marketing
     keywords: [marketing, seo, content, social, campaign, brand]
-  - slug: messaging
-    code: messaging
-    display_name: Messaging
-    keywords: [messaging, message, email, chat, slack]
-  - slug: meta
-    code: meta
-    display_name: Meta
   - slug: orchestration
     code: orchestration
     display_name: Orchestration
     keywords: [orchestration, orchestrator, coordination, multi-agent]
-  - slug: official
-    code: off
-    display_name: Official
   - slug: other
     code: oth
     display_name: Other
@@ -227,104 +266,32 @@ categories:
     display_name: Productivity
     description: "Personal/team workflow automation, task management, planning aids, and memory utilities."
     keywords: [productivity, automation, workflow, task, planning, memory]
-  - slug: programming-languages
-    code: programming-languages
-    display_name: Programming Languages
-  - slug: project
-    code: project
-    display_name: Project
-    status: review
-    description: "Broad project bucket; review whether skills belong in Product, Planning, Development, or Docs."
   - slug: quality
     code: quality
     display_name: Quality
     keywords: [quality, lint, review, validate]
-  - slug: research-analysis
-    code: research-analysis
-    display_name: Research Analysis
   - slug: security
     code: sec
     display_name: Security
     description: "Security review, authentication, cryptography, vulnerabilities, OWASP, pentesting, and fuzzing."
     keywords: [security, auth, crypto, vulnerability, audit, owasp, pentest, fuzzing]
-  - slug: security-compliance
-    code: security-compliance
-    display_name: Security Compliance
-    parent: security
-  - slug: security-operations
-    code: security-operations
-    display_name: Security Operations
-    parent: security
   - slug: skills
     code: skills
     display_name: Skills
-  - slug: specialized
-    code: specialized
-    display_name: Specialized
-    status: review
-    description: "Legacy broad bucket; prefer a concrete capability or domain category."
-  - slug: specialized-testing
-    code: specialized-testing
-    display_name: Specialized Testing
-    status: deprecated
-    parent: testing
-    migrate_to: testing
-    description: "Deprecated duplicate of Testing."
-  - slug: story-analysis
-    code: story-analysis
-    display_name: Story Analysis
-  - slug: string
-    code: string
-    display_name: String
-    status: review
-    description: "Likely too implementation-specific for top-level browsing; review usage."
   - slug: system
     code: system
     display_name: System
-  - slug: technical-integration
-    code: technical-integration
-    display_name: Technical Integration
-    status: deprecated
-    parent: integration
-    migrate_to: integration
-    description: "Deprecated duplicate of Integration."
-  - slug: template
-    code: template
-    display_name: Template
-    status: review
-    description: "Review whether template skills should be examples, docs, or a concrete capability."
-  - slug: test
-    code: test
-    display_name: Test
-    status: deprecated
-    migrate_to: testing
-    description: "Deprecated singular duplicate of Testing."
   - slug: testing
     code: tst
     display_name: Testing
     description: "Testing, QA, TDD, unit/integration/e2e testing, browser automation, and test tooling."
     keywords: [test, qa, tdd, jest, pytest, unittest, integration, e2e, playwright, cypress]
-  - slug: testing-methodologies
-    code: testing-methodologies
-    display_name: Testing Methodologies
-    status: deprecated
-    parent: testing
-    migrate_to: testing
-    description: "Deprecated duplicate of Testing."
   - slug: travel
     code: travel
     display_name: Travel
-  - slug: utility
-    code: utility
-    display_name: Utility
-    status: review
-    description: "Broad utility bucket; review before treating as a stable user-facing category."
   - slug: war-room
     code: war-room
     display_name: War Room
-  - slug: wix-extensions
-    code: wix-extensions
-    display_name: Wix Extensions
   - slug: workflow
     code: workflow
     display_name: Workflow

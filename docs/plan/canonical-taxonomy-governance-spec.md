@@ -15,7 +15,7 @@ compatibility promises and must not make legacy inputs valid publish categories.
 - Treat `taxonomy/categories.yaml` as the only current category contract.
 - Keep generated classification suggestions deterministic, reviewable, and
   reproducible.
-- Reject unknown, review, or deprecated categories at publish boundaries.
+- Reject unknown or legacy categories at publish boundaries.
 - Route legacy names and uncertain inputs into explicit review queues.
 - Keep archive mutations separate from planning, model review, and audit.
 
@@ -38,26 +38,26 @@ Each category declares:
 - `code`: compact search-index code.
 - `display_name`: user-facing label.
 - `keywords`: deterministic text signals used for audit scoring.
-- `status`: `active`, `review`, or `deprecated`; missing status is `active`.
+- `status`: `active`; missing status is `active`.
 - `description`: inclusion rule or migration context.
 - `parent`: optional reporting relationship.
-- `migrate_to`: required only for temporary deprecated definitions.
 
 Only `active` categories are publishable. `other` is an active fallback bucket,
 but it should shrink through reviewed migrations.
 
-Legacy names may remain in the file as audit hints, but default resolution does
-not use them. Any tool that wants to inspect legacy mappings must opt in
-explicitly and keep the result review-only.
+Legacy names live in the top-level `legacy_migrations` map, outside the
+publishable category set. Entries may define a deterministic `target` or mark
+the old slug as `review_required`. Default resolution does not use legacy
+mappings. Any tool that wants to inspect them must opt in explicitly and keep
+the result review-only.
 
 ## Classification Boundary Rules
 
 - Source intake should provide a canonical slug.
 - Unknown category input is not silently accepted as safe.
-- Legacy names are reported as review items rather than silently normalized.
+- Legacy names are reported as migration or review items rather than silently normalized.
 - Model output is accepted only when it names an active canonical category.
-- Review and deprecated categories may appear in reports, but they are not valid
-  publish targets.
+- Legacy categories may appear in reports, but they are not valid publish targets.
 
 ## Migration Plan Contract
 
@@ -74,9 +74,9 @@ The plan is review-only. A later apply tool must recompute collision-safe
 targets using the same deterministic directory rules as the archive
 normalizers.
 
-Legacy alias findings use the existing `normalize_alias` action name for report
-continuity, but they are review-required. They are not publish-time
-compatibility behavior.
+Legacy findings use `legacy_category_migration` when a deterministic target
+exists and `legacy_category_review` when SKILL.md-first reclassification is
+required. They are not publish-time compatibility behavior.
 
 ## Model Review Contract
 
@@ -89,7 +89,8 @@ Defaults:
 - OpenAI-compatible endpoint: `https://token-plan-sgp.xiaomimimo.com/v1`.
 - Model: `mimo-v2.5-pro`.
 - API key source: `MIMO_API_KEY`.
-- Candidate actions: `heuristic_reclassify` and `resolve_source_conflict`.
+- Candidate actions: `heuristic_reclassify`, `legacy_category_review`, and
+  `resolve_source_conflict`.
 - Selection order: `risky-first`, reviewing `low`, then `medium`, then `high`.
 - Optional checkpoint: `--checkpoint-jsonl <path>` appends one JSONL row per
   completed review and `--resume` skips matching completed `review_key` values.
@@ -149,9 +150,8 @@ Taxonomy gate:
 - `scripts/check_taxonomy_governance.py` fails on schema and relationship
   errors.
 - `--strict-canonical` fails if taxonomy definitions still contain non-active
-  transitional categories.
-- `--publish-category <slug>` fails when a publish target is unknown, review, or
-  deprecated.
+  transitional categories, inbound aliases, or category-level migration targets.
+- `--publish-category <slug>` fails when a publish target is unknown or legacy.
 - The default report includes canonical and noncanonical category counts so
   category cleanup progress is visible.
 
@@ -183,9 +183,9 @@ Category artifact gate:
 
 - Docs and workflow messages describe a canonical taxonomy, not a named product
   version line.
-- Historical aliases do not silently make legacy names valid publish
+- Historical legacy names do not silently become valid publish
   categories.
-- Publish target validation fails on unknown, review, or deprecated categories.
+- Publish target validation fails on unknown or legacy categories.
 - Model review accepts only active canonical categories.
 - Migration planning still produces audited review queues for unknown and legacy
   inputs.

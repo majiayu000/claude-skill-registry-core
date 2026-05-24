@@ -111,7 +111,7 @@ def test_batch_classification_accepts_fenced_json_array(tmp_path):
 [
   {
     "id": "0",
-    "category": "research-analysis",
+    "category": "analysis",
     "confidence": 0.92,
     "reason": "research workflow",
     "evidence": ["analysis"]
@@ -133,7 +133,7 @@ def test_batch_classification_accepts_fenced_json_array(tmp_path):
     )
 
     assert report["summary"]["status_counts"] == {"ok": 1}
-    assert report["rows"][0]["llm_category"] == "research-analysis"
+    assert report["rows"][0]["llm_category"] == "analysis"
 
 
 def test_resume_uses_checkpoint_without_calling_client(tmp_path):
