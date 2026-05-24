@@ -156,6 +156,40 @@ def test_build_unified_registry_preserves_legal_metadata(tmp_path):
     assert skill["distribution"] == "restricted"
 
 
+def test_build_unified_registry_stringifies_legal_metadata(tmp_path):
+    module = load_module()
+    sources_dir = tmp_path / "sources"
+    sources_dir.mkdir()
+    output_path = tmp_path / "registry.json"
+    (sources_dir / "community.json").write_text(
+        json.dumps(
+            {
+                "name": "Community",
+                "skills": [
+                    {
+                        "name": "typed-legal-metadata",
+                        "repo": "owner/repo",
+                        "description": "Skill with non-string metadata.",
+                        "category": "development",
+                        "author": 123,
+                        "license": 456,
+                        "permission_note": ["verify upstream"],
+                        "distribution": " restricted ",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert module.build_unified_registry(sources_dir, output_path) == 1
+    skill = json.loads(output_path.read_text(encoding="utf-8"))["skills"][0]
+    assert skill["author"] == "123"
+    assert skill["license"] == "456"
+    assert skill["permission_note"] == "['verify upstream']"
+    assert skill["distribution"] == "restricted"
+
+
 def test_build_unified_registry_dedupes_root_path_spellings(tmp_path):
     module = load_module()
     sources_dir = tmp_path / "sources"

@@ -145,7 +145,10 @@ def build_unified_registry(
                 "permission_note",
                 "distribution",
             ):
-                value = skill.get(legal_key)
+                raw_value = skill.get(legal_key)
+                if raw_value is None:
+                    continue
+                value = str(raw_value).strip()
                 if value:
                     record[legal_key] = value
 
