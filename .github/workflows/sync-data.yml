@@ -144,6 +144,9 @@ jobs:
           echo "Discovery profile: $PROFILE"
           echo "Discovery step outcome: ${outcome:-not-run}"
 
+      - name: Validate source categories
+        run: python scripts/validate_sources.py --sources-dir sources
+
       - name: Rebuild registry from sources
         run: |
           echo "🧱 Rebuilding registry.json from current sources..."
@@ -196,6 +199,9 @@ jobs:
           fi
           echo "Download profile: $PROFILE"
           echo "Download step outcome: ${outcome:-not-run}"
+
+      - name: Check archive categories are canonical
+        run: python scripts/check_canonical_categories.py --skills-dir skills
 
       - name: Upload download failure report
         if: always()
@@ -410,6 +416,9 @@ jobs:
       - name: Rebuild registry.json from archive
         run: |
           python scripts/rebuild_registry.py --skills-dir skills --registry registry.json --skip-categories
+
+      - name: Check registry categories are canonical
+        run: python scripts/check_canonical_categories.py --registry-shards registry-shards
 
       - name: Build registry summary
         run: |

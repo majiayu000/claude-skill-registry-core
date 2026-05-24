@@ -155,6 +155,13 @@ Taxonomy gate:
 - The default report includes canonical and noncanonical category counts so
   category cleanup progress is visible.
 
+Source intake gate:
+
+- `scripts/validate_sources.py` accepts only active canonical category slugs in
+  curated `sources/*.json` files.
+- Missing, legacy, unknown, or formatted-but-not-canonical categories are
+  errors, not warnings.
+
 Category artifact gate:
 
 - `scripts/check_category_artifacts.py` verifies every
@@ -162,6 +169,9 @@ Category artifact gate:
 - It fails if a pointer contains `skills`, lacks `deprecated_full_payload`,
   lacks a manifest reference, references a missing manifest, or exceeds the
   pointer size limit.
+- `scripts/check_canonical_categories.py` verifies archive directories,
+  metadata categories, registry shards, search docs, stats, and category
+  artifacts use only active canonical categories and category codes.
 
 ## Operating Flow
 

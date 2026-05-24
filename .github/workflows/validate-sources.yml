@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "sources/**"
+      - "taxonomy/categories.yaml"
       - "scripts/validate_sources.py"
       - "scripts/utils.py"
       - "tests/test_utils.py"
@@ -13,6 +14,7 @@ on:
     branches: [main]
     paths:
       - "sources/**"
+      - "taxonomy/categories.yaml"
       - "scripts/validate_sources.py"
       - "scripts/utils.py"
   workflow_dispatch:
@@ -39,8 +41,7 @@ jobs:
 
       - name: Validate sources/*.json shape
         run: |
-          # Errors fail the build; warnings only print so authored category
-          # drift does not break unrelated contributor PRs.
+          # Source categories fail closed: only current canonical slugs are accepted.
           python scripts/validate_sources.py --sources-dir sources
 
       - name: Run scripts/utils.py + validate_sources.py tests
