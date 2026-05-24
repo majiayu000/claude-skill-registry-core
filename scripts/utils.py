@@ -254,8 +254,14 @@ def build_skill_key(repo: str = "", path: str = "", name: str = "", category: st
     """Build a stable key for a skill to detect duplicates."""
     repo = _skill_key_text(repo).strip()
     path = _normalize_skill_key_path(path)
+    name = _skill_key_text(name).strip()
+    category = _skill_key_text(category).strip()
     if repo and path:
         return f"{repo}:{path}"
+    if repo and name:
+        return f"{repo}:{name}"
+    if repo and category:
+        return f"{repo}:{category}"
     if repo:
         return repo
     if category or name:
