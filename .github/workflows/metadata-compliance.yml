@@ -45,6 +45,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install dependencies
+        run: pip install pyyaml
+
       - name: Validate community intake diff
         run: |
           python scripts/check_community_intake_diff.py \

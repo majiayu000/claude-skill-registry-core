@@ -16,7 +16,9 @@ on:
     paths:
       - 'registry.json'
       - 'scripts/build_search_index.py'
+      - 'scripts/check_canonical_categories.py'
       - 'docs/**'
+      - 'taxonomy/categories.yaml'
       - '.github/workflows/build-index.yml'
 
 permissions:
@@ -146,6 +148,9 @@ jobs:
 
       - name: Check category artifacts remain sharded
         run: python scripts/check_category_artifacts.py --categories-dir docs/categories
+
+      - name: Check published categories are canonical
+        run: python scripts/check_canonical_categories.py --docs-dir docs
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
