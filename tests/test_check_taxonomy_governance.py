@@ -27,11 +27,13 @@ def test_current_taxonomy_has_no_governance_errors():
 
     assert report["schema_version"] == 2
     assert report["error_count"] == 0
+    assert report["canonical_category_count"] > 0
+    assert report["noncanonical_category_count"] > 0
     assert report["status_counts"]["deprecated"] >= 1
     assert report["status_counts"]["review"] >= 1
 
 
-def test_governance_reports_schema_v1_error(tmp_path):
+def test_governance_reports_old_schema_error(tmp_path):
     governance = _load_module()
     taxonomy_module = _taxonomy_module()
     taxonomy_file = tmp_path / "categories.yaml"
@@ -51,3 +53,29 @@ categories:
 
     assert report["error_count"] == 1
     assert report["errors"][0]["code"] == "schema-version"
+
+
+def test_governance_rejects_noncanonical_publish_targets():
+    governance = _load_module()
+    taxonomy = _taxonomy_module().load_taxonomy()
+
+    report = governance.build_report(
+        taxonomy,
+        publish_categories=["development", "docs", "applied", "engineering"],
+    )
+
+    codes = {error["category"]: error["code"] for error in report["errors"]}
+    assert codes["docs"] == "noncanonical-publish-category"
+    assert codes["applied"] == "noncanonical-publish-category"
+    assert codes["engineering"] == "unknown-publish-category"
+    assert "development" not in codes
+
+
+def test_governance_strict_canonical_rejects_transitional_definitions():
+    governance = _load_module()
+    taxonomy = _taxonomy_module().load_taxonomy()
+
+    report = governance.build_report(taxonomy, strict_canonical=True)
+
+    assert report["error_count"] >= 1
+    assert any(error["code"] == "noncanonical-taxonomy-category" for error in report["errors"])

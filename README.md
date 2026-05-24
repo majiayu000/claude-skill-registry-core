@@ -193,11 +193,14 @@ The merged `claude-skill-registry` publish artifact additionally contains
 
 ## Categories
 
-Canonical category slugs, aliases, short codes, governance status, and
-heuristic keywords live in `taxonomy/categories.yaml`. Pipeline scripts read
-that file instead of keeping their own category lists. Validate the taxonomy
-itself with `python scripts/check_taxonomy_governance.py`. To review category
-quality across the archive before moving anything, run
+Canonical category slugs, short codes, governance status, and heuristic keywords
+live in `taxonomy/categories.yaml`. Pipeline scripts read that file instead of
+keeping their own category lists. Legacy category names are diagnostic inputs
+only; they are routed to review and are not accepted as publish categories.
+Validate the taxonomy itself with `python scripts/check_taxonomy_governance.py`.
+To validate publish output against canonical categories, pass repeated
+`--publish-category <slug>` values. To review category quality across the
+archive before moving anything, run
 `python scripts/audit_category_quality.py --skills-dir skills`.
 The default audit uses metadata and paths for a fast full-archive pass; add
 `--include-frontmatter` when checking frontmatter/category drift.

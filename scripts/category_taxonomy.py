@@ -39,20 +39,26 @@ class CategoryTaxonomy:
     categories: dict[str, CategoryDefinition]
     aliases: dict[str, str]
 
-    def resolve(self, raw_category: str | None, *, allow_unknown: bool = False) -> str:
+    def resolve(
+        self,
+        raw_category: str | None,
+        *,
+        allow_unknown: bool = False,
+        allow_alias: bool = False,
+    ) -> str:
         slug = category_slug(raw_category or self.default_category)
         if not slug:
             return self.default_category
         if slug in self.categories:
             return slug
-        if slug in self.aliases:
+        if allow_alias and slug in self.aliases:
             return self.aliases[slug]
         if allow_unknown:
             return slug
         raise UnknownCategoryError(f"Unknown category: {raw_category!r}")
 
-    def code_for(self, raw_category: str | None) -> str:
-        slug = self.resolve(raw_category, allow_unknown=True)
+    def code_for(self, raw_category: str | None, *, allow_alias: bool = False) -> str:
+        slug = self.resolve(raw_category, allow_unknown=True, allow_alias=allow_alias)
         definition = self.categories.get(slug)
         return definition.code if definition else slug
 
@@ -63,6 +69,18 @@ class CategoryTaxonomy:
     def alias_target(self, raw_category: str | None) -> str | None:
         slug = category_slug(raw_category or "")
         return self.aliases.get(slug)
+
+    def publishable_categories(self) -> frozenset[str]:
+        return frozenset(
+            slug
+            for slug, definition in self.categories.items()
+            if definition.status == "active"
+        )
+
+    def is_publishable(self, raw_category: str | None) -> bool:
+        slug = self.resolve(raw_category, allow_unknown=True)
+        definition = self.categories.get(slug)
+        return bool(definition and definition.status == "active")
 
     def keyword_map(self) -> dict[str, list[str]]:
         return {
@@ -162,8 +180,8 @@ def load_taxonomy(path: Path = DEFAULT_TAXONOMY_PATH) -> CategoryTaxonomy:
 
     if default_category not in categories:
         raise ValueError(f"default category {default_category!r} is not declared")
-    if categories[default_category].status == "deprecated":
-        raise ValueError("default category must not be deprecated")
+    if categories[default_category].status != "active":
+        raise ValueError("default category must be active")
 
     for slug, definition in categories.items():
         if definition.parent:
@@ -186,12 +204,10 @@ def load_taxonomy(path: Path = DEFAULT_TAXONOMY_PATH) -> CategoryTaxonomy:
                     f"{definition.migrate_to!r}"
                 )
             if definition.migrate_to == slug:
+                raise ValueError(f"taxonomy category {slug!r} must not migrate to itself")
+            if target.status != "active":
                 raise ValueError(
-                    f"taxonomy category {slug!r} must not migrate to itself"
-                )
-            if target.status == "deprecated":
-                raise ValueError(
-                    f"taxonomy category {slug!r} migrates to deprecated target "
+                    f"taxonomy category {slug!r} migrates to non-active target "
                     f"{definition.migrate_to!r}"
                 )
         if definition.status == "deprecated" and not definition.migrate_to:
@@ -220,12 +236,25 @@ def category_aliases() -> dict[str, str]:
     return dict(get_taxonomy().aliases)
 
 
-def resolve_category(raw_category: str | None, *, allow_unknown: bool = False) -> str:
-    return get_taxonomy().resolve(raw_category, allow_unknown=allow_unknown)
+def publishable_categories() -> frozenset[str]:
+    return get_taxonomy().publishable_categories()
 
 
-def get_category_code(raw_category: str | None) -> str:
-    return get_taxonomy().code_for(raw_category)
+def resolve_category(
+    raw_category: str | None,
+    *,
+    allow_unknown: bool = False,
+    allow_alias: bool = False,
+) -> str:
+    return get_taxonomy().resolve(
+        raw_category,
+        allow_unknown=allow_unknown,
+        allow_alias=allow_alias,
+    )
+
+
+def get_category_code(raw_category: str | None, *, allow_alias: bool = False) -> str:
+    return get_taxonomy().code_for(raw_category, allow_alias=allow_alias)
 
 
 def category_keywords() -> dict[str, list[str]]:

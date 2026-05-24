@@ -290,9 +290,9 @@ def test_normalize_category_empty(utils):
     assert utils.normalize_category(None) == "other"
 
 
-def test_normalize_category_resolves_declared_aliases(utils):
-    assert utils.normalize_category("Engineering") == "development"
-    assert utils.normalize_category("dev") == "development"
+def test_normalize_category_keeps_legacy_aliases_for_review(utils):
+    assert utils.normalize_category("Engineering") == "engineering"
+    assert utils.normalize_category("dev") == "dev"
 
 
 # ---------------------------------------------------------------------------

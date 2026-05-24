@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate taxonomy v2 governance rules."""
+"""Validate canonical taxonomy governance rules."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from category_taxonomy import CategoryTaxonomy, load_taxonomy
 
@@ -47,7 +47,46 @@ def _slug_tokens(slug: str) -> set[str]:
     return {part for part in slug.split("-") if part}
 
 
-def build_report(taxonomy: CategoryTaxonomy) -> dict[str, Any]:
+def publish_category_issues(
+    taxonomy: CategoryTaxonomy,
+    categories: Iterable[str],
+) -> list[GovernanceIssue]:
+    issues: list[GovernanceIssue] = []
+    for raw_category in sorted(
+        {str(category) for category in categories if str(category)}
+    ):
+        slug = taxonomy.resolve(raw_category, allow_unknown=True)
+        definition = taxonomy.categories.get(slug)
+        if definition is None:
+            issues.append(
+                GovernanceIssue(
+                    severity="error",
+                    code="unknown-publish-category",
+                    category=slug,
+                    message="published category is not declared by the canonical taxonomy",
+                )
+            )
+            continue
+        if definition.status != "active":
+            issues.append(
+                GovernanceIssue(
+                    severity="error",
+                    code="noncanonical-publish-category",
+                    category=slug,
+                    message=(
+                        "published category must be active in the canonical taxonomy"
+                    ),
+                )
+            )
+    return issues
+
+
+def build_report(
+    taxonomy: CategoryTaxonomy,
+    *,
+    publish_categories: Iterable[str] | None = None,
+    strict_canonical: bool = False,
+) -> dict[str, Any]:
     issues: list[GovernanceIssue] = []
 
     if taxonomy.schema_version < 2:
@@ -56,7 +95,10 @@ def build_report(taxonomy: CategoryTaxonomy) -> dict[str, Any]:
                 severity="error",
                 code="schema-version",
                 category="",
-                message="taxonomy schema_version must be at least 2 for governance metadata",
+                message=(
+                    "taxonomy file schema_version is too old for canonical "
+                    "governance metadata"
+                ),
             )
         )
 
@@ -77,6 +119,15 @@ def build_report(taxonomy: CategoryTaxonomy) -> dict[str, Any]:
                     code="long-code",
                     category=slug,
                     message="category code is long for compact index consumers",
+                )
+            )
+        if strict_canonical and definition.status != "active":
+            issues.append(
+                GovernanceIssue(
+                    severity="error",
+                    code="noncanonical-taxonomy-category",
+                    category=slug,
+                    message="strict canonical taxonomy may only declare active categories",
                 )
             )
         broad_name = bool(_slug_tokens(slug) & REVIEW_NAME_TOKENS)
@@ -111,15 +162,26 @@ def build_report(taxonomy: CategoryTaxonomy) -> dict[str, Any]:
                 )
             )
 
+    if publish_categories is not None:
+        issues.extend(publish_category_issues(taxonomy, publish_categories))
+
     errors = [issue.as_dict() for issue in issues if issue.severity == "error"]
     warnings = [issue.as_dict() for issue in issues if issue.severity == "warning"]
     status_counts: dict[str, int] = {}
     for definition in taxonomy.categories.values():
         status_counts[definition.status] = status_counts.get(definition.status, 0) + 1
+    canonical_categories = taxonomy.publishable_categories()
 
     return {
         "schema_version": taxonomy.schema_version,
         "category_count": len(taxonomy.categories),
+        "canonical_category_count": len(canonical_categories),
+        "noncanonical_category_count": len(taxonomy.categories) - len(canonical_categories),
+        "publish_category_count": (
+            len({str(category) for category in publish_categories if str(category)})
+            if publish_categories is not None
+            else None
+        ),
         "status_counts": dict(sorted(status_counts.items())),
         "error_count": len(errors),
         "warning_count": len(warnings),
@@ -131,7 +193,8 @@ def build_report(taxonomy: CategoryTaxonomy) -> dict[str, Any]:
 def print_report(report: dict[str, Any], *, limit: int) -> None:
     print(
         "Taxonomy governance "
-        f"(schema={report['schema_version']}, categories={report['category_count']})"
+        f"(schema={report['schema_version']}, categories={report['category_count']}, "
+        f"canonical={report.get('canonical_category_count', 0)})"
     )
     print(f"Errors: {report['error_count']}")
     print(f"Warnings: {report['warning_count']}")
@@ -150,6 +213,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--taxonomy", type=Path, default=None)
     parser.add_argument("--output-json", type=Path)
     parser.add_argument("--fail-on-warnings", action="store_true")
+    parser.add_argument(
+        "--strict-canonical",
+        action="store_true",
+        help="Fail if taxonomy definitions include non-active transitional categories.",
+    )
+    parser.add_argument(
+        "--publish-category",
+        action="append",
+        default=[],
+        help="Validate a category slug that is intended for published output.",
+    )
     parser.add_argument("--limit", type=int, default=20)
     return parser.parse_args(argv)
 
@@ -158,7 +232,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         taxonomy = load_taxonomy(args.taxonomy) if args.taxonomy else load_taxonomy()
-        report = build_report(taxonomy)
+        report = build_report(
+            taxonomy,
+            publish_categories=args.publish_category or None,
+            strict_canonical=args.strict_canonical,
+        )
     except Exception as exc:
         report = {
             "schema_version": None,
