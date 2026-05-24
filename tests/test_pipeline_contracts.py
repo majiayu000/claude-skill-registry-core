@@ -103,6 +103,7 @@ def test_publish_sync_runs_generated_size_guard_after_rebuild():
 
     assert category_guard_pos > guard_pos > canonical_pos > rebuild_pos > security_pos
     assert "--output \"$main_dir/docs/security-report.json\"" in sync_script
+    assert "--report-only" in sync_script[sync_script.index("scripts/security_scanner.py") : rebuild_pos]
     assert "--allow-missing-security-evidence" not in sync_script
     assert "--include registry.json" in sync_script
     assert "--include registry-shards" in sync_script

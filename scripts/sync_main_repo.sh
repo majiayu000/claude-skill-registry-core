@@ -70,6 +70,7 @@ if [[ "$rebuild" -eq 1 ]]; then
   python "$main_dir/scripts/security_scanner.py" \
     "$main_dir/skills" \
     --quiet \
+    --report-only \
     --output "$main_dir/docs/security-report.json"
   python "$main_dir/scripts/build_search_index.py" --skills-dir "$main_dir/skills" --output "$main_dir/docs"
   python "$main_dir/scripts/check_canonical_categories.py" \
