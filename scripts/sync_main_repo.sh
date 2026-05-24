@@ -73,6 +73,7 @@ if [[ "$rebuild" -eq 1 ]]; then
     --report-only \
     --output "$main_dir/docs/security-report.json"
   python "$main_dir/scripts/build_search_index.py" --skills-dir "$main_dir/skills" --output "$main_dir/docs"
+  rm -f "$main_dir/docs/security-report.json"
   python "$main_dir/scripts/check_canonical_categories.py" \
     --skills-dir "$main_dir/skills" \
     --registry-shards "$main_dir/registry-shards" \

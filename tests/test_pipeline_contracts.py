@@ -97,11 +97,12 @@ def test_publish_sync_runs_generated_size_guard_after_rebuild():
 
     security_pos = sync_script.index("scripts/security_scanner.py")
     rebuild_pos = sync_script.index("scripts/build_search_index.py")
+    cleanup_pos = sync_script.index("rm -f \"$main_dir/docs/security-report.json\"")
     canonical_pos = sync_script.index("scripts/check_canonical_categories.py")
     guard_pos = sync_script.index("scripts/check_generated_file_sizes.py")
     category_guard_pos = sync_script.index("scripts/check_category_artifacts.py")
 
-    assert category_guard_pos > guard_pos > canonical_pos > rebuild_pos > security_pos
+    assert category_guard_pos > guard_pos > canonical_pos > cleanup_pos > rebuild_pos > security_pos
     assert "--output \"$main_dir/docs/security-report.json\"" in sync_script
     assert "--report-only" in sync_script[sync_script.index("scripts/security_scanner.py") : rebuild_pos]
     assert "--allow-missing-security-evidence" not in sync_script
