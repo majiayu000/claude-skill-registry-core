@@ -103,6 +103,37 @@ downstream migration stays fail-closed.
 Secrets must not be written to files or committed. Reports record the
 environment variable name, never the API key value.
 
+## Reclassification Batch Contract
+
+`scripts/build_current_other_reclassification_batch.py` cuts reviewable batches
+directly from the live archive instead of stale pre-migration rows. The default
+scope is current `other`, but the command accepts explicit current categories
+for targeted cleanup.
+
+Each batch writes:
+
+- `input.jsonl`: one SKILL.md-first work item per selected live archive skill.
+- `manifest.json`: batch id, source archive, selection policy, artifact paths,
+  summary counts, and the exact follow-up command sequence.
+
+Each input row includes the current archive path, semantic name, description,
+tags, semantic source map, content excerpt, and provenance hashes for
+`SKILL.md`, `metadata.json`, and the semantic text used for review.
+
+The manifest command sequence is:
+
+1. Run `scripts/classify_residual_workset_with_llm.py` against `input.jsonl`.
+2. Run `scripts/sample_category_classification_audit.py` to produce a
+   deterministic review sample from classification output plus source context.
+3. Run `scripts/apply_category_migration.py` in review-only mode to build a
+   high-confidence, active-category move plan.
+4. Run `scripts/audit_category_residuals.py` to explain what remains blocked
+   before the next batch starts.
+
+This contract is intentionally batch-first. Large `other` migrations must be
+split into reviewable chunks; a single blind mega-apply is not a valid publish
+path.
+
 ## Apply Contract
 
 `scripts/apply_category_migration.py` converts reviewed classification results
@@ -120,6 +151,9 @@ Defaults:
 - Default mode is dry-run. Only `--apply` mutates the archive.
 - `--movable-only` skips blocked duplicates and fills the requested `--limit`
   with apply-ready moves.
+- If classification rows include `source_sha256` or `metadata_sha256`, apply
+  planning recomputes the live archive hashes and rejects stale rows whose
+  source files changed since model review.
 
 Apply mode refuses blocked plans, moves only standard
 `<category>/<skill>/SKILL.md` directories, updates `metadata.json`, and never
