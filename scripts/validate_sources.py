@@ -216,7 +216,7 @@ def validate_skill_entry(
         report.add(
             Issue(file, "error", "E_CATEGORY_TYPE", "category must be a string", location)
         )
-    elif category.strip() != category_slug(category):
+    elif category != category_slug(category):
         report.add(
             Issue(
                 file,

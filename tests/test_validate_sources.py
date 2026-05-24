@@ -387,6 +387,28 @@ def test_category_must_be_exact_slug(vs, sources, capsys):
     assert "development" in out
 
 
+def test_category_slug_rejects_surrounding_whitespace(vs, sources, capsys):
+    _write(
+        sources / "community.json",
+        {
+            "name": "Community",
+            "description": "x",
+            "skills": [
+                {
+                    "name": "demo",
+                    "repo": "owner/repo",
+                    "description": "Long enough description here.",
+                    "category": "development ",
+                }
+            ],
+        },
+    )
+    rc = vs.main(["--sources-dir", str(sources)])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "E_CATEGORY_FORMAT" in out
+
+
 def test_strict_promotes_non_category_warning_to_failure(vs, sources, capsys):
     _write(
         sources / "community.json",

@@ -50,7 +50,7 @@ class CategoryGate:
             )
             return None
 
-        raw = value.strip()
+        raw = value
         slug = category_slug(raw)
         if raw != slug:
             issues.append(

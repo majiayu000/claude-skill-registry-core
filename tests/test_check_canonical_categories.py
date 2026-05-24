@@ -72,6 +72,17 @@ def test_registry_gate_accepts_empty_registry_shard(tmp_path):
     assert report["error_count"] == 0
 
 
+def test_publish_gate_rejects_category_whitespace(tmp_path):
+    gate = _load_module()
+    shards_dir = tmp_path / "registry-shards"
+    _write_json(shards_dir / "00.json", {"skills": [{"name": "bad", "category": "documents "}]})
+
+    report = gate.build_report(registry_shards_dirs=[shards_dir])
+
+    assert report["error_count"] == 1
+    assert report["errors"][0]["code"] == "category-format"
+
+
 def test_docs_gate_rejects_legacy_category_artifacts_and_search_codes(tmp_path):
     gate = _load_module()
     docs_dir = tmp_path / "docs"

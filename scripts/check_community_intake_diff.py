@@ -80,7 +80,7 @@ def _is_allowed_category_canonicalization(base_entry: Any, head_entry: Any) -> b
     base_slug = category_slug(base_category)
     head_slug = category_slug(head_category)
     return (
-        head_category.strip() == head_slug
+        head_category == head_slug
         and taxonomy.category_status(base_slug) != "active"
         and taxonomy.is_publishable(head_slug)
     )
