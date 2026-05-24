@@ -28,6 +28,9 @@ class CategoryDefinition:
     keywords: tuple[str, ...]
     status: str = "active"
     description: str = ""
+    inclusion_rule: str = ""
+    exclusion_rule: str = ""
+    examples: tuple[str, ...] = ()
     parent: str = ""
     migrate_to: str = ""
 
@@ -135,6 +138,14 @@ def _as_string_list(value: Any) -> tuple[str, ...]:
     return tuple(category_slug(item) for item in value if category_slug(item))
 
 
+def _as_plain_string_list(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ValueError("taxonomy examples must be lists")
+    return tuple(str(item).strip() for item in value if str(item).strip())
+
+
 def _as_optional_slug(value: Any) -> str:
     if value is None:
         return ""
@@ -188,6 +199,9 @@ def load_taxonomy(path: Path = DEFAULT_TAXONOMY_PATH) -> CategoryTaxonomy:
                 f"taxonomy category {slug!r} has invalid status {status!r}"
             )
         description = str(entry.get("description") or "").strip()
+        inclusion_rule = str(entry.get("inclusion_rule") or "").strip()
+        exclusion_rule = str(entry.get("exclusion_rule") or "").strip()
+        examples = _as_plain_string_list(entry.get("examples"))
         parent = _as_optional_slug(entry.get("parent"))
         migrate_to = _as_optional_slug(entry.get("migrate_to"))
         categories[slug] = CategoryDefinition(
@@ -198,6 +212,9 @@ def load_taxonomy(path: Path = DEFAULT_TAXONOMY_PATH) -> CategoryTaxonomy:
             keywords=keywords,
             status=status,
             description=description,
+            inclusion_rule=inclusion_rule,
+            exclusion_rule=exclusion_rule,
+            examples=examples,
             parent=parent,
             migrate_to=migrate_to,
         )

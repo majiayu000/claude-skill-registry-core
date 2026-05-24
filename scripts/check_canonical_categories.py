@@ -135,6 +135,93 @@ def _check_skill_record(
     gate.check_category(record.get("category"), path=path, field="skill.category", issues=issues)
 
 
+def _count_value(
+    value: Any,
+    *,
+    path: str,
+    field: str,
+    issues: list[CategoryIssue],
+) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        issues.append(
+            CategoryIssue(
+                "category-count-invalid",
+                path,
+                f"{field} must be a non-negative integer",
+            )
+        )
+        return None
+    return value
+
+
+def _record_count(
+    counts: dict[str, int],
+    *,
+    slug: str | None,
+    count: int | None,
+    label: str,
+    path: str,
+    issues: list[CategoryIssue],
+) -> None:
+    if slug is None or count is None:
+        return
+    previous = counts.get(slug)
+    if previous is not None and previous != count:
+        issues.append(
+            CategoryIssue(
+                "category-count-mismatch",
+                path,
+                f"{label} count for {slug!r} changed within the same artifact "
+                f"({previous} != {count})",
+            )
+        )
+        return
+    counts[slug] = count
+
+
+def _compare_count_maps(
+    issues: list[CategoryIssue],
+    *,
+    expected: dict[str, int],
+    expected_label: str,
+    actual: dict[str, int],
+    actual_label: str,
+    path: str,
+) -> None:
+    if not expected or not actual:
+        return
+    for slug in sorted(set(expected) | set(actual)):
+        if slug not in expected:
+            issues.append(
+                CategoryIssue(
+                    "category-count-missing",
+                    path,
+                    f"{actual_label} has {slug!r} but {expected_label} does not",
+                )
+            )
+            continue
+        if slug not in actual:
+            issues.append(
+                CategoryIssue(
+                    "category-count-missing",
+                    path,
+                    f"{expected_label} has {slug!r} but {actual_label} does not",
+                )
+            )
+            continue
+        if expected[slug] != actual[slug]:
+            issues.append(
+                CategoryIssue(
+                    "category-count-mismatch",
+                    path,
+                    f"{expected_label} count for {slug!r} does not match "
+                    f"{actual_label} ({expected[slug]} != {actual[slug]})",
+                )
+            )
+
+
 def check_skills_dir(skills_dir: Path, gate: CategoryGate) -> list[CategoryIssue]:
     issues: list[CategoryIssue] = []
     if not skills_dir.exists():
@@ -246,13 +333,14 @@ def _check_category_entry(
     path: str,
     gate: CategoryGate,
     issues: list[CategoryIssue],
-) -> None:
+) -> str | None:
     if not isinstance(entry, dict):
         issues.append(CategoryIssue("category-entry-shape", path, "category entry must be an object"))
-        return
-    gate.check_category(entry.get("name"), path=path, field="category.name", issues=issues)
+        return None
+    slug = gate.check_category(entry.get("name"), path=path, field="category.name", issues=issues)
     if "code" in entry:
         gate.check_code(entry.get("code"), path=path, field="category.code", issues=issues)
+    return slug
 
 
 def _check_category_payload(
@@ -261,11 +349,11 @@ def _check_category_payload(
     path: str,
     gate: CategoryGate,
     issues: list[CategoryIssue],
-) -> None:
+) -> str | None:
     if not isinstance(payload, dict):
         issues.append(CategoryIssue("artifact-shape", path, "category artifact must be an object"))
-        return
-    gate.check_category(payload.get("category"), path=path, field="category", issues=issues)
+        return None
+    slug = gate.check_category(payload.get("category"), path=path, field="category", issues=issues)
     if "code" in payload:
         gate.check_code(payload.get("code"), path=path, field="code", issues=issues)
     for index, record in enumerate(_iter_skill_records_from_json(payload)):
@@ -275,6 +363,7 @@ def _check_category_payload(
             gate=gate,
             issues=issues,
         )
+    return slug
 
 
 def _check_search_records(
@@ -313,15 +402,36 @@ def check_docs_dir(docs_dir: Path, gate: CategoryGate) -> list[CategoryIssue]:
         return [CategoryIssue("docs-dir-missing", str(docs_dir), "docs directory missing")]
 
     categories_dir = docs_dir / "categories"
+    index_counts: dict[str, int] = {}
+    pointer_counts: dict[str, int] = {}
+    manifest_counts: dict[str, int] = {}
+    manifest_part_counts: dict[str, int] = {}
+    stats_counts: dict[str, int] = {}
+
     index_path = categories_dir / "index.json"
     if index_path.exists():
         index_payload = _load_json(index_path, issues)
         if isinstance(index_payload, dict):
             for index, entry in enumerate(index_payload.get("categories") or []):
-                _check_category_entry(
+                entry_path = _record_path(index_path, docs_dir, f"categories[{index}]")
+                slug = _check_category_entry(
                     entry,
-                    path=_record_path(index_path, docs_dir, f"categories[{index}]"),
+                    path=entry_path,
                     gate=gate,
+                    issues=issues,
+                )
+                count = _count_value(
+                    entry.get("count") if isinstance(entry, dict) else None,
+                    path=entry_path,
+                    field="category.count",
+                    issues=issues,
+                )
+                _record_count(
+                    index_counts,
+                    slug=slug,
+                    count=count,
+                    label="category index",
+                    path=entry_path,
                     issues=issues,
                 )
 
@@ -329,7 +439,7 @@ def check_docs_dir(docs_dir: Path, gate: CategoryGate) -> list[CategoryIssue]:
         for pointer_path in sorted(categories_dir.glob("*.json")):
             if pointer_path.name == "index.json":
                 continue
-            gate.check_category(
+            filename_slug = gate.check_category(
                 pointer_path.stem,
                 path=_record_path(pointer_path, docs_dir),
                 field="category pointer filename",
@@ -337,15 +447,30 @@ def check_docs_dir(docs_dir: Path, gate: CategoryGate) -> list[CategoryIssue]:
             )
             payload = _load_json(pointer_path, issues)
             if payload is not None:
-                _check_category_payload(
+                payload_path = _record_path(pointer_path, docs_dir)
+                payload_slug = _check_category_payload(
                     payload,
-                    path=_record_path(pointer_path, docs_dir),
+                    path=payload_path,
                     gate=gate,
+                    issues=issues,
+                )
+                count = _count_value(
+                    payload.get("count") if isinstance(payload, dict) else None,
+                    path=payload_path,
+                    field="count",
+                    issues=issues,
+                )
+                _record_count(
+                    pointer_counts,
+                    slug=payload_slug or filename_slug,
+                    count=count,
+                    label="category pointer",
+                    path=payload_path,
                     issues=issues,
                 )
 
         for manifest_path in sorted(categories_dir.glob("*/manifest.json")):
-            gate.check_category(
+            directory_slug = gate.check_category(
                 manifest_path.parent.name,
                 path=_record_path(manifest_path, docs_dir),
                 field="category manifest directory",
@@ -353,22 +478,115 @@ def check_docs_dir(docs_dir: Path, gate: CategoryGate) -> list[CategoryIssue]:
             )
             payload = _load_json(manifest_path, issues)
             if payload is not None:
-                _check_category_payload(
+                manifest_label = _record_path(manifest_path, docs_dir)
+                payload_slug = _check_category_payload(
                     payload,
-                    path=_record_path(manifest_path, docs_dir),
+                    path=manifest_label,
                     gate=gate,
                     issues=issues,
                 )
+                slug = payload_slug or directory_slug
+                count = _count_value(
+                    payload.get("count") if isinstance(payload, dict) else None,
+                    path=manifest_label,
+                    field="count",
+                    issues=issues,
+                )
+                _record_count(
+                    manifest_counts,
+                    slug=slug,
+                    count=count,
+                    label="category manifest",
+                    path=manifest_label,
+                    issues=issues,
+                )
+                parts = payload.get("parts") if isinstance(payload, dict) else None
+                if isinstance(parts, list):
+                    part_count = _count_value(
+                        payload.get("part_count"),
+                        path=manifest_label,
+                        field="part_count",
+                        issues=issues,
+                    )
+                    if part_count is not None and part_count != len(parts):
+                        issues.append(
+                            CategoryIssue(
+                                "category-count-mismatch",
+                                manifest_label,
+                                "part_count does not match the number of manifest parts "
+                                f"({part_count} != {len(parts)})",
+                            )
+                        )
+                    part_total = 0
+                    valid_part_counts = True
+                    for part_index, part in enumerate(parts):
+                        part_label = f"{manifest_label} parts[{part_index}]"
+                        if not isinstance(part, dict):
+                            issues.append(
+                                CategoryIssue(
+                                    "category-part-entry-shape",
+                                    part_label,
+                                    "category manifest part entry must be an object",
+                                )
+                            )
+                            valid_part_counts = False
+                            continue
+                        part_entry_count = _count_value(
+                            part.get("count"),
+                            path=part_label,
+                            field="parts[].count",
+                            issues=issues,
+                        )
+                        if part_entry_count is None:
+                            valid_part_counts = False
+                        else:
+                            part_total += part_entry_count
+                    if valid_part_counts:
+                        _record_count(
+                            manifest_part_counts,
+                            slug=slug,
+                            count=part_total,
+                            label="category manifest parts",
+                            path=manifest_label,
+                            issues=issues,
+                        )
+                        if count is not None and count != part_total:
+                            issues.append(
+                                CategoryIssue(
+                                    "category-count-mismatch",
+                                    manifest_label,
+                                    "manifest count does not match manifest part counts "
+                                    f"({count} != {part_total})",
+                                )
+                            )
 
         for part_path in sorted(categories_dir.glob("*/part-*.json")):
             payload = _load_json(part_path, issues)
             if payload is not None:
+                part_label = _record_path(part_path, docs_dir)
+                records = _iter_skill_records_from_json(payload)
                 _check_category_payload(
                     payload,
-                    path=_record_path(part_path, docs_dir),
+                    path=part_label,
                     gate=gate,
                     issues=issues,
                 )
+                if isinstance(payload, dict):
+                    part_payload_count = _count_value(
+                        payload.get("count"),
+                        path=part_label,
+                        field="count",
+                        issues=issues,
+                    )
+                    if part_payload_count is not None and part_payload_count != len(records):
+                        issues.append(
+                            CategoryIssue(
+                                "category-count-mismatch",
+                                part_label,
+                                "part count does not match the number of skill records "
+                                f"({part_payload_count} != {len(records)})",
+                            )
+                        )
 
     for path in (docs_dir / "search-index-lite.json", docs_dir / "featured.json"):
         if path.exists():
@@ -399,12 +617,60 @@ def check_docs_dir(docs_dir: Path, gate: CategoryGate) -> list[CategoryIssue]:
                 values = stats_payload.get(key)
                 if isinstance(values, list):
                     for index, entry in enumerate(values):
-                        _check_category_entry(
+                        entry_path = _record_path(stats_path, docs_dir, f"{key}[{index}]")
+                        slug = _check_category_entry(
                             entry,
-                            path=_record_path(stats_path, docs_dir, f"{key}[{index}]"),
+                            path=entry_path,
                             gate=gate,
                             issues=issues,
                         )
+                        count = _count_value(
+                            entry.get("count") if isinstance(entry, dict) else None,
+                            path=entry_path,
+                            field="category.count",
+                            issues=issues,
+                        )
+                        _record_count(
+                            stats_counts,
+                            slug=slug,
+                            count=count,
+                            label="stats category counts",
+                            path=entry_path,
+                            issues=issues,
+                        )
+
+    _compare_count_maps(
+        issues,
+        expected=index_counts,
+        expected_label="categories/index.json",
+        actual=pointer_counts,
+        actual_label="category pointers",
+        path=_record_path(categories_dir / "index.json", docs_dir),
+    )
+    _compare_count_maps(
+        issues,
+        expected=index_counts,
+        expected_label="categories/index.json",
+        actual=manifest_counts,
+        actual_label="category manifests",
+        path=_record_path(categories_dir / "index.json", docs_dir),
+    )
+    _compare_count_maps(
+        issues,
+        expected=manifest_counts,
+        expected_label="category manifests",
+        actual=manifest_part_counts,
+        actual_label="category manifest parts",
+        path=_record_path(categories_dir / "index.json", docs_dir),
+    )
+    _compare_count_maps(
+        issues,
+        expected=index_counts,
+        expected_label="categories/index.json",
+        actual=stats_counts,
+        actual_label="stats category_counts",
+        path=_record_path(stats_path, docs_dir),
+    )
 
     return issues
 

@@ -51,8 +51,9 @@ categories:
 
     report = governance.build_report(taxonomy_module.load_taxonomy(taxonomy_file))
 
-    assert report["error_count"] == 1
-    assert report["errors"][0]["code"] == "schema-version"
+    codes = {error["code"] for error in report["errors"]}
+    assert "schema-version" in codes
+    assert "missing-inclusion-rule" in codes
 
 
 def test_governance_rejects_noncanonical_publish_targets():
@@ -69,6 +70,32 @@ def test_governance_rejects_noncanonical_publish_targets():
     assert codes["applied"] == "unknown-publish-category"
     assert codes["engineering"] == "unknown-publish-category"
     assert "development" not in codes
+
+
+def test_governance_requires_active_category_rules(tmp_path):
+    governance = _load_module()
+    taxonomy_module = _taxonomy_module()
+    taxonomy_file = tmp_path / "categories.yaml"
+    taxonomy_file.write_text(
+        """
+schema_version: 2
+default_category: other
+categories:
+  - slug: other
+    code: oth
+    display_name: Other
+""",
+        encoding="utf-8",
+    )
+
+    report = governance.build_report(taxonomy_module.load_taxonomy(taxonomy_file))
+
+    codes = {error["code"] for error in report["errors"]}
+    assert codes == {
+        "missing-inclusion-rule",
+        "missing-exclusion-rule",
+        "missing-examples",
+    }
 
 
 def test_governance_strict_canonical_accepts_current_taxonomy():

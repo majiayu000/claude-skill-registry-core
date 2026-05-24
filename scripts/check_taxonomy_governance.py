@@ -148,8 +148,39 @@ def build_report(
                     message="canonical category definitions must not carry migration targets",
                 )
             )
+        if definition.status == "active" and not definition.inclusion_rule:
+            issues.append(
+                GovernanceIssue(
+                    severity="error",
+                    code="missing-inclusion-rule",
+                    category=slug,
+                    message="active canonical category must declare an inclusion_rule",
+                )
+            )
+        if definition.status == "active" and not definition.exclusion_rule:
+            issues.append(
+                GovernanceIssue(
+                    severity="error",
+                    code="missing-exclusion-rule",
+                    category=slug,
+                    message="active canonical category must declare an exclusion_rule",
+                )
+            )
+        if definition.status == "active" and not definition.examples:
+            issues.append(
+                GovernanceIssue(
+                    severity="error",
+                    code="missing-examples",
+                    category=slug,
+                    message="active canonical category must declare at least one example",
+                )
+            )
         broad_name = bool(_slug_tokens(slug) & REVIEW_NAME_TOKENS)
-        if definition.status == "active" and broad_name and not definition.description:
+        if (
+            definition.status == "active"
+            and broad_name
+            and not (definition.description or definition.inclusion_rule)
+        ):
             issues.append(
                 GovernanceIssue(
                     severity="warning",
