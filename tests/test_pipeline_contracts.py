@@ -95,12 +95,15 @@ def test_pages_leaderboard_loads_full_data_before_ranking():
 def test_publish_sync_runs_generated_size_guard_after_rebuild():
     sync_script = read_repo_file("scripts/sync_main_repo.sh")
 
+    security_pos = sync_script.index("scripts/security_scanner.py")
     rebuild_pos = sync_script.index("scripts/build_search_index.py")
     canonical_pos = sync_script.index("scripts/check_canonical_categories.py")
     guard_pos = sync_script.index("scripts/check_generated_file_sizes.py")
     category_guard_pos = sync_script.index("scripts/check_category_artifacts.py")
 
-    assert category_guard_pos > guard_pos > canonical_pos > rebuild_pos
+    assert category_guard_pos > guard_pos > canonical_pos > rebuild_pos > security_pos
+    assert "--output \"$main_dir/docs/security-report.json\"" in sync_script
+    assert "--allow-missing-security-evidence" not in sync_script
     assert "--include registry.json" in sync_script
     assert "--include registry-shards" in sync_script
     assert "--include docs" in sync_script
