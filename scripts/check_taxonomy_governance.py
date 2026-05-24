@@ -130,6 +130,24 @@ def build_report(
                     message="strict canonical taxonomy may only declare active categories",
                 )
             )
+        if strict_canonical and definition.aliases:
+            issues.append(
+                GovernanceIssue(
+                    severity="error",
+                    code="canonical-category-aliases",
+                    category=slug,
+                    message="canonical category definitions must not declare inbound aliases",
+                )
+            )
+        if strict_canonical and definition.migrate_to:
+            issues.append(
+                GovernanceIssue(
+                    severity="error",
+                    code="canonical-category-migrate-to",
+                    category=slug,
+                    message="canonical category definitions must not carry migration targets",
+                )
+            )
         broad_name = bool(_slug_tokens(slug) & REVIEW_NAME_TOKENS)
         if definition.status == "active" and broad_name and not definition.description:
             issues.append(
@@ -138,8 +156,8 @@ def build_report(
                     code="broad-active-name",
                     category=slug,
                     message=(
-                        "category name is broad; add status: review/deprecated or "
-                        "a precise description"
+                        "category name is broad; add a precise description or "
+                        "move the slug into legacy_migrations"
                     ),
                 )
             )
@@ -177,6 +195,7 @@ def build_report(
         "category_count": len(taxonomy.categories),
         "canonical_category_count": len(canonical_categories),
         "noncanonical_category_count": len(taxonomy.categories) - len(canonical_categories),
+        "legacy_migration_count": len(taxonomy.legacy_migrations),
         "publish_category_count": (
             len({str(category) for category in publish_categories if str(category)})
             if publish_categories is not None
@@ -194,7 +213,8 @@ def print_report(report: dict[str, Any], *, limit: int) -> None:
     print(
         "Taxonomy governance "
         f"(schema={report['schema_version']}, categories={report['category_count']}, "
-        f"canonical={report.get('canonical_category_count', 0)})"
+        f"canonical={report.get('canonical_category_count', 0)}, "
+        f"legacy_migrations={report.get('legacy_migration_count', 0)})"
     )
     print(f"Errors: {report['error_count']}")
     print(f"Warnings: {report['warning_count']}")

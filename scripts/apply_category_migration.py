@@ -153,8 +153,7 @@ def row_is_eligible(
     if row.target_category == "other" and not allow_target_other:
         return False, "target category other requires --allow-target-other"
     taxonomy = get_taxonomy()
-    target_definition = taxonomy.categories.get(row.target_category)
-    target_status = target_definition.status if target_definition else "unknown"
+    target_status = taxonomy.category_status(row.target_category)
     if "any" not in target_statuses and target_status not in target_statuses:
         return False, f"target category status {target_status!r} excluded by filter"
     return True, "eligible"
@@ -235,9 +234,7 @@ def build_apply_plan(
             "source_category": source_category,
             "current_category": row.current_category,
             "target_category": target_category,
-            "target_status": taxonomy.categories[target_category].status
-            if target_category in taxonomy.categories
-            else "unknown",
+            "target_status": taxonomy.category_status(target_category),
             "target_path": str(target_dir_rel),
             "target_skill": str(target_dir_rel / "SKILL.md"),
             "name": name,
@@ -343,7 +340,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--target-status",
         action="append",
-        choices=["active", "review", "deprecated", "unknown", "any"],
+        choices=["active", "legacy", "review", "deprecated", "unknown", "any"],
         default=["active"],
     )
     parser.add_argument("--allow-target-other", action="store_true")

@@ -33,11 +33,20 @@ class CategoryDefinition:
 
 
 @dataclass(frozen=True)
+class LegacyCategoryMigration:
+    slug: str
+    target: str = ""
+    review_required: bool = True
+    reason: str = ""
+
+
+@dataclass(frozen=True)
 class CategoryTaxonomy:
     schema_version: int
     default_category: str
     categories: dict[str, CategoryDefinition]
     aliases: dict[str, str]
+    legacy_migrations: dict[str, LegacyCategoryMigration]
 
     def resolve(
         self,
@@ -70,6 +79,10 @@ class CategoryTaxonomy:
         slug = category_slug(raw_category or "")
         return self.aliases.get(slug)
 
+    def legacy_migration(self, raw_category: str | None) -> LegacyCategoryMigration | None:
+        slug = category_slug(raw_category or "")
+        return self.legacy_migrations.get(slug)
+
     def publishable_categories(self) -> frozenset[str]:
         return frozenset(
             slug
@@ -82,6 +95,15 @@ class CategoryTaxonomy:
         definition = self.categories.get(slug)
         return bool(definition and definition.status == "active")
 
+    def category_status(self, raw_category: str | None) -> str:
+        slug = self.resolve(raw_category, allow_unknown=True)
+        definition = self.categories.get(slug)
+        if definition:
+            return definition.status
+        if slug in self.legacy_migrations:
+            return "legacy"
+        return "unknown"
+
     def keyword_map(self) -> dict[str, list[str]]:
         return {
             slug: list(definition.keywords)
@@ -92,9 +114,10 @@ class CategoryTaxonomy:
     def migration_target(self, raw_category: str | None) -> str | None:
         slug = self.resolve(raw_category, allow_unknown=True)
         definition = self.categories.get(slug)
-        if not definition:
-            return None
-        return definition.migrate_to or None
+        if definition:
+            return definition.migrate_to or None
+        migration = self.legacy_migrations.get(slug)
+        return migration.target if migration else None
 
 
 def category_slug(raw_category: str | None) -> str:
@@ -116,6 +139,14 @@ def _as_optional_slug(value: Any) -> str:
     if value is None:
         return ""
     return category_slug(value)
+
+
+def _as_bool(value: Any, *, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    raise ValueError("taxonomy boolean fields must be true or false")
 
 
 def load_taxonomy(path: Path = DEFAULT_TAXONOMY_PATH) -> CategoryTaxonomy:
@@ -215,11 +246,49 @@ def load_taxonomy(path: Path = DEFAULT_TAXONOMY_PATH) -> CategoryTaxonomy:
                 f"deprecated taxonomy category {slug!r} must declare migrate_to"
             )
 
+    legacy_migrations: dict[str, LegacyCategoryMigration] = {}
+    legacy_raw = payload.get("legacy_migrations") or []
+    if not isinstance(legacy_raw, list):
+        raise ValueError("taxonomy legacy_migrations must be a list")
+    for entry in legacy_raw:
+        if not isinstance(entry, dict):
+            raise ValueError("taxonomy legacy migration entries must be objects")
+        slug = category_slug(entry.get("slug"))
+        if not slug:
+            raise ValueError("taxonomy legacy migration missing slug")
+        if slug in categories:
+            raise ValueError(
+                f"legacy category migration {slug!r} conflicts with active category"
+            )
+        if slug in legacy_migrations:
+            raise ValueError(f"duplicate legacy category migration slug: {slug}")
+        target = _as_optional_slug(entry.get("target"))
+        if target:
+            target_definition = categories.get(target)
+            if target_definition is None:
+                raise ValueError(
+                    f"legacy category migration {slug!r} has unknown target {target!r}"
+                )
+            if target_definition.status != "active":
+                raise ValueError(
+                    f"legacy category migration {slug!r} targets non-active category {target!r}"
+                )
+            aliases[slug] = target
+        review_required = _as_bool(entry.get("review_required"), default=not bool(target))
+        reason = str(entry.get("reason") or "").strip()
+        legacy_migrations[slug] = LegacyCategoryMigration(
+            slug=slug,
+            target=target,
+            review_required=review_required,
+            reason=reason,
+        )
+
     return CategoryTaxonomy(
         schema_version=int(payload.get("schema_version", 1)),
         default_category=default_category,
         categories=categories,
         aliases=aliases,
+        legacy_migrations=legacy_migrations,
     )
 
 
@@ -236,8 +305,16 @@ def category_aliases() -> dict[str, str]:
     return dict(get_taxonomy().aliases)
 
 
+def legacy_category_migrations() -> dict[str, LegacyCategoryMigration]:
+    return dict(get_taxonomy().legacy_migrations)
+
+
 def publishable_categories() -> frozenset[str]:
     return get_taxonomy().publishable_categories()
+
+
+def category_status(raw_category: str | None) -> str:
+    return get_taxonomy().category_status(raw_category)
 
 
 def resolve_category(

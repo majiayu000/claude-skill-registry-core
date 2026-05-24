@@ -159,8 +159,7 @@ def build_worksets(
     review_target_items: list[dict[str, Any]] = []
     target_other_items: list[dict[str, Any]] = []
     for row, rel, source_dir in existing_rows:
-        target_definition = taxonomy.categories.get(row.target_category)
-        target_status = target_definition.status if target_definition else "unknown"
+        target_status = taxonomy.category_status(row.target_category)
         if row.confidence is None or row.confidence < min_confidence:
             low_confidence_items.append(
                 work_item_for_skill(
@@ -187,14 +186,14 @@ def build_worksets(
                 )
             )
             continue
-        if target_status == "review":
+        if target_status in {"legacy", "review"}:
             review_target_items.append(
                 work_item_for_skill(
                     skills_dir=skills_dir,
                     skill_dir=source_dir,
                     rel=rel,
                     workset="review_target",
-                    reason="previous classification target is a review taxonomy category",
+                    reason="previous classification target is not a publishable category",
                     classification=row,
                     content_chars=content_chars,
                 )
