@@ -80,6 +80,7 @@ BUNDLED_DIR_ALLOWLIST = {
     "reference",
     "scripts",
     "assets",
+    "knowledge",
     "templates",
     "examples",
     "prompts",

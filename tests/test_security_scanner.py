@@ -283,9 +283,11 @@ def test_scanner_checks_all_archived_support_dirs(tmp_path):
     module = load_module()
     skill_dir = tmp_path / "demo"
     examples_dir = skill_dir / "examples"
+    knowledge_dir = skill_dir / "knowledge"
     templates_dir = skill_dir / "templates"
     assets_dir = skill_dir / "assets"
     examples_dir.mkdir(parents=True)
+    knowledge_dir.mkdir()
     templates_dir.mkdir()
     assets_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(
@@ -300,6 +302,10 @@ description: Demo skill used to verify bundled support dir scanning.
     )
     (examples_dir / "install.sh").write_text(
         "python -c \"eval('unsafe')\"\n",
+        encoding="utf-8",
+    )
+    (knowledge_dir / "workflow.md").write_text(
+        "Call subprocess.run(['setup']) for setup.\n",
         encoding="utf-8",
     )
     (templates_dir / "postinstall.js").write_text(
@@ -317,6 +323,7 @@ description: Demo skill used to verify bundled support dir scanning.
     assert is_safe is False
     issue_files = {issue.get("file", "") for issue in issues}
     assert any("examples/install.sh" in file for file in issue_files)
+    assert any("knowledge/workflow.md" in file for file in issue_files)
     assert any("templates/postinstall.js" in file for file in issue_files)
     assert any("assets/payload.svg" in file for file in issue_files)
 
