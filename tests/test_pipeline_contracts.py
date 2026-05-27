@@ -123,14 +123,22 @@ def test_publish_sync_metadata_compliance_is_advisory_for_historical_notices():
     assert "--strict" not in notices_block
 
 
-def test_build_index_fails_closed_when_security_report_is_missing():
+def test_build_index_generates_security_report_for_checked_out_data():
     workflow = read_repo_file(".github/workflows/build-index.yml")
+    build_steps = workflow[workflow.index("Generate security report for checked-out data") :]
 
-    assert "allow_missing_security_report" in workflow
-    assert "core.setFailed(message)" in workflow
-    assert "security-report-missing.allowed" in workflow
-    assert "unzip -o security-report.zip -d docs || true" not in workflow
-    assert "test -f docs/security-report.json" in workflow
+    security_pos = build_steps.index("scripts/security_scanner.py")
+    build_pos = build_steps.index("scripts/build_search_index.py")
+
+    assert security_pos < build_pos
+    assert "--output docs/security-report.json" in build_steps
+    assert "unzip -o security-report.zip -d docs || true" not in build_steps
+    assert "test -f docs/security-report.json" in build_steps
+    assert "--allow-missing-security-evidence" not in build_steps
+    assert "'scripts/security_scanner.py'" in workflow
+    assert "'scripts/security_blocklist.py'" in workflow
+    assert "'sources/security_blocklist.json'" in workflow
+    assert "'schema/skill.schema.json'" in workflow
 
 
 def test_build_index_runs_generated_size_guard_before_pages_upload():
