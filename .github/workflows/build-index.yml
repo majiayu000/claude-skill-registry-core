@@ -63,14 +63,18 @@ jobs:
             skills/ \
             --quiet \
             --report-only \
-            --output docs/security-report.json
-          test -f docs/security-report.json
-          ls -la docs/security-report.json
+            --output "$RUNNER_TEMP/security-report.json"
+          test -f "$RUNNER_TEMP/security-report.json"
+          ls -la "$RUNNER_TEMP/security-report.json"
 
       - name: Build search index
         run: |
           echo "Building search index from archive tree (recursive)..."
-          python scripts/build_search_index.py --skills-dir skills --registry registry.json --output docs
+          python scripts/build_search_index.py \
+            --skills-dir skills \
+            --registry registry.json \
+            --output docs \
+            --security-report "$RUNNER_TEMP/security-report.json"
 
           echo ""
           echo "Index files generated:"
