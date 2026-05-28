@@ -102,9 +102,10 @@ remove_local_artifacts_under() {
     "$root/THIRD_PARTY_NOTICES.generated.md"
   find "$root" \
     \( -path "$root/.git" -o -path "$root/skills" \) -prune \
-    -o -name '__pycache__' -type d -prune -exec rm -rf {} + \
-    -o -name '*.pyc' -type f -delete \
-    -o -name '.DS_Store' -type f -delete
+    -o -name '__pycache__' -type d -prune -exec rm -rf {} +
+  find "$root" \
+    \( -path "$root/.git" -o -path "$root/skills" \) -prune \
+    -o \( -name '*.pyc' -o -name '.DS_Store' \) -type f -exec rm -f {} +
 }
 
 sync_core_to_main() {

@@ -153,6 +153,14 @@ def test_publish_sync_has_observable_steps_and_cache_excludes():
     assert 'remove_local_artifacts_under "$main_dir/skills"' in sync_script
     assert "--delete-excluded" not in sync_script
 
+    cleanup_block = sync_script[
+        sync_script.index("remove_local_artifacts_under()") : sync_script.index(
+            "sync_core_to_main()"
+        )
+    ]
+    assert "-delete" not in cleanup_block
+    assert "-exec rm -f {} +" in cleanup_block
+
 
 def test_publish_sync_metadata_compliance_is_advisory_for_historical_notices():
     sync_script = read_repo_file("scripts/sync_main_repo.sh")
