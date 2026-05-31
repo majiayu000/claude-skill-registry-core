@@ -2840,7 +2840,7 @@
       "repo": "veyralabsgroup/veyraskills",
       "path": "skills/domainforge",
       "description": "Startup name generation with 8-factor scoring, domain availability checks, social handle verification, trademark analysis, and brand narrative for any archetype.",
-      "category": "branding",
+      "category": "marketing",
       "tags": [
         "naming",
         "domain",
@@ -2859,7 +2859,7 @@
       "repo": "veyralabsgroup/veyraskills",
       "path": "skills/brandaudit",
       "description": "Existing brand name analysis across 8 dimensions with severity classification and rebrand verdict: KEEP, MINOR REFRESH, MODERATE REBRAND, or FULL REBRAND.",
-      "category": "branding",
+      "category": "marketing",
       "tags": [
         "branding",
         "brand-audit",
@@ -2878,7 +2878,7 @@
       "repo": "veyralabsgroup/veyraskills",
       "path": "skills/competitornames",
       "description": "Competitive naming landscape mapping with saturation scoring, whitespace identification, and naming brief generation for DomainForge or standalone use.",
-      "category": "branding",
+      "category": "marketing",
       "tags": [
         "naming",
         "competitive-analysis",
@@ -2897,7 +2897,7 @@
       "repo": "veyralabsgroup/veyraskills",
       "path": "skills/namingguide",
       "description": "Complete naming guide generator for companies and product lines. Produces opinionated naming system, principles, dos/donts, and approval checklist as a usable document.",
-      "category": "branding",
+      "category": "marketing",
       "tags": [
         "naming",
         "brand-strategy",
