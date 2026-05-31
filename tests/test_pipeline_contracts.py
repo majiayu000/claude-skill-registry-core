@@ -162,6 +162,21 @@ def test_publish_sync_has_observable_steps_and_cache_excludes():
     assert "-exec rm -f {} +" in cleanup_block
 
 
+def test_publish_sync_preserves_main_owned_routing_files():
+    sync_script = read_repo_file("scripts/sync_main_repo.sh")
+    sync_block = sync_script[
+        sync_script.index("sync_core_to_main()") : sync_script.index(
+            "sync_data_to_main()"
+        )
+    ]
+
+    assert "--exclude 'README.md'" in sync_block
+    assert "--exclude '.github/ISSUE_TEMPLATE'" in sync_block
+    assert "--exclude '.github/ISSUE_TEMPLATE/**'" in sync_block
+    assert "--exclude '.github/PULL_REQUEST_TEMPLATE.md'" in sync_block
+    assert "--delete-excluded" not in sync_block
+
+
 def test_publish_sync_metadata_compliance_is_advisory_for_historical_notices():
     sync_script = read_repo_file("scripts/sync_main_repo.sh")
     notices_block = sync_script[sync_script.index("Generate third-party notices") :]
