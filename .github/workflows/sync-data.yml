@@ -105,7 +105,7 @@ jobs:
         run: |
           echo "🔍 Running full discovery via GitHub API..."
           python scripts/discover_by_topic.py \
-            --output skills/other \
+            --output skills \
             --json sources/discovered.json \
             --candidates-output sources/learning/discovery_candidates.jsonl \
             --priors-output sources/learning/discovery_priors.json 2>&1 | tee discover.log
@@ -120,7 +120,7 @@ jobs:
         run: |
           echo "🔍 Running bounded daily discovery..."
           python scripts/discover_by_topic.py \
-            --output skills/other \
+            --output skills \
             --json sources/discovered.json \
             --candidates-output sources/learning/discovery_candidates.jsonl \
             --priors-output sources/learning/discovery_priors.json \
