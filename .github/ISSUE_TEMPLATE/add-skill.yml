@@ -1,0 +1,43 @@
+name: Add Skill
+description: Propose a community skill source for registry intake.
+title: "[Skill] "
+labels: ["source-intake"]
+body:
+  - type: input
+    id: repo
+    attributes:
+      label: Repository
+      description: GitHub owner/repo or full HTTPS URL.
+      placeholder: owner/repo
+    validations:
+      required: true
+  - type: input
+    id: path
+    attributes:
+      label: Skill path
+      description: Optional path to SKILL.md when it is not at the repository root.
+      placeholder: skills/example/SKILL.md
+  - type: input
+    id: category
+    attributes:
+      label: Category
+      description: Canonical category slug, such as development, testing, devops, design, security, data, or marketing.
+      placeholder: development
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Short summary of what the skill does.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: The source is public and installable.
+          required: true
+        - label: The skill does not contain secrets, tokens, or private endpoints.
+          required: true

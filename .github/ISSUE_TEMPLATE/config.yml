@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Generated mirror routing
+    url: https://github.com/majiayu000/claude-skill-registry
+    about: Use this only when the merged publish artifact itself is wrong.
+  - name: Archived skill data routing
+    url: https://github.com/majiayu000/claude-skill-registry-data
+    about: Use this for archived skill body or archive metadata issues.

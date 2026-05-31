@@ -1,0 +1,38 @@
+name: Bug Report
+description: Report a problem in the core pipeline, generated indexes, search UI, or publish flow.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Discovery or download
+        - Security scan
+        - Registry or search index
+        - Category or taxonomy
+        - GitHub Pages search UI
+        - Publish orchestration
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Link logs, artifact URLs, commands, or screenshots that show the problem.
+  - type: checkboxes
+    id: routing
+    attributes:
+      label: Routing check
+      options:
+        - label: This belongs in core, not only in the generated main mirror or archived data repo.
+          required: true

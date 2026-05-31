@@ -1,0 +1,32 @@
+name: Data Quality
+description: Report duplicate, stale, misclassified, unsafe, or incorrectly described registry data.
+title: "[Data] "
+labels: ["data-quality"]
+body:
+  - type: input
+    id: skill
+    attributes:
+      label: Skill or artifact URL
+      placeholder: https://majiayu000.github.io/claude-skill-registry-core/...
+    validations:
+      required: true
+  - type: dropdown
+    id: problem_type
+    attributes:
+      label: Problem type
+      options:
+        - Duplicate skill
+        - Wrong category
+        - Stale metadata
+        - Unsafe content
+        - Missing bundled file
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Include the current value, expected value, and source evidence when possible.
+    validations:
+      required: true
