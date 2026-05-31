@@ -203,6 +203,54 @@ jobs:
       - name: Check archive categories are canonical
         run: python scripts/check_canonical_categories.py --skills-dir skills
 
+      - name: Normalize archive skill layout
+        run: |
+          python scripts/normalize_skill_depth.py \
+            --skills-dir skills \
+            --apply \
+            --json \
+            --output archive-depth-normalization-report.json
+
+          python scripts/normalize_skill_depth.py \
+            --skills-dir skills \
+            --json \
+            --output archive-depth-normalization-post-check.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("archive-depth-normalization-report.json").read_text())
+          post = json.loads(Path("archive-depth-normalization-post-check.json").read_text())
+          print(
+              "Archive layout normalization: "
+              f"planned={report.get('move_count', 0)} "
+              f"duplicates={report.get('duplicate_count', 0)} "
+              f"same_key_conflicts={report.get('same_key_conflict_count', 0)}"
+          )
+          remaining = {
+              key: int(post.get(key, 0) or 0)
+              for key in (
+                  "move_count",
+                  "duplicate_count",
+                  "same_key_conflict_count",
+                  "same_key_preserved_count",
+              )
+          }
+          if any(remaining.values()):
+              raise SystemExit(f"Archive layout normalization left non-standard paths: {remaining}")
+          PY
+
+      - name: Upload archive layout normalization report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: archive-depth-normalization-report
+          path: |
+            archive-depth-normalization-report.json
+            archive-depth-normalization-post-check.json
+          if-no-files-found: ignore
+
       - name: Upload download failure report
         if: always()
         uses: actions/upload-artifact@v7

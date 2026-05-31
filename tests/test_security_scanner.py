@@ -1,5 +1,7 @@
 import importlib.util
+import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -58,6 +60,35 @@ description: Demo skill used to verify security decision evidence.
     assert decision["provenance"]["source_ref"] == "main"
     assert decision["provenance"]["content_sha256"]
     assert decision["provenance"]["scanned_at"] == "2026-05-24T00:00:00Z"
+
+
+def test_scan_directory_progress_interval_reports_counts(tmp_path):
+    module = load_module()
+    for index in range(2):
+        skill_dir = tmp_path / "skills" / "development" / f"demo-{index}"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            f"""---
+name: demo-{index}
+description: Demo skill used to verify security scan progress.
+---
+
+# Demo {index}
+""",
+            encoding="utf-8",
+        )
+
+    progress = io.StringIO()
+    report = module.scan_directory(
+        tmp_path / "skills",
+        quiet=True,
+        progress_interval=1,
+        progress_stream=progress,
+    )
+
+    assert report["total"] == 2
+    assert "Security scan progress: 1 scanned" in progress.getvalue()
+    assert "Security scan progress: 2 scanned" in progress.getvalue()
 
 
 def test_scanner_checks_reference_implementations(tmp_path):
@@ -122,6 +153,50 @@ description: Demo skill used to verify bundled rule scanning.
         and "rules/dangerous.md" in issue.get("file", "")
         for issue in issues
     )
+
+
+def test_scanner_rejects_missing_frontmatter(tmp_path):
+    module = load_module()
+    skill_dir = tmp_path / "demo"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Demo\n", encoding="utf-8")
+
+    scanner = module.SecurityScanner()
+    is_safe, issues = scanner.scan_file(skill_dir / "SKILL.md")
+
+    assert is_safe is False
+    assert any(issue.get("type") == "no_frontmatter" for issue in issues)
+
+
+def test_single_file_scan_exits_nonzero_for_unsafe_skill(tmp_path):
+    skill_dir = tmp_path / "demo"
+    skill_dir.mkdir(parents=True)
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text(
+        """---
+name: demo
+description: Demo skill used to verify single-file unsafe scan exit status.
+---
+
+# Demo
+
+```python
+eval("unsafe")
+```
+""",
+        encoding="utf-8",
+    )
+
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "security_scanner.py"
+    result = subprocess.run(
+        [sys.executable, str(script_path), str(skill_file)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert "ERROR" in result.stdout
 
 
 def test_scanner_checks_flowhunt_style_support_files(tmp_path):
@@ -283,9 +358,11 @@ def test_scanner_checks_all_archived_support_dirs(tmp_path):
     module = load_module()
     skill_dir = tmp_path / "demo"
     examples_dir = skill_dir / "examples"
+    knowledge_dir = skill_dir / "knowledge"
     templates_dir = skill_dir / "templates"
     assets_dir = skill_dir / "assets"
     examples_dir.mkdir(parents=True)
+    knowledge_dir.mkdir()
     templates_dir.mkdir()
     assets_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(
@@ -300,6 +377,10 @@ description: Demo skill used to verify bundled support dir scanning.
     )
     (examples_dir / "install.sh").write_text(
         "python -c \"eval('unsafe')\"\n",
+        encoding="utf-8",
+    )
+    (knowledge_dir / "workflow.md").write_text(
+        "Call subprocess.run(['setup']) for setup.\n",
         encoding="utf-8",
     )
     (templates_dir / "postinstall.js").write_text(
@@ -317,6 +398,7 @@ description: Demo skill used to verify bundled support dir scanning.
     assert is_safe is False
     issue_files = {issue.get("file", "") for issue in issues}
     assert any("examples/install.sh" in file for file in issue_files)
+    assert any("knowledge/workflow.md" in file for file in issue_files)
     assert any("templates/postinstall.js" in file for file in issue_files)
     assert any("assets/payload.svg" in file for file in issue_files)
 
