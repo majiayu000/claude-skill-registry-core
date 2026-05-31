@@ -485,7 +485,7 @@ def skill_semantic_fields(
         description = _semantic_text(metadata.get("description"))
         if description:
             sources["description"] = "metadata"
-        elif content:
+        elif content_chars > 0 and content:
             description = extract_description(content)
             if description:
                 sources["description"] = "body"
