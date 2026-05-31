@@ -42,6 +42,17 @@ The largest searchable index of Claude Code skills, aggregated from GitHub and c
 - **Publish contract**: core dispatches main publish with pinned `core_sha` + `data_sha`
 - **Non-goal for main**: main does not initiate canonical syncs, archive updates, or index generation
 
+## Release, Proof, And Support
+
+- **Release status**: daily catalog refreshes are represented by live generated metadata, not GitHub Releases. GitHub Releases are reserved for intentional pipeline/API milestones.
+- **Live proof**: use the [Web Search](https://majiayu000.github.io/claude-skill-registry-core/) UI, the badges above, and `stats.json` to verify current generated data.
+- **Routing**: pipeline bugs, source intake, registry schema, Pages/search, and publish orchestration belong in this core repo. Archived skill body issues belong in `claude-skill-registry-data`. Generated mirror questions belong in `claude-skill-registry` only when the artifact itself is wrong.
+
+```bash
+curl https://majiayu000.github.io/claude-skill-registry-core/stats.json
+curl https://majiayu000.github.io/claude-skill-registry-core/search-index-lite.json
+```
+
 ## Quick Start
 
 ### Option 1: Web Search
