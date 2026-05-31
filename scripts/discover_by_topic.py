@@ -141,8 +141,15 @@ class GitHubTopicDiscovery:
 
     @staticmethod
     def _source_identity_key(repo: str, path: str) -> str:
-        if not (repo or "").strip() or not (path or "").strip():
+        repo = (repo or "").strip()
+        path = (path or "").strip().replace("\\", "/").strip("/")
+        if not repo or not path:
             return ""
+        lower_path = path.lower()
+        if lower_path == "skill.md":
+            path = ""
+        elif lower_path.endswith("/skill.md"):
+            path = path.rsplit("/", 1)[0]
         return build_skill_key(repo, path)
 
     def _archive_source_index(self, output_dir: Path) -> set[str]:

@@ -274,7 +274,7 @@ def test_download_skill_skips_source_already_archived_in_another_category(tmp_pa
         {
             "name": "docker-deployer",
             "repo": "acme/docker-deployer",
-            "path": "skills/docker-deployer/SKILL.md",
+            "path": "skills/docker-deployer",
             "category": "development",
             "source": "github.com/acme/docker-deployer",
             "dir_name": "docker-deployer",
