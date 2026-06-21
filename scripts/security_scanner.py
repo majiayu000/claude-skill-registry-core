@@ -321,24 +321,21 @@ class SecurityScanner:
 
     def _scan_bundled_files(self, skill_dir: Path):
         """Scan bundled executable/reference files."""
-        for filename in BUNDLED_SCAN_ROOT_FILES:
-            bundled_file = skill_dir / filename
-            if bundled_file.is_file():
-                self._scan_bundled_text_file(bundled_file)
-
-        for dirname in BUNDLED_SCAN_DIRS:
-            bundled_dir = skill_dir / dirname
-            if not bundled_dir.exists():
+        for bundled_file in sorted(skill_dir.rglob("*")):
+            if not bundled_file.is_file():
                 continue
 
-            for script_file in bundled_dir.rglob("*"):
-                if not script_file.is_file():
-                    continue
+            rel_path = bundled_file.relative_to(skill_dir)
+            if rel_path.as_posix() in {"SKILL.md", "metadata.json"}:
+                continue
 
-                if not self._check_bundled_file_size(script_file):
-                    continue
-                if script_file.suffix.lower() in BUNDLED_SCAN_EXTENSIONS:
-                    self._scan_bundled_text_file(script_file)
+            if not self._check_bundled_file_size(bundled_file):
+                continue
+            if (
+                bundled_file.suffix.lower() in BUNDLED_SCAN_EXTENSIONS
+                or bundled_file.name in BUNDLED_SCAN_ROOT_FILES
+            ):
+                self._scan_bundled_text_file(bundled_file)
 
     def _check_bundled_file_size(self, bundled_file: Path) -> bool:
         """Return False and record an issue when an archived support file is too large."""
