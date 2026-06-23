@@ -200,6 +200,31 @@ jobs:
           echo "Download profile: $PROFILE"
           echo "Download step outcome: ${outcome:-not-run}"
 
+      - name: Diagnose orphan SKILL.md (TEMPORARY root-cause probe)
+        if: always()
+        run: |
+          set +e
+          echo "===== ORPHAN SKILL.md DIAGNOSIS (SKILL.md with no sibling metadata.json) ====="
+          orphan=0
+          while IFS= read -r f; do
+            case "$f" in */.git/*) continue ;; esac
+            dir="$(dirname "$f")"
+            [ -f "$dir/metadata.json" ] && continue
+            orphan=1
+            gp="$(dirname "$dir")"
+            echo "### ORPHAN: $f"
+            echo "  [self] $dir:"; ls -la "$dir" 2>/dev/null | sed 's/^/      /'
+            echo "  [parent] $gp:"; ls -la "$gp" 2>/dev/null | sed 's/^/      /'
+            if [ -f "$gp/metadata.json" ]; then
+              echo "  [parent metadata.json]:"; cat "$gp/metadata.json" 2>/dev/null | sed 's/^/      /'
+            else
+              echo "  [parent metadata.json]: MISSING"
+            fi
+            echo "  [frontmatter]:"; awk '/^---$/{c++; print; if(c==2) exit; next} c==1{print}' "$f" | head -30 | sed 's/^/      /'
+            echo ""
+          done < <(find skills -name SKILL.md -type f 2>/dev/null)
+          echo "===== diagnosis done (orphan_found=$orphan) ====="
+
       - name: Check archive categories are canonical
         run: python scripts/check_canonical_categories.py --skills-dir skills
 
