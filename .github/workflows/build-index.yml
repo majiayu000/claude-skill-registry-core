@@ -10,6 +10,7 @@ on:
     paths:
       - 'registry.json'
       - 'scripts/build_search_index.py'
+      - 'scripts/search_sources.py'
       - 'scripts/check_canonical_categories.py'
       - 'scripts/security_blocklist.py'
       - 'scripts/security_scanner.py'
