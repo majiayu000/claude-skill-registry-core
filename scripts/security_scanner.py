@@ -25,6 +25,7 @@ from security_rules import (
     OBFUSCATION_EXEC_PATTERNS,
     SENSITIVE_PATHS,
 )
+from utils import is_declared_bundled_skill_file
 
 # Load schema
 SCHEMA_PATH = Path(__file__).parent.parent / "schema" / "skill.schema.json"
@@ -488,7 +489,7 @@ def resolve_scan_file_list(skills_dir: Path, file_list_path: Path) -> List[Path]
         current = candidate if candidate.is_dir() else candidate.parent
         while True:
             skill_file = current / "SKILL.md"
-            if skill_file.is_file():
+            if skill_file.is_file() and not is_declared_bundled_skill_file(skill_file, skills_root):
                 return skill_file
             if current == skills_root:
                 return None
@@ -513,7 +514,7 @@ def resolve_scan_file_list(skills_dir: Path, file_list_path: Path) -> List[Path]
         if not candidate.exists():
             continue
 
-        skill_file = candidate if candidate.name == "SKILL.md" else owning_skill_file(candidate)
+        skill_file = owning_skill_file(candidate)
         if not skill_file:
             continue
 
@@ -554,7 +555,11 @@ def scan_directory(
     }
 
     if selected_files is None:
-        scan_targets = skills_dir.rglob("SKILL.md")
+        scan_targets = (
+            skill_file
+            for skill_file in skills_dir.rglob("SKILL.md")
+            if not is_declared_bundled_skill_file(skill_file, skills_root)
+        )
     else:
         scan_targets = selected_files
 
