@@ -13,7 +13,9 @@ on:
       - 'scripts/search_sources.py'
       - 'scripts/check_canonical_categories.py'
       - 'scripts/security_blocklist.py'
+      - 'scripts/security_rules.py'
       - 'scripts/security_scanner.py'
+      - 'scripts/utils.py'
       - 'schema/skill.schema.json'
       - 'sources/security_blocklist.json'
       - 'docs/**'
@@ -63,9 +65,9 @@ jobs:
           python scripts/security_scanner.py \
             skills/ \
             --quiet \
-            --report-only \
+            --require-metadata \
             --output "$RUNNER_TEMP/security-report.json"
-          test -f "$RUNNER_TEMP/security-report.json"
+          test -s "$RUNNER_TEMP/security-report.json"
           ls -la "$RUNNER_TEMP/security-report.json"
 
       - name: Build search index

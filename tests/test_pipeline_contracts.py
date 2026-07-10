@@ -193,18 +193,25 @@ def test_build_index_generates_security_report_for_checked_out_data():
 
     security_pos = build_steps.index("scripts/security_scanner.py")
     build_pos = build_steps.index("scripts/build_search_index.py")
+    security_block = build_steps[security_pos:build_pos]
 
     assert security_pos < build_pos
     assert "--output \"$RUNNER_TEMP/security-report.json\"" in build_steps
     assert "--security-report \"$RUNNER_TEMP/security-report.json\"" in build_steps
     assert "--output docs/security-report.json" not in build_steps
     assert "unzip -o security-report.zip -d docs || true" not in build_steps
-    assert "test -f \"$RUNNER_TEMP/security-report.json\"" in build_steps
+    assert "--require-metadata" in security_block
+    assert "--report-only" not in security_block
+    assert "continue-on-error" not in security_block
+    assert "|| true" not in security_block
+    assert "test -s \"$RUNNER_TEMP/security-report.json\"" in build_steps
     assert "--allow-missing-security-evidence" not in build_steps
     assert "'scripts/build_search_index.py'" in workflow
     assert "'scripts/search_sources.py'" in workflow
     assert "'scripts/security_scanner.py'" in workflow
+    assert "'scripts/security_rules.py'" in workflow
     assert "'scripts/security_blocklist.py'" in workflow
+    assert "'scripts/utils.py'" in workflow
     assert "'sources/security_blocklist.json'" in workflow
     assert "'schema/skill.schema.json'" in workflow
 
