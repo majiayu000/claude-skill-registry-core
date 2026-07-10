@@ -162,5 +162,52 @@ category manifest and parts. Do not fetch every category part on startup.
 For trust and ranking overlays, load the pointer, then the corresponding
 manifest and shards. Treat missing signal records as unknown, not clean.
 
-For full registry sync, use the merged artifact `registry-manifest.json` and
-`registry-shards/*.json`. Use `registry.json` only as a compatibility pointer.
+For full registry sync, consumers should prefer manifests and bounded shards to
+giant single-payload JSON files. Load the merged artifact
+`registry-manifest.json` and every shard it lists; `registry.json` is
+compatibility-only. Missing manifests or shards, invalid JSON, and malformed
+payload shapes are errors and must not be silently ignored.
+
+Minimal standard-library Python example:
+
+```python
+import json
+from urllib.parse import urljoin
+from urllib.request import urlopen
+
+manifest_url = (
+    "https://raw.githubusercontent.com/majiayu000/"
+    "claude-skill-registry/main/registry-manifest.json"
+)
+
+
+def load_json(url):
+    with urlopen(url) as response:
+        return json.load(response)
+
+
+manifest = load_json(manifest_url)
+if not isinstance(manifest, dict):
+    raise ValueError("registry manifest must be a JSON object")
+shards = manifest.get("shards")
+if not isinstance(shards, list) or not shards:
+    raise ValueError("registry manifest must contain a non-empty 'shards' list")
+
+skills = []
+for shard in shards:
+    if not isinstance(shard, dict):
+        raise ValueError("registry shard entries must be JSON objects")
+    path = shard.get("path")
+    if not isinstance(path, str) or not path:
+        raise ValueError("registry shard entries must contain a non-empty 'path'")
+    shard_url = urljoin(manifest_url, path)
+    payload = load_json(shard_url)
+    if not isinstance(payload, dict) or not isinstance(payload.get("skills"), list):
+        raise ValueError(f"{shard_url} must contain a 'skills' list")
+    skills.extend(payload["skills"])
+
+print(f"loaded {len(skills)} skills")
+```
+
+The example intentionally lets HTTP and JSON decoding errors propagate so a
+partial registry sync cannot look successful.
