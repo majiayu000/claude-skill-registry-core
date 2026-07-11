@@ -286,7 +286,13 @@ def test_python_tests_workflow_runs_full_suite_with_coverage_gate():
     workflow = read_repo_file(".github/workflows/python-tests.yml")
 
     assert "name: Python Test Health" in workflow
-    assert "python -m pytest -q --cov-fail-under=50" in workflow
+    assert "fetch-depth: 0" in workflow
+    assert "python -m pytest -q --cov-report=xml:coverage.xml --cov-report=json:coverage.json" in workflow
+    assert "scripts/check_coverage_ratchet.py" in workflow
+    assert "--baseline coverage-baseline.json" in workflow
+    assert "--compare-ref origin/main" in workflow
+    assert "diff-cover coverage.xml --compare-branch=origin/main --fail-under=80" in workflow
+    assert "--cov-fail-under=50" not in workflow
     assert "scripts/check_taxonomy_governance.py" in workflow
     assert "--override-ini" not in workflow
     assert "scripts/**" in workflow
