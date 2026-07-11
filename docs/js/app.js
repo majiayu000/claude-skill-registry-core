@@ -28,7 +28,6 @@ const CONFIG = {
     }
 };
 
-// Category code to full name mapping
 const CATEGORY_NAMES = {
     'dev': 'Development',
     'ops': 'DevOps',
@@ -44,12 +43,10 @@ const CATEGORY_NAMES = {
     'oth': 'Other'
 };
 
-// Full category name to short code mapping
 const CATEGORY_CODES_REVERSE = Object.fromEntries(
     Object.entries(CATEGORY_NAMES).map(([code, name]) => [name.toLowerCase(), code])
 );
 
-// Category colors for charts
 const CATEGORY_COLORS = {
     'dev': '#00fff2',
     'ops': '#ff6b6b',
@@ -65,7 +62,6 @@ const CATEGORY_COLORS = {
     'oth': '#576574'
 };
 
-// State
 let state = {
     index: null,
     fullIndex: null,
@@ -89,7 +85,6 @@ let state = {
     isLoading: true
 };
 
-// DOM Elements
 const elements = {
     searchInput: document.getElementById('search-input'),
     metaDescription: document.querySelector('meta[name="description"]'),
@@ -98,6 +93,8 @@ const elements = {
     totalCount: document.getElementById('total-count'),
     resultCount: document.getElementById('result-count'),
     searchTime: document.getElementById('search-time'),
+    searchScope: document.getElementById('search-scope'),
+    searchAllBtn: document.getElementById('search-all-btn'),
     statsBar: document.getElementById('stats-bar'),
     loading: document.getElementById('loading'),
     featuredSection: document.getElementById('featured-section'),
@@ -105,6 +102,7 @@ const elements = {
     leaderboardSection: document.getElementById('leaderboard-section'),
     leaderboardList: document.getElementById('leaderboard-list'),
     leaderboardCategory: document.getElementById('leaderboard-category'),
+    leaderboardStatus: document.getElementById('leaderboard-status'),
     statsSection: document.getElementById('stats-section'),
     pluginsSection: document.getElementById('plugins-section'),
     pluginsList: document.getElementById('plugins-list'),
@@ -123,7 +121,6 @@ const elements = {
     modal: document.getElementById('skill-modal'),
     modalClose: document.getElementById('modal-close'),
     modalBody: document.getElementById('modal-body'),
-    // Advanced filters
     filterToggle: document.getElementById('filter-toggle'),
     advancedFilters: document.getElementById('advanced-filters'),
     starsFilter: document.getElementById('stars-filter'),
@@ -131,7 +128,6 @@ const elements = {
     tagFilter: document.getElementById('tag-filter'),
     activeTags: document.getElementById('active-tags'),
     clearFilters: document.getElementById('clear-filters'),
-    // Theme
     themeToggle: document.getElementById('theme-toggle'),
     themeIcon: document.getElementById('theme-icon')
 };
@@ -195,39 +191,8 @@ function normalizeSearchIndex(indexData) {
     throw new Error('Unsupported search index schema');
 }
 
-async function loadShardedSearchIndex(pointerData) {
-    const manifestPath = pointerData.manifest;
-    if (!manifestPath) {
-        throw new Error('Search index pointer is missing manifest');
-    }
-
-    const manifest = await fetchJson(manifestPath);
-    const shardPayloads = await Promise.all(
-        (manifest.shards || []).map(shard => fetchJson(shard.path))
-    );
-    const skills = shardPayloads.flatMap(payload => payload.s || []);
-    return normalizeSearchIndex({
-        v: manifest.v || pointerData.v || '',
-        t: manifest.total_count || pointerData.t || skills.length,
-        s: skills
-    });
-}
-
-async function loadSearchIndexUrl(url) {
-    const indexData = await fetchJson(url);
-    if (indexData.deprecated_full_payload && indexData.manifest) {
-        return loadShardedSearchIndex(indexData);
-    }
-    return normalizeSearchIndex(indexData);
-}
-
 async function loadSearchIndex() {
-    try {
-        return await loadSearchIndexUrl(CONFIG.INDEX_URL);
-    } catch (error) {
-        console.warn(`Failed to load ${CONFIG.INDEX_URL}; falling back to ${CONFIG.LEGACY_INDEX_URL}:`, error);
-        return await loadSearchIndexUrl(CONFIG.LEGACY_INDEX_URL);
-    }
+    return normalizeSearchIndex(await fetchJson(CONFIG.INDEX_URL));
 }
 
 function formatResultCount(count) {
@@ -285,12 +250,22 @@ function updateRegistryCountDisplay() {
             `Search and discover ${formattedDeduped} Claude Code skills for Claude Code, Codex CLI, and ChatGPT.`
         );
     }
+    updateSearchScopeDisplay();
 }
 
-// Initialize
+function updateSearchScopeDisplay() {
+    const included = Number(state.index?.includedCount || state.index?.s?.length || 0);
+    const total = Number(state.index?.t || getDisplaySkillCount() || included);
+    const full = !state.index?.isLite;
+    elements.searchScope.textContent = full
+        ? `Searching all ${total.toLocaleString()} skills`
+        : `Searching ${included.toLocaleString()} highlighted of ${total.toLocaleString()} skills`;
+    elements.searchAllBtn.textContent = full ? 'All skills loaded' : `Search all ${total.toLocaleString()}`;
+    elements.searchAllBtn.disabled = full;
+}
+
 async function init() {
     try {
-        // Load index and featured in parallel
         const [indexData, featuredData, categoriesData, statsData, pluginsData] = await Promise.all([
             loadSearchIndex(),
             fetch(CONFIG.FEATURED_URL).then(r => r.json()).catch(() => ({ skills: [] })),
@@ -305,21 +280,16 @@ async function init() {
         state.categories = categoriesData.categories || [];
         state.stats = statsData || {};
 
-        // Initialize Fuse.js
         state.fuse = new Fuse(state.index.s, CONFIG.FUSE_OPTIONS);
 
-        // Update UI
         updateRegistryCountDisplay();
         elements.lastUpdated.textContent = `Updated: ${state.index.v}`;
 
-        // Populate category filters
         populateCategoryFilter();
         populateLeaderboardCategoryFilter();
 
-        // Show featured
         showFeatured();
 
-        // Hide loading
         elements.loading.classList.add('hidden');
         state.isLoading = false;
 
@@ -333,7 +303,6 @@ async function init() {
     }
 }
 
-// Populate category filter
 function populateCategoryFilter() {
     state.categories.forEach(cat => {
         const option = document.createElement('option');
@@ -343,7 +312,6 @@ function populateCategoryFilter() {
     });
 }
 
-// Populate leaderboard category filter
 function populateLeaderboardCategoryFilter() {
     state.categories.forEach(cat => {
         const option = document.createElement('option');
@@ -357,10 +325,7 @@ function findCategoryByCode(code) {
     return state.categories.find(cat => cat.code === code);
 }
 
-async function loadCategorySkills(categoryCode) {
-    if (!categoryCode) {
-        return state.index.s;
-    }
+async function loadCategoryLeaderboardSkills(categoryCode) {
     if (state.categoryCache[categoryCode]) {
         return state.categoryCache[categoryCode];
     }
@@ -371,45 +336,64 @@ async function loadCategorySkills(categoryCode) {
     }
 
     const manifest = await fetchJson(category.manifest);
-    const partPayloads = await Promise.all(
-        (manifest.parts || []).map(part => fetchJson(part.path))
-    );
-    const skills = partPayloads
-        .flatMap(part => part.skills || [])
-        .map(normalizeSkillRecord);
+    const firstPart = (manifest.parts || [])[0];
+    if (!firstPart) return [];
+    const payload = await fetchJson(firstPart.path);
+    const skills = (payload.skills || []).map(normalizeSkillRecord);
+    const required = Math.min(CONFIG.LEADERBOARD_SIZE, Number(manifest.count || 0));
+    if (skills.length < required) {
+        throw new Error(`First ranked part contains ${skills.length} of ${required} required skills`);
+    }
     state.categoryCache[categoryCode] = skills;
     return skills;
 }
 
-async function loadFullSearchSkills() {
+async function loadFullSearchIndex() {
     if (!state.index?.isLite) {
-        return state.index?.s || [];
+        return state.index;
     }
     if (state.fullIndex) {
-        return state.fullIndex.s;
+        return state.fullIndex;
     }
-
-    state.fullIndex = await loadSearchIndexUrl(CONFIG.LEGACY_INDEX_URL);
-    return state.fullIndex.s;
+    const pointer = await fetchJson(CONFIG.LEGACY_INDEX_URL);
+    if (!pointer.manifest) throw new Error('Search index pointer is missing manifest');
+    const manifest = await fetchJson(pointer.manifest);
+    const payloads = await Promise.all((manifest.shards || []).map(shard => fetchJson(shard.path)));
+    const skills = payloads.flatMap(payload => payload.s || []);
+    const total = Number(manifest.total_count || pointer.t || 0);
+    if (skills.length !== total) throw new Error(`Loaded ${skills.length} of ${total} skills`);
+    state.fullIndex = normalizeSearchIndex({ v: manifest.v || pointer.v || '', t: total, s: skills });
+    return state.fullIndex;
 }
 
 async function getFilterBaseSkills() {
-    if (state.currentCategory && !state.currentQuery) {
-        return loadCategorySkills(state.currentCategory);
-    }
     return state.index.s;
 }
 
-// Switch view
+async function activateFullSearch() {
+    elements.searchAllBtn.disabled = true;
+    elements.searchAllBtn.textContent = 'Loading all shards…';
+    elements.searchScope.textContent = 'Loading the complete offline search index…';
+    try {
+        state.index = await loadFullSearchIndex();
+        state.fuse = new Fuse(state.index.s, CONFIG.FUSE_OPTIONS);
+        updateSearchScopeDisplay();
+        if (state.currentQuery) search(state.currentQuery);
+        else if (hasActiveFilters()) await searchWithFiltersOnly();
+    } catch (error) {
+        elements.searchScope.textContent = `Full search failed: ${error.message}`;
+        elements.searchAllBtn.textContent = 'Retry Search all';
+        elements.searchAllBtn.disabled = false;
+    }
+}
+
 function switchView(view) {
     state.currentView = view;
 
-    // Update nav tabs
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.classList.toggle('active', tab.dataset.view === view);
     });
 
-    // Hide all sections
     elements.featuredSection.classList.add('hidden');
     elements.leaderboardSection.classList.add('hidden');
     elements.statsSection.classList.add('hidden');
@@ -420,7 +404,6 @@ function switchView(view) {
     elements.loadMore.classList.add('hidden');
     elements.statsBar.classList.toggle('hidden', view !== 'featured');
 
-    // Show selected section
     switch (view) {
         case 'featured':
             showFeatured();
@@ -440,7 +423,6 @@ function switchView(view) {
     }
 }
 
-// Search
 function search(query) {
     const startTime = performance.now();
 
@@ -454,7 +436,6 @@ function search(query) {
         return;
     }
 
-    // Hide all sections, show search results
     elements.featuredSection.classList.add('hidden');
     elements.leaderboardSection.classList.add('hidden');
     elements.statsSection.classList.add('hidden');
@@ -463,16 +444,12 @@ function search(query) {
     elements.searchResults.classList.remove('hidden');
     elements.statsBar.classList.remove('hidden');
 
-    // Reset nav tabs
     document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
 
-    // Perform search
     let results = state.fuse.search(state.currentQuery);
 
-    // Apply all filters (category, stars, source, tags)
     results = applyAllFilters(results);
 
-    // Apply sort
     if (state.currentSort === 'stars') {
         results.sort((a, b) => (b.item.r || 0) - (a.item.r || 0));
     } else if (state.currentSort === 'name') {
@@ -484,7 +461,6 @@ function search(query) {
     const endTime = performance.now();
     const searchTimeMs = (endTime - startTime).toFixed(1);
 
-    // Update UI
     elements.resultCount.textContent = formatResultCount(results.length);
     elements.searchTime.textContent = `${searchTimeMs}ms`;
 
@@ -498,7 +474,6 @@ function search(query) {
     }
 }
 
-// Event Listeners
 elements.searchInput.addEventListener('input', debounce((e) => {
     search(e.target.value);
 }, CONFIG.DEBOUNCE_MS));
@@ -520,28 +495,24 @@ elements.sortFilter.addEventListener('change', (e) => {
 });
 
 elements.loadMoreBtn.addEventListener('click', displayResults);
+elements.searchAllBtn.addEventListener('click', activateFullSearch);
 
-// Nav tabs
 elements.navTabs.addEventListener('click', (e) => {
     const tab = e.target.closest('.nav-tab');
     if (tab) {
         const view = tab.dataset.view;
         switchView(view);
-        // Clear search when switching views
         elements.searchInput.value = '';
         state.currentQuery = '';
     }
 });
 
-// Leaderboard category filter
 elements.leaderboardCategory.addEventListener('change', (e) => {
     showLeaderboard(e.target.value);
 });
 
-// Random button
 elements.randomBtn.addEventListener('click', showRandomSkill);
 
-// Quick tags
 elements.quickTags.addEventListener('click', (e) => {
     if (e.target.classList.contains('tag')) {
         const query = e.target.dataset.query;
@@ -550,7 +521,6 @@ elements.quickTags.addEventListener('click', (e) => {
     }
 });
 
-// Modal
 elements.modalClose.addEventListener('click', () => {
     elements.modal.classList.add('hidden');
 });

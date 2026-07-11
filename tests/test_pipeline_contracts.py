@@ -7,15 +7,16 @@ def read_repo_file(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_pages_app_prefers_lite_index_with_full_index_fallback():
+def test_pages_app_keeps_full_index_behind_explicit_action():
     app_js = read_repo_file("docs/js/app.js")
+    index_html = read_repo_file("docs/index.html")
 
     assert "INDEX_URL: 'search-index-lite.json'" in app_js
     assert "LEGACY_INDEX_URL: 'search-index.json'" in app_js
     assert "function normalizeSearchIndex" in app_js
     assert "function loadSearchIndex" in app_js
-    assert "return await loadSearchIndexUrl(CONFIG.INDEX_URL)" in app_js
-    assert "return await loadSearchIndexUrl(CONFIG.LEGACY_INDEX_URL)" in app_js
+    assert "function activateFullSearch" in app_js
+    assert 'id="search-all-btn"' in index_html
     assert "in highlighted index" in app_js
 
 
@@ -80,16 +81,15 @@ def test_static_artifact_api_contract_covers_pointer_and_manifest_fields():
         assert term in contract
 
 
-def test_pages_leaderboard_loads_full_data_before_ranking():
+def test_pages_leaderboard_uses_bounded_sources():
     app_js = read_repo_file("docs/js/app.js")
     render_js = read_repo_file("docs/js/app-render.js")
 
     assert "fullIndex: null" in app_js
-    assert "async function loadFullSearchSkills()" in app_js
-    assert "loadSearchIndexUrl(CONFIG.LEGACY_INDEX_URL)" in app_js
+    assert "async function loadCategoryLeaderboardSkills" in app_js
     assert "async function showLeaderboard" in render_js
-    assert "await loadCategorySkills(categoryFilter)" in render_js
-    assert "await loadFullSearchSkills()" in render_js
+    assert "await loadCategoryLeaderboardSkills(categoryFilter)" in render_js
+    assert "state.featured.map(normalizeSkillRecord)" in render_js
 
 
 def test_publish_sync_runs_generated_size_guard_after_rebuild():
