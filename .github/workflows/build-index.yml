@@ -61,14 +61,124 @@ jobs:
           fetch-depth: 1
 
       - name: Generate security report for checked-out data
+        id: security_scan
+        env:
+          SECURITY_REPORT: ${{ runner.temp }}/security-report.json
         run: |
+          set +e
           python scripts/security_scanner.py \
             skills/ \
             --quiet \
             --require-metadata \
-            --output "$RUNNER_TEMP/security-report.json"
-          test -s "$RUNNER_TEMP/security-report.json"
-          ls -la "$RUNNER_TEMP/security-report.json"
+            --output "$SECURITY_REPORT"
+          scan_exit=$?
+          set -e
+
+          report_present=false
+          report_valid=false
+          archive_present=false
+          if [ -s "$SECURITY_REPORT" ]; then
+            report_present=true
+            if python - "$SECURITY_REPORT" <<'PY'
+          import json
+          import os
+          import sys
+          from collections import Counter
+
+          report_path = sys.argv[1]
+          with open(report_path, encoding="utf-8") as handle:
+              report = json.load(handle)
+
+          skills = report.get("skills")
+          total = report.get("total")
+          passed = report.get("passed")
+          failed = report.get("failed")
+          if not isinstance(skills, list):
+              raise ValueError("security report is missing skills")
+          if not all(isinstance(value, int) for value in (total, passed, failed)):
+              raise ValueError("security report has invalid aggregate counts")
+          counted_passed = sum(result.get("safe") is True for result in skills)
+          counted_failed = sum(result.get("safe") is False for result in skills)
+          if (total, passed, failed) != (len(skills), counted_passed, counted_failed):
+              raise ValueError("security report aggregate counts do not match skill decisions")
+
+          error_types = Counter(
+              issue.get("type", "unknown")
+              for result in skills
+              for issue in result.get("issues", [])
+              if issue.get("severity") == "error"
+          )
+          summary_path = os.environ["GITHUB_STEP_SUMMARY"]
+          with open(summary_path, "a", encoding="utf-8") as summary:
+              summary.write("## Archive security scan\n\n")
+              summary.write(f"- Total: {total}\n- Passed: {passed}\n- Failed: {failed}\n")
+              if error_types:
+                  summary.write("\n### Error taxonomy\n\n")
+                  for issue_type, count in error_types.most_common():
+                      summary.write(f"- `{issue_type}`: {count}\n")
+          PY
+            then
+              report_valid=true
+            else
+              echo "Security report is not valid JSON evidence." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            if gzip -c "$SECURITY_REPORT" > "$SECURITY_REPORT.gz"; then
+              archive_present=true
+            fi
+          else
+            echo "## Archive security scan" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Security scanner did not produce a non-empty report." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          {
+            echo "exit_code=$scan_exit"
+            echo "report_present=$report_present"
+            echo "report_valid=$report_valid"
+            echo "archive_present=$archive_present"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload security scan evidence
+        id: security_evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-index-security-report-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/security-report.json.gz
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce archive security scan
+        if: always()
+        env:
+          SCAN_EXIT: ${{ steps.security_scan.outputs.exit_code }}
+          REPORT_PRESENT: ${{ steps.security_scan.outputs.report_present }}
+          REPORT_VALID: ${{ steps.security_scan.outputs.report_valid }}
+          ARCHIVE_PRESENT: ${{ steps.security_scan.outputs.archive_present }}
+          EVIDENCE_UPLOAD_OUTCOME: ${{ steps.security_evidence.outcome }}
+          SECURITY_REPORT: ${{ runner.temp }}/security-report.json
+        run: |
+          failed=0
+          if [ "$SCAN_EXIT" != "0" ]; then
+            echo "::error::Security scanner failed with exit code ${SCAN_EXIT:-missing}."
+            failed=1
+          fi
+          if [ "$REPORT_PRESENT" != "true" ] || [ "$REPORT_VALID" != "true" ]; then
+            echo "::error::Security report is missing or invalid."
+            failed=1
+          fi
+          if [ "$ARCHIVE_PRESENT" != "true" ] || [ ! -s "$SECURITY_REPORT.gz" ]; then
+            echo "::error::Compressed security evidence is missing."
+            failed=1
+          fi
+          if [ "$EVIDENCE_UPLOAD_OUTCOME" != "success" ]; then
+            echo "::error::Security evidence upload did not succeed."
+            failed=1
+          fi
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+          test -s "$SECURITY_REPORT"
 
       - name: Build search index
         run: |

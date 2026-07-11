@@ -242,6 +242,29 @@ def test_scanner_rejects_missing_frontmatter(tmp_path):
     assert any(issue.get("type") == "no_frontmatter" for issue in issues)
 
 
+def test_scanner_does_not_duplicate_yaml_parse_error_as_missing_frontmatter(tmp_path):
+    module = load_module()
+    skill_dir = tmp_path / "demo"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        """---
+name: demo
+description: Invalid YAML: unquoted colon
+---
+
+# Demo
+""",
+        encoding="utf-8",
+    )
+
+    scanner = module.SecurityScanner()
+    is_safe, issues = scanner.scan_file(skill_dir / "SKILL.md")
+
+    assert is_safe is False
+    assert any(issue.get("type") == "yaml_parse_error" for issue in issues)
+    assert not any(issue.get("type") == "no_frontmatter" for issue in issues)
+
+
 def test_single_file_scan_exits_nonzero_for_unsafe_skill(tmp_path):
     skill_dir = tmp_path / "demo"
     skill_dir.mkdir(parents=True)
@@ -529,6 +552,46 @@ description: Demo skill used to verify bundled SKILL.md target filtering.
     report = module.scan_directory(skills_dir, quiet=True)
 
     assert report["total"] == 1
+    assert report["failed"] == 0
+    assert report["skills"][0]["path"] == "design/deterministic-design/SKILL.md"
+
+
+def test_relative_archive_root_skips_declared_bundled_skill_markdown(
+    tmp_path, monkeypatch
+):
+    module = load_module()
+    skills_dir = tmp_path / "skills"
+    skill_dir = skills_dir / "design" / "deterministic-design"
+    bundled_dir = skill_dir / "design-spatial"
+    bundled_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        """---
+name: deterministic-design
+description: Demo skill used to verify relative workflow archive scanning.
+---
+
+# Deterministic Design
+""",
+        encoding="utf-8",
+    )
+    (skill_dir / "metadata.json").write_text(
+        json.dumps({"bundled_files": ["design-spatial/SKILL.md"]}),
+        encoding="utf-8",
+    )
+    (bundled_dir / "SKILL.md").write_text(
+        "---\ndescription: Broken support frontmatter: not an archive skill\n---\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    report = module.scan_directory(
+        Path("skills"),
+        quiet=True,
+        require_metadata=True,
+    )
+
+    assert report["total"] == 1
+    assert report["passed"] == 1
     assert report["failed"] == 0
     assert report["skills"][0]["path"] == "design/deterministic-design/SKILL.md"
 

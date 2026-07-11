@@ -192,11 +192,15 @@ def test_build_index_generates_security_report_for_checked_out_data():
     build_steps = workflow[workflow.index("Generate security report for checked-out data") :]
 
     security_pos = build_steps.index("scripts/security_scanner.py")
+    upload_pos = build_steps.index("Upload security scan evidence")
+    enforce_pos = build_steps.index("Enforce archive security scan")
     build_pos = build_steps.index("scripts/build_search_index.py")
-    security_block = build_steps[security_pos:build_pos]
+    security_block = build_steps[security_pos:upload_pos]
+    upload_block = build_steps[upload_pos:enforce_pos]
+    enforce_block = build_steps[enforce_pos:build_pos]
 
-    assert security_pos < build_pos
-    assert "--output \"$RUNNER_TEMP/security-report.json\"" in build_steps
+    assert security_pos < upload_pos < enforce_pos < build_pos
+    assert "--output \"$SECURITY_REPORT\"" in security_block
     assert "--security-report \"$RUNNER_TEMP/security-report.json\"" in build_steps
     assert "--output docs/security-report.json" not in build_steps
     assert "unzip -o security-report.zip -d docs || true" not in build_steps
@@ -204,7 +208,21 @@ def test_build_index_generates_security_report_for_checked_out_data():
     assert "--report-only" not in security_block
     assert "continue-on-error" not in security_block
     assert "|| true" not in security_block
-    assert "test -s \"$RUNNER_TEMP/security-report.json\"" in build_steps
+    assert "scan_exit=$?" in security_block
+    assert "GITHUB_STEP_SUMMARY" in security_block
+    assert "Error taxonomy" in security_block
+    assert "gzip -c \"$SECURITY_REPORT\"" in security_block
+    assert "if: always()" in upload_block
+    assert "actions/upload-artifact@v7" in upload_block
+    assert "security-report.json.gz" in upload_block
+    assert "if: always()" in enforce_block
+    assert "steps.security_scan.outputs.exit_code" in enforce_block
+    assert "steps.security_scan.outputs.report_present" in enforce_block
+    assert "steps.security_scan.outputs.report_valid" in enforce_block
+    assert "steps.security_scan.outputs.archive_present" in enforce_block
+    assert "steps.security_evidence.outcome" in enforce_block
+    assert "exit 1" in enforce_block
+    assert "test -s \"$SECURITY_REPORT\"" in enforce_block
     assert "--allow-missing-security-evidence" not in build_steps
     assert "'scripts/build_search_index.py'" in workflow
     assert "'scripts/search_sources.py'" in workflow

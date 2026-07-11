@@ -149,7 +149,7 @@ class SecurityScanner:
         frontmatter = self._extract_frontmatter(content)
         if frontmatter:
             self._validate_schema(frontmatter)
-        else:
+        elif not any(issue.get("type") == "yaml_parse_error" for issue in self.issues):
             self.issues.append(
                 {
                     "severity": "error",
@@ -632,11 +632,14 @@ def scan_directory(
     }
 
     if selected_files is None:
-        scan_targets = (
-            skill_file
-            for skill_file in skills_dir.rglob("SKILL.md")
-            if not is_declared_bundled_skill_file(skill_file, skills_root)
-        )
+        def directory_scan_targets():
+            for skill_file in skills_dir.rglob("SKILL.md"):
+                resolved_skill_file = skill_file.resolve()
+                if is_declared_bundled_skill_file(resolved_skill_file, skills_root):
+                    continue
+                yield resolved_skill_file
+
+        scan_targets = directory_scan_targets()
     else:
         scan_targets = selected_files
 
