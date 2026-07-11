@@ -76,6 +76,7 @@ let state = {
     currentCategory: '',
     currentSort: 'relevance',
     currentView: 'featured',
+    leaderboardRequestToken: 0,
     currentStarsFilter: '',
     currentSourceFilter: '',
     currentTagFilters: [],
@@ -189,6 +190,20 @@ function normalizeSearchIndex(indexData) {
     }
 
     throw new Error('Unsupported search index schema');
+}
+
+function requireSchemaOne(value, label) {
+    if (!value || value.schema_version !== 1) throw new Error(`${label} schema_version must be 1`);
+}
+
+function isSafeArtifactPath(path, prefix) {
+    return typeof path === 'string' && path.startsWith(prefix) &&
+        !path.startsWith('/') && !path.includes('\\') && !path.includes('://') &&
+        path.split('/').every(part => part && part !== '.' && part !== '..');
+}
+
+function requireNonNegativeInteger(value, label) {
+    if (!Number.isInteger(value) || value < 0) throw new Error(`${label} must be a non-negative integer`);
 }
 
 async function loadSearchIndex() {
@@ -331,19 +346,46 @@ async function loadCategoryLeaderboardSkills(categoryCode) {
     }
 
     const category = findCategoryByCode(categoryCode);
-    if (!category || !category.manifest) {
-        return state.index.s.filter(skill => skill.c === categoryCode);
-    }
+    if (!category) throw new Error(`Unknown leaderboard category: ${categoryCode}`);
+    if (!isSafeArtifactPath(category.manifest, 'categories/')) throw new Error('Invalid category manifest path');
 
     const manifest = await fetchJson(category.manifest);
-    const firstPart = (manifest.parts || [])[0];
-    if (!firstPart) return [];
-    const payload = await fetchJson(firstPart.path);
-    const skills = (payload.skills || []).map(normalizeSkillRecord);
-    const required = Math.min(CONFIG.LEADERBOARD_SIZE, Number(manifest.count || 0));
-    if (skills.length < required) {
-        throw new Error(`First ranked part contains ${skills.length} of ${required} required skills`);
+    requireSchemaOne(manifest, 'Category manifest');
+    if (manifest.part_strategy !== 'bounded-sequential-stars-desc') {
+        throw new Error('Category manifest is not stars-desc ranked');
     }
+    if (manifest.code !== categoryCode || manifest.category !== category.name) {
+        throw new Error('Category manifest identity mismatch');
+    }
+    requireNonNegativeInteger(manifest.count, 'Category count');
+    requireNonNegativeInteger(manifest.part_count, 'Category part_count');
+    const parts = Array.isArray(manifest.parts) ? manifest.parts : [];
+    if (parts.length !== manifest.part_count) throw new Error('Category part_count mismatch');
+    const paths = new Set();
+    let entryTotal = 0;
+    parts.forEach(part => {
+        requireNonNegativeInteger(part.count, 'Category part entry count');
+        if (!isSafeArtifactPath(part.path, 'categories/') || paths.has(part.path)) {
+            throw new Error('Invalid or duplicate category part path');
+        }
+        paths.add(part.path);
+        entryTotal += part.count;
+    });
+    if (entryTotal !== manifest.count) throw new Error('Category part counts do not match total');
+    const firstPart = parts[0];
+    if (!firstPart && manifest.count > 0) throw new Error('Category manifest has no first part');
+    if (!firstPart) return [];
+    const required = Math.min(CONFIG.LEADERBOARD_SIZE, manifest.count);
+    if (!firstPart.path.endsWith('/part-000.json') || firstPart.count < required) throw new Error('First ranked part cannot satisfy leaderboard');
+    const payload = await fetchJson(firstPart.path);
+    requireSchemaOne(payload, 'Category part');
+    if (payload.part !== 0 || payload.part_count !== manifest.part_count ||
+        payload.category !== manifest.category || payload.code !== categoryCode) {
+        throw new Error('Category first-part identity mismatch');
+    }
+    if (!Array.isArray(payload.skills) || payload.count !== firstPart.count ||
+        payload.skills.length !== firstPart.count) throw new Error('Category first-part count mismatch');
+    const skills = (payload.skills || []).map(normalizeSkillRecord);
     state.categoryCache[categoryCode] = skills;
     return skills;
 }
@@ -356,12 +398,44 @@ async function loadFullSearchIndex() {
         return state.fullIndex;
     }
     const pointer = await fetchJson(CONFIG.LEGACY_INDEX_URL);
-    if (!pointer.manifest) throw new Error('Search index pointer is missing manifest');
+    requireSchemaOne(pointer, 'Search index pointer');
+    if (pointer.deprecated_full_payload !== true || pointer.manifest !== 'search-index-manifest.json') {
+        throw new Error('Search index pointer has invalid manifest path');
+    }
     const manifest = await fetchJson(pointer.manifest);
-    const payloads = await Promise.all((manifest.shards || []).map(shard => fetchJson(shard.path)));
-    const skills = payloads.flatMap(payload => payload.s || []);
-    const total = Number(manifest.total_count || pointer.t || 0);
-    if (skills.length !== total) throw new Error(`Loaded ${skills.length} of ${total} skills`);
+    requireSchemaOne(manifest, 'Search index manifest');
+    requireNonNegativeInteger(manifest.total_count, 'Search total_count');
+    requireNonNegativeInteger(manifest.shard_count, 'Search shard_count');
+    const shards = Array.isArray(manifest.shards) ? manifest.shards : [];
+    if (shards.length !== manifest.shard_count || pointer.t !== manifest.total_count) {
+        throw new Error('Search manifest count mismatch');
+    }
+    const paths = new Set();
+    let entryTotal = 0;
+    shards.forEach(shard => {
+        requireNonNegativeInteger(shard.count, 'Search shard entry count');
+        if (!isSafeArtifactPath(shard.path, 'search-shards/') || paths.has(shard.path)) {
+            throw new Error('Invalid or duplicate search shard path');
+        }
+        paths.add(shard.path);
+        entryTotal += shard.count;
+    });
+    if (entryTotal !== manifest.total_count) throw new Error('Search shard counts do not match total');
+    const payloads = await Promise.all(shards.map(shard => fetchJson(shard.path)));
+    payloads.forEach((payload, index) => {
+        requireSchemaOne(payload, 'Search shard');
+        if (payload.part !== index || payload.part_count !== manifest.shard_count ||
+            !Array.isArray(payload.s) || payload.count !== shards[index].count ||
+            payload.s.length !== shards[index].count) throw new Error('Search shard identity/count mismatch');
+    });
+    const skills = payloads.flatMap(payload => payload.s);
+    if (skills.some(skill => typeof skill.i !== 'string' || !skill.i ||
+        typeof skill.b !== 'string' || !skill.b)) throw new Error('Search record stable key is missing');
+    const stableKeys = skills.map(skill => `${skill.i}|${skill.b}`);
+    if (new Set(stableKeys).size !== skills.length) {
+        throw new Error('Search shards contain missing or duplicate stable records');
+    }
+    const total = manifest.total_count;
     state.fullIndex = normalizeSearchIndex({ v: manifest.v || pointer.v || '', t: total, s: skills });
     return state.fullIndex;
 }
@@ -535,42 +609,31 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
-    // Focus search on '/'
     if (e.key === '/' && document.activeElement !== elements.searchInput) {
         e.preventDefault();
         elements.searchInput.focus();
     }
-    // Random skill on 'r'
     if (e.key === 'r' && document.activeElement !== elements.searchInput && !elements.modal.classList.contains('hidden') === false) {
         showRandomSkill();
     }
 });
 
-// ═══════════════════════════════════════════════════════════
-// ADVANCED FILTERS
-// ═══════════════════════════════════════════════════════════
-
-// Toggle advanced filters panel
 elements.filterToggle.addEventListener('click', () => {
     elements.advancedFilters.classList.toggle('hidden');
     elements.filterToggle.classList.toggle('active');
 });
 
-// Stars filter
 elements.starsFilter.addEventListener('change', (e) => {
     state.currentStarsFilter = e.target.value;
     runFilterSearch();
 });
 
-// Source filter
 elements.sourceFilter.addEventListener('change', (e) => {
     state.currentSourceFilter = e.target.value;
     runFilterSearch();
 });
 
-// Tag filter input
 elements.tagFilter.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.value.trim()) {
         e.preventDefault();
@@ -584,7 +647,6 @@ elements.tagFilter.addEventListener('keydown', (e) => {
     }
 });
 
-// Render active tag filters
 function renderActiveTags() {
     elements.activeTags.innerHTML = state.currentTagFilters.map(tag => {
         const safe = escapeHtml(tag);
@@ -592,7 +654,6 @@ function renderActiveTags() {
     }).join('');
 }
 
-// Delegate click for tag removal (avoids inline onclick XSS risk)
 elements.activeTags.addEventListener('click', (e) => {
     const btn = e.target.closest('.remove-tag-btn');
     if (btn) {
@@ -603,7 +664,6 @@ elements.activeTags.addEventListener('click', (e) => {
     }
 });
 
-// Clear all filters
 elements.clearFilters.addEventListener('click', () => {
     state.currentStarsFilter = '';
     state.currentSourceFilter = '';
@@ -623,23 +683,19 @@ function runFilterSearch() {
     });
 }
 
-// Apply all filters and search
 async function applyFiltersAndSearch() {
     if (state.currentQuery) {
         search(state.currentQuery);
     } else if (hasActiveFilters()) {
-        // If no search query but filters active, search all
         await searchWithFiltersOnly();
     }
 }
 
-// Check if any filters are active
 function hasActiveFilters() {
     return state.currentStarsFilter || state.currentSourceFilter ||
            state.currentTagFilters.length > 0 || state.currentCategory;
 }
 
-// Search with only filters (no query)
 async function searchWithFiltersOnly() {
     const startTime = performance.now();
     state.displayedCount = 0;
@@ -647,10 +703,8 @@ async function searchWithFiltersOnly() {
     const baseSkills = await getFilterBaseSkills();
     let results = baseSkills.map(item => ({ item, score: 0 }));
 
-    // Apply filters
     results = applyAllFilters(results);
 
-    // Apply sort
     if (state.currentSort === 'stars') {
         results.sort((a, b) => (b.item.r || 0) - (a.item.r || 0));
     } else if (state.currentSort === 'name') {
@@ -662,7 +716,6 @@ async function searchWithFiltersOnly() {
     const endTime = performance.now();
     const searchTimeMs = (endTime - startTime).toFixed(1);
 
-    // Update UI
     elements.featuredSection.classList.add('hidden');
     elements.leaderboardSection.classList.add('hidden');
     elements.statsSection.classList.add('hidden');
@@ -686,14 +739,11 @@ async function searchWithFiltersOnly() {
     }
 }
 
-// Apply all filters to results
 function applyAllFilters(results) {
-    // Category filter
     if (state.currentCategory) {
         results = results.filter(r => r.item.c === state.currentCategory);
     }
 
-    // Stars filter
     if (state.currentStarsFilter) {
         const minStars = parseStarsFilter(state.currentStarsFilter);
         if (minStars === 0) {
@@ -703,7 +753,6 @@ function applyAllFilters(results) {
         }
     }
 
-    // Source filter
     if (state.currentSourceFilter) {
         if (state.currentSourceFilter === 'official') {
             results = results.filter(r => r.item.c === 'off');
@@ -712,7 +761,6 @@ function applyAllFilters(results) {
         }
     }
 
-    // Tag filters
     if (state.currentTagFilters.length > 0) {
         results = results.filter(r => {
             const tags = (r.item.g || []).map(t => t.toLowerCase());
@@ -725,7 +773,6 @@ function applyAllFilters(results) {
     return results;
 }
 
-// Parse stars filter value
 function parseStarsFilter(value) {
     if (value === '0') return 0;
     if (value === '10+') return 10;
@@ -735,17 +782,11 @@ function parseStarsFilter(value) {
     return -1;
 }
 
-// ═══════════════════════════════════════════════════════════
-// THEME TOGGLE
-// ═══════════════════════════════════════════════════════════
-
-// Initialize theme
 function initTheme() {
     document.documentElement.setAttribute('data-theme', state.theme);
     elements.themeIcon.textContent = state.theme === 'dark' ? '🌙' : '☀️';
 }
 
-// Toggle theme
 elements.themeToggle.addEventListener('click', () => {
     state.theme = state.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', state.theme);
@@ -753,8 +794,6 @@ elements.themeToggle.addEventListener('click', () => {
     elements.themeIcon.textContent = state.theme === 'dark' ? '🌙' : '☀️';
 });
 
-// Initialize theme on load
 initTheme();
 
-// Initialize
 init();

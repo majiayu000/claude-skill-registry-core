@@ -13,6 +13,7 @@ function showFeatured() {
 
 // Show leaderboard
 async function showLeaderboard(categoryFilter = '') {
+    const requestToken = ++state.leaderboardRequestToken;
     elements.leaderboardSection.classList.remove('hidden');
     elements.leaderboardList.innerHTML = '';
     elements.leaderboardStatus.textContent = categoryFilter
@@ -24,10 +25,12 @@ async function showLeaderboard(categoryFilter = '') {
         skills = categoryFilter
             ? await loadCategoryLeaderboardSkills(categoryFilter)
             : state.featured.map(normalizeSkillRecord);
+        if (requestToken !== state.leaderboardRequestToken) return;
         elements.leaderboardStatus.textContent = categoryFilter
             ? 'Top skills from the first stars-ranked category part'
             : 'Top skills from the featured catalog — no full-index download';
     } catch (error) {
+        if (requestToken !== state.leaderboardRequestToken) return;
         elements.leaderboardStatus.textContent =
             `Leaderboard load failed: ${error.message}. Showing highlighted results; change category to retry.`;
         skills = categoryFilter

@@ -72,6 +72,7 @@ const CATEGORY_NAMES = { dev: 'Development', oth: 'Other' };
 const CATEGORY_CODES_REVERSE = { development: 'dev', other: 'oth' };
 let state = {
   index: null, fullIndex: null, categories: [], categoryCache: {}, featured: [],
+  leaderboardRequestToken: 0,
   currentQuery: '', currentStarsFilter: '', currentSourceFilter: '',
   currentTagFilters: [], currentCategory: ''
 };
@@ -80,6 +81,9 @@ eval(extract(app, 'fetchJson'));
 eval(extract(app, 'normalizeCategoryCode'));
 eval(extract(app, 'normalizeSkillRecord'));
 eval(extract(app, 'normalizeSearchIndex'));
+eval(extract(app, 'requireSchemaOne'));
+eval(extract(app, 'isSafeArtifactPath'));
+eval(extract(app, 'requireNonNegativeInteger'));
 eval(extract(app, 'loadSearchIndex'));
 eval(extract(app, 'findCategoryByCode'));
 eval(extract(app, 'loadCategoryLeaderboardSkills'));
@@ -100,17 +104,36 @@ responses.set('search-index-lite.json', {
     name: `Rank ${i}`, install: `owner/rank-${i}`, stars: 1000 - i, category: 'development'
   }));
   responses.set('categories/development/manifest.json', {
-    count: 70,
-    parts: [{ path: 'categories/development/part-000.json' }, { path: 'categories/development/part-001.json' }]
+    schema_version: 1, category: 'development', code: 'dev', count: 70, part_count: 2,
+    part_strategy: 'bounded-sequential-stars-desc',
+    parts: [
+      { path: 'categories/development/part-000.json', count: 60 },
+      { path: 'categories/development/part-001.json', count: 10 }
+    ]
   });
-  responses.set('categories/development/part-000.json', { skills: firstPart });
+  responses.set('categories/development/part-000.json', {
+    schema_version: 1, category: 'development', code: 'dev', part: 0, part_count: 2,
+    count: 60, skills: firstPart
+  });
   responses.set('categories/development/part-001.json', { skills: [{ name: 'Must not fetch' }] });
-  state.categories = [{ code: 'dev', manifest: 'categories/development/manifest.json' }];
+  state.categories = [{ name: 'development', code: 'dev', manifest: 'categories/development/manifest.json' }];
   const categorySkills = await loadCategoryLeaderboardSkills('dev');
   assert.strictEqual(categorySkills.length, 60);
   assert.deepStrictEqual(requests.slice(1), [
     'categories/development/manifest.json', 'categories/development/part-000.json'
   ]);
+  state.categoryCache = {};
+  const categoryManifest = responses.get('categories/development/manifest.json');
+  delete categoryManifest.part_strategy;
+  const invalidCategoryStart = requests.length;
+  await assert.rejects(loadCategoryLeaderboardSkills('dev'), /not stars-desc ranked/);
+  assert.deepStrictEqual(requests.slice(invalidCategoryStart), ['categories/development/manifest.json']);
+  categoryManifest.part_strategy = 'bounded-sequential-stars-desc';
+  state.categories = [];
+  const missingCategoryStart = requests.length;
+  await assert.rejects(loadCategoryLeaderboardSkills('dev'), /Unknown leaderboard category/);
+  assert.strictEqual(requests.length, missingCategoryStart);
+  state.categories = [{ name: 'development', code: 'dev', manifest: 'categories/development/manifest.json' }];
 
   const beforeGlobal = requests.length;
   state.featured = [
@@ -132,19 +155,81 @@ responses.set('search-index-lite.json', {
   assert.strictEqual(requests.length, beforeGlobal);
   assert.strictEqual(globalElements.leaderboardList.innerHTML, 'Featured AFeatured B');
 
-  responses.set('search-index.json', { deprecated_full_payload: true, manifest: 'search-index-manifest.json' });
-  responses.set('search-index-manifest.json', {
-    v: 'full', total_count: 4,
-    shards: [{ path: 'search-shards/part-000.json' }, { path: 'search-shards/part-001.json' }]
+  let releaseSlow;
+  const delayedElements = {
+    leaderboardSection: { classList: { remove() {} } },
+    leaderboardList: { innerHTML: '' },
+    leaderboardStatus: { textContent: '' }
+  };
+  const delayedRunner = new Function(
+    'state', 'elements', 'CONFIG', 'normalizeSkillRecord', 'loadCategoryLeaderboardSkills',
+    'createLeaderboardCard', `${extract(render, 'showLeaderboard')}; return showLeaderboard;`
+  )(state, delayedElements, CONFIG, normalizeSkillRecord,
+    category => category === 'dev'
+      ? new Promise(resolve => { releaseSlow = resolve; })
+      : Promise.resolve([{ n: 'Fast category', r: 20, i: 'fast/skill', b: 'main' }]),
+    skill => skill.n);
+  const slowRequest = delayedRunner('dev');
+  await Promise.resolve();
+  await delayedRunner('oth');
+  const currentStatus = delayedElements.leaderboardStatus.textContent;
+  releaseSlow([{ n: 'Stale category', r: 100, i: 'stale/skill', b: 'main' }]);
+  await slowRequest;
+  assert.strictEqual(delayedElements.leaderboardList.innerHTML, 'Fast category');
+  assert.strictEqual(delayedElements.leaderboardStatus.textContent, currentStatus);
+
+  responses.set('search-index.json', {
+    schema_version: 1, t: 4, deprecated_full_payload: true, manifest: 'search-index-manifest.json'
   });
-  responses.set('search-shards/part-000.json', { s: [{ n: 'A' }, { n: 'B' }] });
-  responses.set('search-shards/part-001.json', { s: [{ n: 'C' }, { n: 'Needle' }] });
+  responses.set('search-index-manifest.json', {
+    schema_version: 1, v: 'full', total_count: 4, shard_count: 2,
+    shards: [
+      { path: 'search-shards/part-000.json', count: 2 },
+      { path: 'search-shards/part-001.json', count: 2 }
+    ]
+  });
+  responses.set('search-shards/part-000.json', {
+    schema_version: 1, part: 0, part_count: 2, count: 2,
+    s: [{ n: 'A', i: 'a/skill', b: 'main' }, { n: 'B', i: 'b/skill', b: 'main' }]
+  });
+  responses.set('search-shards/part-001.json', {
+    schema_version: 1, part: 1, part_count: 2, count: 2,
+    s: [{ n: 'C', i: 'c/skill', b: 'main' }, { n: 'Needle', i: 'n/skill', b: 'main' }]
+  });
   const full = await loadFullSearchIndex();
   assert.strictEqual(full.s.length, 4);
   assert.deepStrictEqual(requests.slice(beforeGlobal), [
     'search-index.json', 'search-index-manifest.json',
     'search-shards/part-000.json', 'search-shards/part-001.json'
   ]);
+
+  state.fullIndex = null;
+  responses.get('search-shards/part-001.json').s[1] = { n: 'Duplicate', i: 'a/skill', b: 'main' };
+  await assert.rejects(loadFullSearchIndex(), /duplicate stable records/);
+  responses.get('search-shards/part-001.json').s[1] = { n: 'Needle', i: 'n/skill', b: 'main' };
+
+  state.fullIndex = null;
+  const searchManifest = responses.get('search-index-manifest.json');
+  searchManifest.shards[0].path = '../escape.json';
+  const unsafeStart = requests.length;
+  await assert.rejects(loadFullSearchIndex(), /Invalid or duplicate search shard path/);
+  assert.deepStrictEqual(requests.slice(unsafeStart), ['search-index.json', 'search-index-manifest.json']);
+  searchManifest.shards[0].path = 'search-shards/part-000.json';
+
+  state.fullIndex = null;
+  responses.get('search-shards/part-000.json').part = 9;
+  await assert.rejects(loadFullSearchIndex(), /identity\/count mismatch/);
+  responses.get('search-shards/part-000.json').part = 0;
+
+  state.fullIndex = null;
+  delete responses.get('search-index.json').schema_version;
+  await assert.rejects(loadFullSearchIndex(), /schema_version must be 1/);
+  responses.get('search-index.json').schema_version = 1;
+
+  state.fullIndex = null;
+  searchManifest.shard_count = 3;
+  await assert.rejects(loadFullSearchIndex(), /manifest count mismatch/);
+  searchManifest.shard_count = 2;
 
   const actionState = { index: state.index, currentQuery: 'needle' };
   const actionElements = {
