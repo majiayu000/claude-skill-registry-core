@@ -627,8 +627,23 @@ def test_sync_data_handoff_generator_executes_with_exact_payload_bytes_and_hash(
     "corruption",
     ["missing", "invalid_json", "hash_mismatch", "extra_key", "field_mismatch"],
 )
-def test_sync_data_handoff_validator_executes_and_rejects_corruption(tmp_path, corruption):
+@pytest.mark.parametrize(
+    ("job_name", "step_name", "handoff_dir"),
+    [
+        (
+            "preflight",
+            "Validate replay handoff before mutation boundary",
+            "replay-handoff",
+        ),
+        ("publish", "Validate immutable publish handoff", "sync-publish-handoff"),
+    ],
+)
+def test_sync_data_handoff_validators_execute_and_reject_corruption(
+    tmp_path, corruption, job_name, step_name, handoff_dir
+):
     root, payload_bytes, evidence = build_valid_handoff(tmp_path)
+    if root.name != handoff_dir:
+        root = root.rename(tmp_path / handoff_dir)
     payload_path = root / "publish-dispatch-payload.json"
     evidence_path = root / "publish-dispatch-evidence.json"
     if corruption == "missing":
@@ -648,7 +663,7 @@ def test_sync_data_handoff_validator_executes_and_rejects_corruption(tmp_path, c
         evidence["payload_sha256"] = hashlib.sha256(changed_bytes).hexdigest()
         evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
 
-    step = workflow_step("publish", "Validate immutable publish handoff")
+    step = workflow_step(job_name, step_name)
     env = {
         "EXPECTED_RUN_ID": "1234",
         "EXPECTED_CORE_REPO": "Owner/Core",
@@ -658,6 +673,27 @@ def test_sync_data_handoff_validator_executes_and_rejects_corruption(tmp_path, c
     result = run_workflow_script(step, tmp_path, env)
 
     assert result.returncode != 0
+
+
+def test_sync_data_preflight_replay_validator_executes_and_accepts_valid_handoff(tmp_path):
+    root, _, _ = build_valid_handoff(tmp_path)
+    root.rename(tmp_path / "replay-handoff")
+    preflight = read_workflow(".github/workflows/sync-data.yml")["jobs"]["preflight"]
+    step = workflow_step("preflight", "Validate replay handoff before mutation boundary")
+    env = {
+        "EXPECTED_RUN_ID": "1234",
+        "EXPECTED_CORE_REPO": "Owner/Core",
+        "EXPECTED_DATA_REPO": "Owner/Data",
+        "EXPECTED_TARGET_REPO": "Owner/Main",
+    }
+
+    result = run_workflow_script(step, tmp_path, env)
+
+    assert result.returncode == 0, result.stderr
+    assert all("actions/checkout" not in candidate.get("uses", "") for candidate in preflight["steps"])
+    assert preflight["steps"].index(step) > preflight["steps"].index(
+        next(candidate for candidate in preflight["steps"] if candidate["name"] == "Download replay handoff")
+    )
 
 
 def test_sync_data_handoff_validator_executes_and_exports_verified_fields(tmp_path):
