@@ -1,10 +1,16 @@
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def read_repo_file(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+def read_workflow(path: str) -> dict:
+    return yaml.safe_load(read_repo_file(path))
 
 
 def test_pages_app_prefers_lite_index_with_full_index_fallback():
@@ -271,6 +277,174 @@ def test_sync_data_discovery_writes_to_archive_root_not_other_category():
 
     assert "--output skills/other" not in workflow
     assert workflow.count("--output skills") == 2
+
+
+def test_sync_data_preflight_is_main_only_and_precedes_repository_checkout():
+    workflow = read_repo_file(".github/workflows/sync-data.yml")
+    parsed = read_workflow(".github/workflows/sync-data.yml")
+    preflight = parsed["jobs"]["preflight"]
+
+    assert parsed["concurrency"] == {
+        "group": "sync-data-pipeline",
+        "cancel-in-progress": False,
+    }
+    assert preflight["steps"][0]["name"] == "Require main branch authority"
+    assert "refs/heads/main" in preflight["steps"][0]["run"]
+    assert all("actions/checkout" not in step.get("uses", "") for step in preflight["steps"])
+
+    branch_guard_pos = workflow.index("Require main branch authority")
+    config_guard_pos = workflow.index("Validate target repositories and write permissions")
+    checkout_pos = workflow.index("Checkout core")
+    discovery_pos = workflow.index("Resolve discovery profile")
+    push_pos = workflow.index("Commit & push data repo changes")
+    assert branch_guard_pos < config_guard_pos < checkout_pos < discovery_pos < push_pos
+
+
+def test_sync_data_preflight_fails_closed_on_invalid_targets_or_permissions():
+    workflow = read_repo_file(".github/workflows/sync-data.yml")
+    preflight = read_workflow(".github/workflows/sync-data.yml")["jobs"]["preflight"]
+    config_step = next(
+        step
+        for step in preflight["steps"]
+        if step["name"] == "Validate target repositories and write permissions"
+    )
+    config = config_step["run"]
+
+    for name in (
+        "REGISTRY_DATA_REPO",
+        "DATA_REPO_TOKEN",
+        "REGISTRY_MAIN_REPO",
+        "MAIN_REPO_TOKEN",
+    ):
+        assert name in config_step["env"]
+        assert name in config
+    assert "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" in config
+    assert 'response.get("default_branch") != "main"' in config
+    assert 'response.get("permissions", {}).get("push") is not True' in config
+    assert "Core, data, and main repositories must be distinct" in config
+    assert "ready=false" not in workflow
+    assert "skipping main publish dispatch" not in workflow
+
+
+def test_sync_data_uses_explicit_main_checkouts_rebases_and_pushes():
+    workflow = read_repo_file(".github/workflows/sync-data.yml")
+    sync = read_workflow(".github/workflows/sync-data.yml")["jobs"]["sync"]
+    checkouts = [step for step in sync["steps"] if step.get("uses") == "actions/checkout@v6"]
+
+    assert len(checkouts) == 2
+    assert all(step["with"]["ref"] == "main" for step in checkouts)
+    assert workflow.count("git fetch origin main") == 2
+    assert workflow.count("git rebase origin/main") == 2
+    assert workflow.count("git push origin HEAD:main") == 2
+    assert "if git push; then" not in workflow
+
+
+def test_sync_data_handoff_is_immutable_secret_free_and_precedes_dispatch():
+    workflow = read_repo_file(".github/workflows/sync-data.yml")
+    sync = read_workflow(".github/workflows/sync-data.yml")["jobs"]["sync"]
+    handoff = next(
+        step for step in sync["steps"] if step["name"] == "Build immutable publish handoff"
+    )
+    upload = next(
+        step for step in sync["steps"] if step["name"] == "Upload immutable publish handoff"
+    )
+
+    data_push_pos = workflow.index("Commit & push data repo changes")
+    core_push_pos = workflow.index("Commit & push core metadata changes")
+    capture_pos = workflow.index("Capture source SHAs")
+    handoff_pos = workflow.index("Build immutable publish handoff")
+    upload_pos = workflow.index("Upload immutable publish handoff")
+    dispatch_pos = workflow.index("Dispatch main publish workflow from immutable handoff")
+    build_index_pos = workflow.index("Dispatch build-index to refresh Pages")
+    assert data_push_pos < core_push_pos < capture_pos < handoff_pos < upload_pos < dispatch_pos
+    assert dispatch_pos < build_index_pos
+
+    assert upload["with"]["name"] == "sync-publish-handoff"
+    assert upload["with"]["if-no-files-found"] == "error"
+    assert upload["with"]["retention-days"] == 30
+    for field in (
+        '"schema_version": 1',
+        '"run_id": os.environ["RUN_ID"]',
+        '"run_attempt": 1',
+        '"target_repo": os.environ["REGISTRY_MAIN_REPO"]',
+        '"event_type": "publish_from_core"',
+        '"payload_sha256": hashlib.sha256(payload_bytes).hexdigest()',
+    ):
+        assert field in handoff["run"]
+    assert "TOKEN" not in handoff["env"]
+    assert "token" not in handoff["run"].lower()
+
+
+def test_sync_data_reruns_skip_mutation_and_require_valid_original_handoff():
+    parsed = read_workflow(".github/workflows/sync-data.yml")
+    preflight = parsed["jobs"]["preflight"]
+    sync = parsed["jobs"]["sync"]
+    publish = parsed["jobs"]["publish"]
+
+    assert sync["needs"] == "preflight"
+    assert sync["if"] == "github.run_attempt == 1"
+    assert publish["needs"] == ["preflight", "sync"]
+    assert "github.run_attempt > 1" in publish["if"]
+    assert "needs.sync.result == 'skipped'" in publish["if"]
+
+    replay_download = next(
+        step for step in preflight["steps"] if step["name"] == "Download replay handoff"
+    )
+    replay_validate = next(
+        step
+        for step in preflight["steps"]
+        if step["name"] == "Validate replay handoff before mutation boundary"
+    )
+    assert replay_download["if"] == "github.run_attempt > 1"
+    assert replay_validate["if"] == "github.run_attempt > 1"
+    assert replay_download["with"]["name"] == "sync-publish-handoff"
+    assert "run-id" not in replay_download["with"]
+    assert "repository" not in replay_download["with"]
+    for contract in (
+        "set(payload) != payload_keys",
+        "set(evidence) != evidence_keys",
+        '"run_attempt": 1',
+        "Replay payload/evidence mismatch",
+        "Replay payload hash mismatch",
+    ):
+        assert contract in replay_validate["run"]
+
+
+def test_sync_data_publish_sends_exact_payload_and_fails_with_safe_replay_evidence():
+    publish = read_workflow(".github/workflows/sync-data.yml")["jobs"]["publish"]
+    download = next(
+        step for step in publish["steps"] if step["name"] == "Download immutable publish handoff"
+    )
+    validate = next(
+        step for step in publish["steps"] if step["name"] == "Validate immutable publish handoff"
+    )
+    dispatch = next(
+        step
+        for step in publish["steps"]
+        if step["name"] == "Dispatch main publish workflow from immutable handoff"
+    )
+    build_index = next(
+        step
+        for step in publish["steps"]
+        if step["name"] == "Dispatch build-index to refresh Pages"
+    )
+
+    for contract in (
+        "set(payload) != payload_keys",
+        "set(evidence) != evidence_keys",
+        "Publish payload/evidence mismatch",
+        "Publish payload hash mismatch",
+    ):
+        assert contract in validate["run"]
+    assert download["with"]["name"] == "sync-publish-handoff"
+    assert "run-id" not in download["with"]
+    assert "repository" not in download["with"]
+    assert "if ! curl --fail-with-body -X POST" in dispatch["run"]
+    assert '--data-binary "@$PAYLOAD_FILE"' in dispatch["run"]
+    assert "GITHUB_STEP_SUMMARY" in dispatch["run"]
+    assert "target=$TARGET_REPO core=$CORE_SHA data=$DATA_SHA hash=$PAYLOAD_SHA256" in dispatch["run"]
+    assert "exit 1" in dispatch["run"]
+    assert "actions/workflows/build-index.yml/dispatches" in build_index["run"]
 
 
 def test_metadata_compliance_refuses_unexpected_zero_target_scan():
