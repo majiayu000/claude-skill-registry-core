@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -9,14 +11,16 @@ def read_repo_file(path: str) -> str:
 
 def test_pages_app_keeps_full_index_behind_explicit_action():
     app_js = read_repo_file("docs/js/app.js")
+    artifact_api_js = read_repo_file("docs/js/artifact-api.js")
     index_html = read_repo_file("docs/index.html")
 
     assert "INDEX_URL: 'search-index-lite.json'" in app_js
     assert "LEGACY_INDEX_URL: 'search-index.json'" in app_js
-    assert "function normalizeSearchIndex" in app_js
+    assert "function normalizeSearchIndex" in artifact_api_js
     assert "function loadSearchIndex" in app_js
     assert "function activateFullSearch" in app_js
     assert 'id="search-all-btn"' in index_html
+    assert index_html.index('src="js/artifact-api.js"') < index_html.index('src="js/app.js"')
     assert "in highlighted index" in app_js
 
 
@@ -75,6 +79,9 @@ def test_static_artifact_api_contract_covers_pointer_and_manifest_fields():
         "parts",
         "records",
         "skills",
+        "static-artifact-api-v1",
+        "static-artifact-api-v2",
+        "Same-set Count Groups",
     ]
 
     for term in expected_terms:
@@ -102,8 +109,9 @@ def test_publish_sync_runs_generated_size_guard_after_rebuild():
     canonical_pos = rebuild_block.index("scripts/check_canonical_categories.py")
     guard_pos = rebuild_block.index("scripts/check_generated_file_sizes.py")
     category_guard_pos = rebuild_block.index("scripts/check_category_artifacts.py")
+    artifact_api_pos = rebuild_block.index("scripts/check_artifact_api.py")
 
-    assert category_guard_pos > guard_pos > canonical_pos > cleanup_pos > rebuild_pos > security_pos
+    assert artifact_api_pos > category_guard_pos > guard_pos > canonical_pos > cleanup_pos > rebuild_pos > security_pos
     assert 'security_report_path="$(mktemp)"' in sync_script
     assert "--output \"$security_report_path\"" in sync_script
     assert "--security-report \"$security_report_path\"" in sync_script
@@ -116,6 +124,8 @@ def test_publish_sync_runs_generated_size_guard_after_rebuild():
     assert "--include docs" in sync_script
     assert "--categories-dir" in sync_script
     assert "--registry-shards" in sync_script
+    assert '--root "$main_dir"' in sync_script
+    assert '--docs-dir "$main_dir/docs"' in sync_script
 
 
 def test_publish_sync_has_observable_steps_and_cache_excludes():
@@ -131,6 +141,7 @@ def test_publish_sync_has_observable_steps_and_cache_excludes():
         "Check published categories are canonical",
         "Check generated artifact sizes",
         "Check category artifacts",
+        "Validate static artifact API v1",
         "Generate third-party notices (advisory full-archive metadata scan)",
     ]
     for label in expected_steps:
@@ -210,16 +221,43 @@ def test_build_index_generates_security_report_for_checked_out_data():
 
 
 def test_build_index_runs_generated_size_guard_before_pages_upload():
-    workflow = read_repo_file(".github/workflows/build-index.yml")
+    workflow_text = read_repo_file(".github/workflows/build-index.yml")
+    workflow = yaml.safe_load(workflow_text)
+    steps = workflow["jobs"]["build-index"]["steps"]
+    names = [step.get("name") for step in steps]
 
-    guard_pos = workflow.index("scripts/check_generated_file_sizes.py")
-    category_guard_pos = workflow.index("scripts/check_category_artifacts.py")
-    canonical_pos = workflow.rindex("scripts/check_canonical_categories.py")
-    upload_pos = workflow.index("actions/upload-pages-artifact")
+    guard_pos = names.index("Check generated artifact sizes")
+    category_guard_pos = names.index("Check category artifacts remain sharded")
+    canonical_pos = names.index("Check published categories are canonical")
+    artifact_api_pos = names.index("Validate static artifact API v1")
+    setup_pos = names.index("Setup Pages")
+    upload_pos = names.index("Upload Pages artifact")
 
-    assert guard_pos < category_guard_pos < canonical_pos < upload_pos
-    assert "--include docs" in workflow
-    assert "--docs-dir docs" in workflow
+    assert guard_pos < category_guard_pos < canonical_pos < artifact_api_pos < setup_pos < upload_pos
+    validator_step = steps[artifact_api_pos]
+    assert validator_step["run"] == "python scripts/check_artifact_api.py --root . --docs-dir docs"
+    assert "continue-on-error" not in validator_step
+    assert "scripts/check_artifact_api.py" in workflow_text
+    assert "--include docs" in workflow_text
+    assert "--docs-dir docs" in workflow_text
+
+
+def test_pages_reader_rejects_unknown_artifact_shapes_without_empty_fallbacks():
+    artifact_api_js = read_repo_file("docs/js/artifact-api.js")
+    app_js = read_repo_file("docs/js/app.js")
+    full_loader = app_js[
+        app_js.index("async function loadFullSearchIndex") : app_js.index(
+            "async function getFilterBaseSkills"
+        )
+    ]
+
+    assert "requireExactFields" in artifact_api_js
+    assert "validateSearchPointer" in full_loader
+    assert "validateSearchManifest" in full_loader
+    assert "validateSearchShardEntry" in full_loader
+    assert "validateSearchShardPayload" in full_loader
+    assert "|| []" not in full_loader
+    assert "manifest.v || pointer.v" not in full_loader
 
 
 def test_sync_data_runs_generated_size_guard_after_registry_rebuild():

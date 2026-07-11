@@ -10,6 +10,9 @@ on:
     paths:
       - 'registry.json'
       - 'scripts/build_search_index.py'
+      - 'scripts/index_artifacts.py'
+      - 'scripts/rebuild_registry.py'
+      - 'scripts/check_artifact_api.py'
       - 'scripts/search_sources.py'
       - 'scripts/check_canonical_categories.py'
       - 'scripts/security_blocklist.py'
@@ -98,6 +101,9 @@ jobs:
 
       - name: Check published categories are canonical
         run: python scripts/check_canonical_categories.py --docs-dir docs
+
+      - name: Validate static artifact API v1
+        run: python scripts/check_artifact_api.py --root . --docs-dir docs
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
