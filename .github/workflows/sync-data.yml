@@ -68,7 +68,7 @@ jobs:
           invalid = [name for name, value in repos.items() if not repo_pattern.fullmatch(value)]
           if invalid:
               raise SystemExit(f"Invalid owner/name repository configuration: {', '.join(invalid)}")
-          if len(set(repos.values())) != len(repos):
+          if len({value.casefold() for value in repos.values()}) != len(repos):
               raise SystemExit("Core, data, and main repositories must be distinct")
           PY
 

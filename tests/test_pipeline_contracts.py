@@ -1,5 +1,10 @@
+import hashlib
+import json
+import os
+import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,6 +16,104 @@ def read_repo_file(path: str) -> str:
 
 def read_workflow(path: str) -> dict:
     return yaml.safe_load(read_repo_file(path))
+
+
+def workflow_step(job_name: str, step_name: str) -> dict:
+    workflow = read_workflow(".github/workflows/sync-data.yml")
+    return next(step for step in workflow["jobs"][job_name]["steps"] if step["name"] == step_name)
+
+
+def install_fake_curl(tmp_path: Path) -> Path:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    fake_curl = bin_dir / "curl"
+    fake_curl.write_text(
+        """#!/usr/bin/env python3
+import json
+import os
+from pathlib import Path
+import sys
+
+mode = os.environ.get("FAKE_CURL_MODE", "repo")
+if mode == "fail":
+    raise SystemExit(22)
+if mode == "mark":
+    Path(os.environ["FAKE_CURL_MARKER"]).write_text("called", encoding="utf-8")
+    raise SystemExit(0)
+
+args = sys.argv[1:]
+output = args[args.index("--output") + 1]
+url = next(arg for arg in args if arg.startswith("https://api.github.com/repos/"))
+repo = url.split("/repos/", 1)[1]
+response = {
+    "full_name": repo,
+    "default_branch": os.environ.get("FAKE_DEFAULT_BRANCH", "main"),
+    "permissions": {"push": os.environ.get("FAKE_PUSH", "true") == "true"},
+}
+Path(output).write_text(json.dumps(response), encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
+    fake_curl.chmod(0o755)
+    return bin_dir
+
+
+def run_workflow_script(
+    step: dict,
+    tmp_path: Path,
+    env: dict[str, str] | None = None,
+    fake_curl: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    runtime_env = os.environ.copy()
+    runtime_env.update(
+        {
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+            "GITHUB_OUTPUT": str(tmp_path / "github-output"),
+            "GITHUB_STEP_SUMMARY": str(tmp_path / "github-summary"),
+        }
+    )
+    (tmp_path / "runner-temp").mkdir(exist_ok=True)
+    if env:
+        runtime_env.update(env)
+    if fake_curl:
+        bin_dir = install_fake_curl(tmp_path)
+        runtime_env["PATH"] = f"{bin_dir}:{runtime_env['PATH']}"
+    return subprocess.run(
+        ["bash", "-c", step["run"]],
+        cwd=tmp_path,
+        env=runtime_env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def valid_sync_env() -> dict[str, str]:
+    return {
+        "CORE_REPO": "Owner/Core",
+        "REGISTRY_DATA_REPO": "Owner/Data",
+        "DATA_REPO_TOKEN": "data-test-token",
+        "REGISTRY_MAIN_REPO": "Owner/Main",
+        "MAIN_REPO_TOKEN": "main-test-token",
+    }
+
+
+def build_valid_handoff(tmp_path: Path) -> tuple[Path, bytes, dict]:
+    step = workflow_step("sync", "Build immutable publish handoff")
+    env = {
+        "RUN_ID": "1234",
+        "CORE_REPO": "Owner/Core",
+        "CORE_SHA": "a" * 40,
+        "DATA_REPO": "Owner/Data",
+        "DATA_SHA": "b" * 40,
+        "REGISTRY_MAIN_REPO": "Owner/Main",
+    }
+    result = run_workflow_script(step, tmp_path, env)
+    assert result.returncode == 0, result.stderr
+    root = tmp_path / "sync-publish-handoff"
+    payload_bytes = (root / "publish-dispatch-payload.json").read_bytes()
+    evidence = json.loads((root / "publish-dispatch-evidence.json").read_text())
+    return root, payload_bytes, evidence
 
 
 def test_pages_app_prefers_lite_index_with_full_index_fallback():
@@ -445,6 +548,170 @@ def test_sync_data_publish_sends_exact_payload_and_fails_with_safe_replay_eviden
     assert "target=$TARGET_REPO core=$CORE_SHA data=$DATA_SHA hash=$PAYLOAD_SHA256" in dispatch["run"]
     assert "exit 1" in dispatch["run"]
     assert "actions/workflows/build-index.yml/dispatches" in build_index["run"]
+
+
+def test_sync_data_branch_guard_executes_and_rejects_non_main(tmp_path):
+    step = workflow_step("preflight", "Require main branch authority")
+
+    rejected = run_workflow_script(step, tmp_path, {"GITHUB_REF_VALUE": "refs/heads/feature"})
+    accepted = run_workflow_script(step, tmp_path, {"GITHUB_REF_VALUE": "refs/heads/main"})
+
+    assert rejected.returncode != 0
+    assert "only run from refs/heads/main" in rejected.stdout
+    assert accepted.returncode == 0
+
+
+@pytest.mark.parametrize(
+    ("updates", "expected_error"),
+    [
+        ({"DATA_REPO_TOKEN": ""}, "Missing required sync-data configuration"),
+        ({"REGISTRY_DATA_REPO": "not-a-repo"}, "Invalid owner/name repository"),
+        (
+            {"CORE_REPO": "Owner/Core", "REGISTRY_DATA_REPO": "owner/core"},
+            "Core, data, and main repositories must be distinct",
+        ),
+        ({"FAKE_PUSH": "false"}, "does not have push permission"),
+        ({"FAKE_DEFAULT_BRANCH": "develop"}, "default branch must be main"),
+    ],
+)
+def test_sync_data_config_preflight_executes_and_fails_closed(
+    tmp_path, updates, expected_error
+):
+    step = workflow_step("preflight", "Validate target repositories and write permissions")
+    env = valid_sync_env()
+    env.update(updates)
+
+    result = run_workflow_script(step, tmp_path, env, fake_curl=True)
+
+    assert result.returncode != 0
+    assert expected_error in result.stdout + result.stderr
+
+
+def test_sync_data_config_preflight_executes_with_valid_distinct_targets(tmp_path):
+    step = workflow_step("preflight", "Validate target repositories and write permissions")
+
+    result = run_workflow_script(step, tmp_path, valid_sync_env(), fake_curl=True)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_sync_data_handoff_generator_executes_with_exact_payload_bytes_and_hash(tmp_path):
+    root, payload_bytes, evidence = build_valid_handoff(tmp_path)
+    expected = (
+        b'{"event_type":"publish_from_core","client_payload":'
+        b'{"core_repo":"Owner/Core","core_sha":"' + b"a" * 40
+        + b'","data_repo":"Owner/Data","data_sha":"' + b"b" * 40
+        + b'"}}\n'
+    )
+
+    assert payload_bytes == expected
+    assert evidence == {
+        "schema_version": 1,
+        "run_id": "1234",
+        "run_attempt": 1,
+        "target_repo": "Owner/Main",
+        "core_repo": "Owner/Core",
+        "core_sha": "a" * 40,
+        "data_repo": "Owner/Data",
+        "data_sha": "b" * 40,
+        "event_type": "publish_from_core",
+        "payload_sha256": hashlib.sha256(expected).hexdigest(),
+    }
+    assert sorted(path.name for path in root.iterdir()) == [
+        "publish-dispatch-evidence.json",
+        "publish-dispatch-payload.json",
+    ]
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    ["missing", "invalid_json", "hash_mismatch", "extra_key", "field_mismatch"],
+)
+def test_sync_data_handoff_validator_executes_and_rejects_corruption(tmp_path, corruption):
+    root, payload_bytes, evidence = build_valid_handoff(tmp_path)
+    payload_path = root / "publish-dispatch-payload.json"
+    evidence_path = root / "publish-dispatch-evidence.json"
+    if corruption == "missing":
+        evidence_path.unlink()
+    elif corruption == "invalid_json":
+        evidence_path.write_text("{", encoding="utf-8")
+    elif corruption == "hash_mismatch":
+        payload_path.write_bytes(payload_bytes + b" ")
+    elif corruption == "extra_key":
+        evidence["unexpected"] = "rejected"
+        evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    else:
+        payload = json.loads(payload_bytes)
+        payload["client_payload"]["core_sha"] = "c" * 40
+        changed_bytes = (json.dumps(payload, separators=(",", ":")) + "\n").encode()
+        payload_path.write_bytes(changed_bytes)
+        evidence["payload_sha256"] = hashlib.sha256(changed_bytes).hexdigest()
+        evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+
+    step = workflow_step("publish", "Validate immutable publish handoff")
+    env = {
+        "EXPECTED_RUN_ID": "1234",
+        "EXPECTED_CORE_REPO": "Owner/Core",
+        "EXPECTED_DATA_REPO": "Owner/Data",
+        "EXPECTED_TARGET_REPO": "Owner/Main",
+    }
+    result = run_workflow_script(step, tmp_path, env)
+
+    assert result.returncode != 0
+
+
+def test_sync_data_handoff_validator_executes_and_exports_verified_fields(tmp_path):
+    _, _, evidence = build_valid_handoff(tmp_path)
+    step = workflow_step("publish", "Validate immutable publish handoff")
+    env = {
+        "EXPECTED_RUN_ID": "1234",
+        "EXPECTED_CORE_REPO": "Owner/Core",
+        "EXPECTED_DATA_REPO": "Owner/Data",
+        "EXPECTED_TARGET_REPO": "Owner/Main",
+    }
+
+    result = run_workflow_script(step, tmp_path, env)
+    outputs = dict(
+        line.split("=", 1)
+        for line in (tmp_path / "github-output").read_text(encoding="utf-8").splitlines()
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert outputs == {
+        key: str(evidence[key])
+        for key in ("target_repo", "core_sha", "data_sha", "payload_sha256")
+    }
+
+
+def test_sync_data_dispatch_non_2xx_fails_and_suppresses_build_index(tmp_path):
+    _, _, evidence = build_valid_handoff(tmp_path)
+    publish = read_workflow(".github/workflows/sync-data.yml")["jobs"]["publish"]
+    dispatch = workflow_step("publish", "Dispatch main publish workflow from immutable handoff")
+    build_index = workflow_step("publish", "Dispatch build-index to refresh Pages")
+    env = {
+        "MAIN_REPO_TOKEN": "main-test-token",
+        "TARGET_REPO": evidence["target_repo"],
+        "CORE_SHA": evidence["core_sha"],
+        "DATA_SHA": evidence["data_sha"],
+        "PAYLOAD_SHA256": evidence["payload_sha256"],
+        "FAKE_CURL_MODE": "fail",
+    }
+
+    dispatch_result = run_workflow_script(dispatch, tmp_path, env, fake_curl=True)
+    build_index_executed = False
+    if dispatch_result.returncode == 0:
+        build_index_executed = True
+        run_workflow_script(build_index, tmp_path, env, fake_curl=True)
+
+    assert dispatch_result.returncode != 0
+    assert build_index.get("if") is None
+    assert not build_index_executed
+    summary = (tmp_path / "github-summary").read_text(encoding="utf-8")
+    assert evidence["target_repo"] in summary
+    assert evidence["core_sha"] in summary
+    assert evidence["data_sha"] in summary
+    assert evidence["payload_sha256"] in summary
+    assert publish["steps"].index(dispatch) < publish["steps"].index(build_index)
 
 
 def test_metadata_compliance_refuses_unexpected_zero_target_scan():
