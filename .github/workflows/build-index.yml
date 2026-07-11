@@ -64,6 +64,7 @@ jobs:
         id: security_scan
         env:
           SECURITY_REPORT: ${{ runner.temp }}/security-report.json
+          SECURITY_EVIDENCE: ${{ runner.temp }}/security-evidence.json
         run: |
           set +e
           python scripts/security_scanner.py \
@@ -76,38 +77,114 @@ jobs:
 
           report_present=false
           report_valid=false
-          archive_present=false
+          evidence_present=false
+          evidence_archive_present=false
           if [ -s "$SECURITY_REPORT" ]; then
             report_present=true
-            if python - "$SECURITY_REPORT" <<'PY'
+            if python - "$SECURITY_REPORT" "$SECURITY_EVIDENCE" <<'PY'
+          import hashlib
           import json
           import os
+          import re
           import sys
           from collections import Counter
 
           report_path = sys.argv[1]
+          evidence_path = sys.argv[2]
           with open(report_path, encoding="utf-8") as handle:
               report = json.load(handle)
 
+          scanner = report.get("scanner")
+          scan_policy = report.get("scan_policy")
           skills = report.get("skills")
           total = report.get("total")
           passed = report.get("passed")
           failed = report.get("failed")
+          if not isinstance(scanner, dict):
+              raise ValueError("security report is missing scanner identity")
+          scanner_name = scanner.get("name")
+          scanner_version = scanner.get("version")
+          ruleset_sha256 = scanner.get("ruleset_sha256")
+          if scanner_name != "claude-skill-registry-security-scanner":
+              raise ValueError("security report has invalid scanner name")
+          if not isinstance(scanner_version, str) or not re.fullmatch(
+              r"[0-9]+\.[0-9]+\.[0-9]+", scanner_version
+          ):
+              raise ValueError("security report has invalid scanner version")
+          if not isinstance(ruleset_sha256, str) or not re.fullmatch(
+              r"[0-9a-f]{64}", ruleset_sha256
+          ):
+              raise ValueError("security report has invalid ruleset hash")
+          if not isinstance(scan_policy, dict) or not isinstance(
+              scan_policy.get("require_metadata"), bool
+          ):
+              raise ValueError("security report has invalid scan policy")
           if not isinstance(skills, list):
               raise ValueError("security report is missing skills")
           if not all(isinstance(value, int) for value in (total, passed, failed)):
               raise ValueError("security report has invalid aggregate counts")
-          counted_passed = sum(result.get("safe") is True for result in skills)
-          counted_failed = sum(result.get("safe") is False for result in skills)
+
+          counted_passed = 0
+          counted_failed = 0
+          failed_skill_ids = []
+          error_types = Counter()
+          for result in skills:
+              if not isinstance(result, dict) or not isinstance(result.get("safe"), bool):
+                  raise ValueError("security report has invalid skill decision")
+              relative_path = result.get("path")
+              if not isinstance(relative_path, str) or not relative_path:
+                  raise ValueError("security report has invalid skill path")
+              issues = result.get("issues")
+              if not isinstance(issues, list):
+                  raise ValueError("security report has invalid issue list")
+              if result["safe"]:
+                  counted_passed += 1
+              else:
+                  counted_failed += 1
+                  failed_skill_ids.append(
+                      hashlib.sha256(relative_path.encode("utf-8")).hexdigest()
+                  )
+              for issue in issues:
+                  if not isinstance(issue, dict) or issue.get("severity") != "error":
+                      continue
+                  issue_type = issue.get("type")
+                  if not isinstance(issue_type, str) or not re.fullmatch(
+                      r"[a-z][a-z0-9_]{0,63}", issue_type
+                  ):
+                      issue_type = "unknown"
+                  error_types[issue_type] += 1
+
           if (total, passed, failed) != (len(skills), counted_passed, counted_failed):
               raise ValueError("security report aggregate counts do not match skill decisions")
 
-          error_types = Counter(
-              issue.get("type", "unknown")
-              for result in skills
-              for issue in result.get("issues", [])
-              if issue.get("severity") == "error"
-          )
+          sanitized_evidence = {
+              "schema_version": 1,
+              "scanner": {
+                  "name": scanner_name,
+                  "version": scanner_version,
+                  "ruleset_sha256": ruleset_sha256,
+              },
+              "scan_policy": {
+                  "require_metadata": scan_policy["require_metadata"],
+              },
+              "counts": {
+                  "total": total,
+                  "passed": passed,
+                  "failed": failed,
+              },
+              "failed_skill_ids": sorted(failed_skill_ids),
+              "error_type_counts": dict(sorted(error_types.items())),
+          }
+          with open(evidence_path, "w", encoding="utf-8") as evidence_file:
+              json.dump(
+                  sanitized_evidence,
+                  evidence_file,
+                  ensure_ascii=True,
+                  sort_keys=True,
+                  separators=(",", ":"),
+              )
+              evidence_file.write("\n")
+
           summary_path = os.environ["GITHUB_STEP_SUMMARY"]
           with open(summary_path, "a", encoding="utf-8") as summary:
               summary.write("## Archive security scan\n\n")
@@ -119,11 +196,15 @@ jobs:
           PY
             then
               report_valid=true
+              if [ -s "$SECURITY_EVIDENCE" ]; then
+                evidence_present=true
+              fi
             else
               echo "Security report is not valid JSON evidence." >> "$GITHUB_STEP_SUMMARY"
             fi
-            if gzip -c "$SECURITY_REPORT" > "$SECURITY_REPORT.gz"; then
-              archive_present=true
+            if [ "$evidence_present" = "true" ] && \
+              gzip -c "$SECURITY_EVIDENCE" > "$SECURITY_EVIDENCE.gz"; then
+              evidence_archive_present=true
             fi
           else
             echo "## Archive security scan" >> "$GITHUB_STEP_SUMMARY"
@@ -135,7 +216,8 @@ jobs:
             echo "exit_code=$scan_exit"
             echo "report_present=$report_present"
             echo "report_valid=$report_valid"
-            echo "archive_present=$archive_present"
+            echo "evidence_present=$evidence_present"
+            echo "evidence_archive_present=$evidence_archive_present"
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload security scan evidence
@@ -143,8 +225,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: build-index-security-report-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/security-report.json.gz
+          name: build-index-security-evidence-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/security-evidence.json.gz
           if-no-files-found: warn
           retention-days: 14
 
@@ -154,9 +236,11 @@ jobs:
           SCAN_EXIT: ${{ steps.security_scan.outputs.exit_code }}
           REPORT_PRESENT: ${{ steps.security_scan.outputs.report_present }}
           REPORT_VALID: ${{ steps.security_scan.outputs.report_valid }}
-          ARCHIVE_PRESENT: ${{ steps.security_scan.outputs.archive_present }}
+          EVIDENCE_PRESENT: ${{ steps.security_scan.outputs.evidence_present }}
+          EVIDENCE_ARCHIVE_PRESENT: ${{ steps.security_scan.outputs.evidence_archive_present }}
           EVIDENCE_UPLOAD_OUTCOME: ${{ steps.security_evidence.outcome }}
           SECURITY_REPORT: ${{ runner.temp }}/security-report.json
+          SECURITY_EVIDENCE: ${{ runner.temp }}/security-evidence.json
         run: |
           failed=0
           if [ "$SCAN_EXIT" != "0" ]; then
@@ -167,8 +251,18 @@ jobs:
             echo "::error::Security report is missing or invalid."
             failed=1
           fi
-          if [ "$ARCHIVE_PRESENT" != "true" ] || [ ! -s "$SECURITY_REPORT.gz" ]; then
-            echo "::error::Compressed security evidence is missing."
+          if [ "$EVIDENCE_PRESENT" != "true" ] || [ ! -s "$SECURITY_EVIDENCE" ]; then
+            echo "::error::Sanitized security evidence is missing."
+            failed=1
+          fi
+          if [ "$EVIDENCE_ARCHIVE_PRESENT" != "true" ] || [ ! -s "$SECURITY_EVIDENCE.gz" ]; then
+            echo "::error::Compressed sanitized security evidence is missing."
+            failed=1
+          elif ! gzip -t "$SECURITY_EVIDENCE.gz"; then
+            echo "::error::Compressed sanitized security evidence is invalid."
+            failed=1
+          elif ! cmp "$SECURITY_EVIDENCE" <(gzip -dc "$SECURITY_EVIDENCE.gz"); then
+            echo "::error::Compressed sanitized security evidence does not match its source."
             failed=1
           fi
           if [ "$EVIDENCE_UPLOAD_OUTCOME" != "success" ]; then
@@ -179,6 +273,7 @@ jobs:
             exit 1
           fi
           test -s "$SECURITY_REPORT"
+          test -s "$SECURITY_EVIDENCE"
 
       - name: Build search index
         run: |
