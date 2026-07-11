@@ -12,6 +12,7 @@ on:
       - 'scripts/build_search_index.py'
       - 'scripts/index_artifacts.py'
       - 'scripts/rebuild_registry.py'
+      - 'scripts/build_registry_summary.py'
       - 'scripts/check_artifact_api.py'
       - 'scripts/search_sources.py'
       - 'scripts/check_canonical_categories.py'
@@ -70,6 +71,20 @@ jobs:
             --output "$RUNNER_TEMP/security-report.json"
           test -f "$RUNNER_TEMP/security-report.json"
           ls -la "$RUNNER_TEMP/security-report.json"
+
+      - name: Rebuild root registry artifacts
+        run: |
+          python scripts/rebuild_registry.py \
+            --skills-dir skills \
+            --registry registry.json \
+            --manifest registry-manifest.json \
+            --shards-dir registry-shards \
+            --skip-categories \
+            --compat-manifest-pointer
+          python scripts/build_registry_summary.py \
+            --registry registry.json \
+            --plugins sources/plugins.json \
+            --output registry_summary.json
 
       - name: Build search index
         run: |

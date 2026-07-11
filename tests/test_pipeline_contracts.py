@@ -1,3 +1,6 @@
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 import yaml
@@ -230,16 +233,58 @@ def test_build_index_runs_generated_size_guard_before_pages_upload():
     category_guard_pos = names.index("Check category artifacts remain sharded")
     canonical_pos = names.index("Check published categories are canonical")
     artifact_api_pos = names.index("Validate static artifact API v1")
+    rebuild_pos = names.index("Rebuild root registry artifacts")
+    search_pos = names.index("Build search index")
     setup_pos = names.index("Setup Pages")
     upload_pos = names.index("Upload Pages artifact")
 
-    assert guard_pos < category_guard_pos < canonical_pos < artifact_api_pos < setup_pos < upload_pos
+    assert rebuild_pos < search_pos < guard_pos < category_guard_pos < canonical_pos < artifact_api_pos < setup_pos < upload_pos
     validator_step = steps[artifact_api_pos]
     assert validator_step["run"] == "python scripts/check_artifact_api.py --root . --docs-dir docs"
     assert "continue-on-error" not in validator_step
     assert "scripts/check_artifact_api.py" in workflow_text
     assert "--include docs" in workflow_text
     assert "--docs-dir docs" in workflow_text
+
+
+def test_build_index_root_rebuild_commands_are_executable(tmp_path):
+    skill_dir = tmp_path / "skills" / "development" / "demo"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Demo\n\nGenerated fixture.\n", encoding="utf-8")
+    (skill_dir / "metadata.json").write_text(
+        json.dumps({"name": "demo", "repo": "owner/demo", "path": "development/demo/SKILL.md", "branch": "main", "category": "development"}),
+        encoding="utf-8",
+    )
+    registry = tmp_path / "registry.json"
+    manifest = tmp_path / "registry-manifest.json"
+    shards = tmp_path / "registry-shards"
+    summary = tmp_path / "registry_summary.json"
+    subprocess.run(
+        [
+            sys.executable, str(ROOT / "scripts/rebuild_registry.py"),
+            "--skills-dir", str(tmp_path / "skills"), "--registry", str(registry),
+            "--manifest", str(manifest), "--shards-dir", str(shards),
+            "--skip-categories", "--compat-manifest-pointer",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        [
+            sys.executable, str(ROOT / "scripts/build_registry_summary.py"),
+            "--registry", str(registry), "--plugins", str(ROOT / "sources/plugins.json"),
+            "--output", str(summary),
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(registry.read_text())["manifest"] == "registry-manifest.json"
+    assert json.loads(manifest.read_text())["total_count"] == 1
+    assert json.loads(summary.read_text())["total_count"] == 1
 
 
 def test_pages_reader_rejects_unknown_artifact_shapes_without_empty_fallbacks():

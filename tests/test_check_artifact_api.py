@@ -101,6 +101,14 @@ def build_generated_fixture(root: Path) -> Path:
         archive_metadata_count_raw=len(skills),
         registry_skill_count_dedup=len(skills),
     )
+    provenance = {
+        "generated_at": generated_at,
+        "core_repo": "owner/core",
+        "core_sha": "a" * 40,
+        "data_repo": "owner/data",
+        "data_sha": "b" * 40,
+    }
+    rebuild_registry.safe_write_json(root / "provenance" / "merge-source.json", provenance)
     return docs
 
 
@@ -250,6 +258,50 @@ def test_validator_rejects_single_fact_mutations(tmp_path, path, mutate, expecte
     assert expected in _codes(report)
 
 
+@pytest.mark.parametrize(
+    ("path", "mutate", "expected"),
+    [
+        ("registry-manifest.json", lambda v: v.__setitem__("shard_strategy", "other"), "invalid_manifest_semantics"),
+        ("registry-manifest.json", lambda v: v.__setitem__("record_key", "name"), "invalid_manifest_semantics"),
+        ("registry-manifest.json", lambda v: v.__setitem__("provenance", []), "invalid_manifest_semantics"),
+        ("registry-manifest.json", lambda v: v.__setitem__("provenance", {"unexpected": "value"}), "invalid_manifest_semantics"),
+        ("docs/search-index-manifest.json", lambda v: v.__setitem__("record_schema", "other"), "invalid_manifest_semantics"),
+        ("docs/quality-index-manifest.json", lambda v: v.__setitem__("shard_strategy", "other"), "invalid_manifest_semantics"),
+        ("docs/security-index-manifest.json", lambda v: v.__setitem__("record_schema", "other"), "invalid_manifest_semantics"),
+        ("docs/ranking-index-manifest.json", lambda v: v.__setitem__("shard_strategy", "other"), "invalid_manifest_semantics"),
+        ("docs/categories/development.json", lambda v: v.__setitem__("updated_at", "other"), "category_manifest_mismatch"),
+        ("docs/categories/development/manifest.json", lambda v: v.__setitem__("part_strategy", "other"), "category_identity_mismatch"),
+        ("docs/categories/development/part-000.json", lambda v: v.__setitem__("code", "other"), "payload_identity_mismatch"),
+        ("docs/featured.json", lambda v: v.__setitem__("unexpected", []), "invalid_public_document_shape"),
+        ("docs/plugins.json", lambda v: v.__setitem__("count", 9), "public_document_count_mismatch"),
+        ("provenance/merge-source.json", lambda v: v.__setitem__("core_sha", "bad"), "invalid_provenance"),
+    ],
+    ids=[
+        "registry-strategy", "registry-key", "registry-provenance-type", "registry-provenance-shape", "search-schema",
+        "quality-strategy", "security-schema", "ranking-strategy", "category-pointer-time",
+        "category-strategy", "category-part-code", "featured-shape", "plugin-count",
+        "merge-provenance",
+    ],
+)
+def test_validator_rejects_reviewer_semantic_probes(tmp_path, path, mutate, expected):
+    docs = build_generated_fixture(tmp_path)
+    _rewrite(tmp_path / path, mutate)
+
+    report = check_artifact_api.validate_artifact_api(tmp_path, docs)
+
+    assert expected in _codes(report)
+
+
+@pytest.mark.parametrize("path", ["docs/featured.json", "docs/plugins.json"])
+def test_validator_requires_public_documents(tmp_path, path):
+    docs = build_generated_fixture(tmp_path)
+    (tmp_path / path).unlink()
+
+    report = check_artifact_api.validate_artifact_api(tmp_path, docs)
+
+    assert "missing_or_escaped_path" in _codes(report)
+
+
 def test_validator_rejects_duplicate_reference_and_bad_gzip(tmp_path):
     docs = build_generated_fixture(tmp_path)
     manifest_path = tmp_path / "registry-manifest.json"
@@ -342,6 +394,34 @@ def test_validator_cli_never_echoes_invalid_artifact_contents(tmp_path):
     assert completed.returncode == 1
     assert sentinel not in completed.stdout
     assert sentinel not in completed.stderr
+
+
+def test_validator_report_never_echoes_unknown_field_name(tmp_path):
+    docs = build_generated_fixture(tmp_path)
+    sentinel = "SENTINEL_PRIVATE_UNKNOWN_KEY_98765"
+    output = tmp_path / "validation.json"
+    _rewrite(docs / "featured.json", lambda value: value.__setitem__(sentinel, "secret"))
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "check_artifact_api.py"),
+            "--root",
+            str(tmp_path),
+            "--docs-dir",
+            str(docs),
+            "--output-json",
+            str(output),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert sentinel not in completed.stdout
+    assert sentinel not in completed.stderr
+    assert sentinel not in output.read_text(encoding="utf-8")
 
 
 def test_validator_rejects_docs_dir_outside_root(tmp_path):

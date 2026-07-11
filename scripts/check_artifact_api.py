@@ -36,14 +36,18 @@ POINTER_EXTRA_FIELDS = {
     "signal": {"updated_at", "count"},
     "category": {"category", "code", "updated_at", "count"},
 }
-
+SHARD_SEMANTICS = {
+    "search-index.json": ("bounded-sequential-stars-desc", "search-mini-v2"),
+    "quality-index.json": ("bounded-sequential-scan-order", "quality-v1"),
+    "security-index.json": ("bounded-sequential-scan-order", "security-v1"),
+    "ranking-index.json": ("bounded-sequential-score-desc", "ranking-v1"),
+}
 
 @dataclass(frozen=True)
 class ArtifactError:
     code: str
     path: str
     message: str
-
 
 @dataclass(frozen=True)
 class ValidationReport:
@@ -60,10 +64,8 @@ class ValidationReport:
             "errors": [asdict(error) for error in self.errors],
         }
 
-
 def _is_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
-
 
 class ArtifactValidator:
     def __init__(self, root: Path, docs_dir: Path) -> None:
@@ -72,11 +74,9 @@ class ArtifactValidator:
         self.errors: list[ArtifactError] = []
         self.checked: set[Path] = set()
         self.totals: dict[str, list[int]] = {"registry": [], "scan": [], "stable": []}
-
     def error(self, code: str, path: str | Path, message: str) -> None:
         display = path.as_posix() if isinstance(path, Path) else path
         self.errors.append(ArtifactError(code=code, path=display, message=message))
-
     def require_fields(
         self,
         payload: dict,
@@ -89,10 +89,9 @@ class ArtifactValidator:
         missing = sorted(required - payload.keys())
         unknown = sorted(payload.keys() - required - (optional or set()))
         if missing:
-            self.error(code, path, f"missing fields: {','.join(missing)}")
+            self.error(code, path, f"missing field count={len(missing)}")
         if unknown:
-            self.error(code, path, f"unknown fields: {','.join(unknown)}")
-
+            self.error(code, path, f"unknown field count={len(unknown)}")
     def resolve_file(self, base: Path, reference: object, owner: str) -> Path | None:
         if not isinstance(reference, str) or not reference or "\\" in reference:
             self.error("invalid_path", owner, "artifact path must be a non-empty POSIX string")
@@ -106,20 +105,19 @@ class ArtifactValidator:
         for part in pure.parts:
             current = current / part
             if current.is_symlink():
-                self.error("non_regular_file", reference, "artifact path must not traverse symlinks")
+                self.error("non_regular_file", owner, "artifact path must not traverse symlinks")
                 return None
         try:
             resolved = candidate.resolve(strict=True)
             resolved.relative_to(base)
         except (FileNotFoundError, RuntimeError, ValueError):
-            self.error("missing_or_escaped_path", reference, "referenced artifact is missing or escaped")
+            self.error("missing_or_escaped_path", owner, "referenced artifact is missing or escaped")
             return None
         if candidate.is_symlink() or not resolved.is_file():
-            self.error("non_regular_file", reference, "artifact must be a regular non-symlink file")
+            self.error("non_regular_file", owner, "artifact must be a regular non-symlink file")
             return None
         self.checked.add(resolved)
         return resolved
-
     def load_json(self, base: Path, reference: object, owner: str) -> tuple[Path, dict] | None:
         path = self.resolve_file(base, reference, owner)
         if path is None:
@@ -127,26 +125,29 @@ class ArtifactValidator:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            self.error("invalid_json", reference if isinstance(reference, str) else owner, "invalid UTF-8 JSON")
+            self.error("invalid_json", owner, "invalid UTF-8 JSON")
             return None
         if not isinstance(payload, dict):
-            self.error("invalid_shape", str(reference), "top-level JSON must be an object")
+            self.error("invalid_shape", owner, "top-level JSON must be an object")
             return None
         return path, payload
-
     def require_schema(self, payload: dict, path: str) -> bool:
         if payload.get("schema_version") != 1:
             self.error("unknown_schema", path, "schema_version must equal 1")
             return False
         return True
-
     def require_count(self, payload: dict, key: str, path: str) -> int | None:
         value = payload.get(key)
         if not _is_int(value):
-            self.error("invalid_count", path, f"{key} must be a non-negative integer")
+            self.error("invalid_count", path, "count field must be a non-negative integer")
             return None
         return value
-
+    def require_nonempty(self, payload: dict, key: str, path: str) -> str | None:
+        value = payload.get(key)
+        if not isinstance(value, str) or not value:
+            self.error("invalid_identity", path, "identity field must be a non-empty string")
+            return None
+        return value
     def check_pointer(
         self,
         base: Path,
@@ -168,11 +169,20 @@ class ArtifactValidator:
             code="invalid_pointer_shape",
         )
         total = self.require_count(pointer, "total_count", pointer_path)
+        if kind == "registry":
+            for key in ("plugin_count", "archive_skill_md_count_raw", "archive_metadata_count_raw"):
+                self.require_count(pointer, key, pointer_path)
+            for key in ("version", "updated_at"):
+                self.require_nonempty(pointer, key, pointer_path)
+        elif kind == "search":
+            self.require_nonempty(pointer, "v", pointer_path)
+        else:
+            self.require_nonempty(pointer, "updated_at", pointer_path)
         if pointer.get("deprecated_full_payload") is not True:
             self.error("invalid_pointer", pointer_path, "deprecated_full_payload must be true")
         for key in ("message", "manifest", "replacement", "compat_since", "compat_until"):
             if not isinstance(pointer.get(key), str) or not pointer[key]:
-                self.error("invalid_pointer", pointer_path, f"{key} must be a non-empty string")
+                self.error("invalid_pointer", pointer_path, "pointer string field must be non-empty")
         replacement = pointer.get("replacement")
         if isinstance(replacement, str):
             pure_replacement = PurePosixPath(replacement)
@@ -191,17 +201,16 @@ class ArtifactValidator:
             self.error("pointer_contains_payload", pointer_path, "pointer must not contain full payload")
         for alias in COUNT_ALIASES:
             if alias in pointer and alias not in aliases:
-                self.error("unknown_count_alias", pointer_path, f"alias {alias} is not allowed")
+                self.error("unknown_count_alias", pointer_path, "count alias is not allowed")
             elif alias in pointer:
                 alias_count = self.require_count(pointer, alias, pointer_path)
                 if total is not None and alias_count != total:
                     self.error(
                         "count_alias_conflict",
                         pointer_path,
-                        f"alias {alias} conflicts with total_count",
+                        "count alias conflicts with total_count",
                     )
         return pointer
-
     def check_file_entry(
         self,
         base: Path,
@@ -221,39 +230,35 @@ class ArtifactValidator:
             optional=allowed_fields - (required_fields or ENTRY_REQUIRED),
             code="invalid_entry_shape",
         )
-        unknown = sorted(set(entry) - allowed_fields)
-        if unknown:
-            self.error("unknown_entry_field", owner, f"unknown fields: {','.join(unknown)}")
         count = self.require_count(entry, "count", owner)
         plain = self.resolve_file(base, entry.get("path"), owner)
         compressed = self.resolve_file(base, entry.get("gzip_path"), owner)
         if plain is None or compressed is None or count is None:
             return None
         if entry.get("bytes") != plain.stat().st_size:
-            self.error("bytes_mismatch", str(entry.get("path")), "bytes does not match file size")
+            self.error("bytes_mismatch", owner, "bytes does not match file size")
         if entry.get("gzip_bytes") != compressed.stat().st_size:
-            self.error("gzip_bytes_mismatch", str(entry.get("gzip_path")), "gzip_bytes does not match file size")
+            self.error("gzip_bytes_mismatch", owner, "gzip_bytes does not match file size")
         digest = hashlib.sha256(plain.read_bytes()).hexdigest()
         if entry.get("sha256") != digest:
-            self.error("sha256_mismatch", str(entry.get("path")), "sha256 does not match file")
+            self.error("sha256_mismatch", owner, "sha256 does not match file")
         try:
             plain_payload = json.loads(plain.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            self.error("invalid_json", str(entry.get("path")), "plain artifact is invalid JSON")
+            self.error("invalid_json", owner, "plain artifact is invalid JSON")
             return None
         try:
             with gzip.open(compressed, "rt", encoding="utf-8") as handle:
                 gzip_payload = json.load(handle)
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, gzip.BadGzipFile):
-            self.error("invalid_gzip", str(entry.get("gzip_path")), "gzip artifact is invalid")
+            self.error("invalid_gzip", owner, "gzip artifact is invalid")
             return None
         if plain_payload != gzip_payload:
-            self.error("gzip_payload_mismatch", str(entry.get("gzip_path")), "gzip JSON differs from plain JSON")
+            self.error("gzip_payload_mismatch", owner, "gzip JSON differs from plain JSON")
         if not isinstance(plain_payload, dict):
-            self.error("invalid_shape", str(entry.get("path")), "payload must be an object")
+            self.error("invalid_shape", owner, "payload must be an object")
             return None
         return entry, plain_payload
-
     def check_duplicate_entry_references(
         self,
         entry: dict,
@@ -267,7 +272,6 @@ class ArtifactValidator:
             if value in seen:
                 self.error("duplicate_reference", owner, f"manifest repeats {key}")
             seen.add(value)
-
     def check_sharded(
         self,
         base: Path,
@@ -279,15 +283,28 @@ class ArtifactValidator:
         pointer = self.check_pointer(base, pointer_path, kind=kind, aliases=aliases)
         if pointer is None or not isinstance(pointer.get("manifest"), str):
             return None
-        loaded = self.load_json(base, pointer["manifest"], pointer_path)
+        expected_manifest = (
+            "registry-manifest.json"
+            if kind == "registry"
+            else pointer_path.removesuffix(".json") + "-manifest.json"
+        )
+        expected_replacement = (
+            "registry-shards/*.json"
+            if kind == "registry"
+            else pointer_path.removesuffix("-index.json") + "-shards/part-*.json"
+        )
+        if pointer.get("manifest") != expected_manifest or pointer.get("replacement") != expected_replacement:
+            self.error("invalid_pointer_identity", pointer_path, "pointer target identity is invalid")
+        manifest_owner = f"{pointer_path}#manifest"
+        loaded = self.load_json(base, pointer["manifest"], manifest_owner)
         if loaded is None:
             return None
         _, manifest = loaded
-        self.require_schema(manifest, pointer["manifest"])
+        self.require_schema(manifest, manifest_owner)
         if kind == "registry":
             self.require_fields(
                 manifest,
-                pointer["manifest"],
+                manifest_owner,
                 required={
                     "schema_version",
                     "generated_at",
@@ -317,60 +334,82 @@ class ArtifactValidator:
             }
             self.require_fields(
                 manifest,
-                pointer["manifest"],
+                manifest_owner,
                 required=common_fields | ({"v"} if kind == "search" else set()),
                 code="invalid_manifest_shape",
             )
-        total = self.require_count(manifest, "total_count", pointer["manifest"])
+        total = self.require_count(manifest, "total_count", manifest_owner)
         if total is not None and pointer.get("total_count") != total:
             self.error("pointer_manifest_count_mismatch", pointer_path, "pointer and manifest totals differ")
-        entries_key = "shards"
-        count_key = "shard_count"
-        entries = manifest.get(entries_key)
-        entry_count = self.require_count(manifest, count_key, pointer["manifest"])
+        entries = manifest.get("shards")
+        entry_count = self.require_count(manifest, "shard_count", manifest_owner)
         for size_key in ("largest_shard_bytes", "largest_shard_gzip_bytes"):
             if kind != "registry":
-                self.require_count(manifest, size_key, pointer["manifest"])
+                self.require_count(manifest, size_key, manifest_owner)
         if kind == "registry":
-            plugin_count = self.require_count(manifest, "plugin_count", pointer["manifest"])
+            plugin_count = self.require_count(manifest, "plugin_count", manifest_owner)
             pointer_plugin_count = self.require_count(pointer, "plugin_count", pointer_path)
             if plugin_count is not None and pointer_plugin_count != plugin_count:
                 self.error("plugin_count_mismatch", pointer_path, "pointer and manifest plugin counts differ")
-            self.resolve_file(base, manifest.get("summary"), pointer["manifest"])
+            provenance = manifest.get("provenance")
+            provenance_fields = {"core_repo", "core_sha", "data_repo", "data_sha"}
+            provenance_ok = isinstance(provenance, dict) and (
+                not provenance
+                or set(provenance) == provenance_fields
+                and all(isinstance(provenance[key], str) and provenance[key] for key in provenance_fields)
+            )
+            if (
+                manifest.get("shard_strategy") != "sha256-install-branch-prefix"
+                or manifest.get("record_key") != "install|branch"
+                or not provenance_ok
+            ):
+                self.error("invalid_manifest_semantics", manifest_owner, "registry manifest semantics are invalid")
+            self.require_nonempty(manifest, "generated_at", manifest_owner)
+            if manifest.get("summary") != "registry_summary.json":
+                self.error("invalid_manifest_semantics", manifest_owner, "registry summary identity is invalid")
+            self.resolve_file(base, manifest.get("summary"), manifest_owner)
             plugins = manifest.get("plugins")
             if not isinstance(plugins, dict):
-                self.error("invalid_manifest", pointer["manifest"], "plugins must be an object")
+                self.error("invalid_manifest", manifest_owner, "plugins must be an object")
             else:
                 self.require_fields(
                     plugins,
-                    f"{pointer['manifest']}#plugins",
+                    f"{manifest_owner}#plugins",
                     required={"path", "count"},
                     code="invalid_manifest_shape",
                 )
                 plugins_count = self.require_count(
-                    plugins, "count", f"{pointer['manifest']}#plugins"
+                    plugins, "count", f"{manifest_owner}#plugins"
                 )
                 if plugin_count is not None and plugins_count != plugin_count:
                     self.error(
                         "plugin_count_mismatch",
-                        pointer["manifest"],
+                        manifest_owner,
                         "plugins entry count differs from manifest",
                     )
-                self.resolve_file(base, plugins.get("path"), pointer["manifest"])
+                if plugins.get("path") != "sources/plugins.json":
+                    self.error("invalid_manifest_semantics", manifest_owner, "plugin source identity is invalid")
+                self.resolve_file(base, plugins.get("path"), manifest_owner)
         else:
-            for key in ("updated_at", "shard_strategy", "record_schema"):
-                if not isinstance(manifest.get(key), str) or not manifest[key]:
-                    self.error("invalid_manifest", pointer["manifest"], f"{key} must be non-empty")
+            expected_strategy, expected_schema = SHARD_SEMANTICS[pointer_path]
+            if manifest.get("shard_strategy") != expected_strategy or manifest.get("record_schema") != expected_schema:
+                self.error("invalid_manifest_semantics", manifest_owner, "shard semantics are invalid")
+            updated_at = self.require_nonempty(manifest, "updated_at", manifest_owner)
+            identity_key = "v" if kind == "search" else "updated_at"
+            if kind == "search":
+                self.require_nonempty(manifest, "v", manifest_owner)
+            if pointer.get(identity_key) != manifest.get(identity_key) or updated_at is None:
+                self.error("manifest_identity_mismatch", manifest_owner, "pointer and manifest identity differ")
         if not isinstance(entries, list):
-            self.error("invalid_manifest", pointer["manifest"], "shards must be a list")
+            self.error("invalid_manifest", manifest_owner, "shards must be a list")
             return total
         if entry_count is not None and entry_count != len(entries):
-            self.error("entry_count_mismatch", pointer["manifest"], "shard_count differs from entries")
+            self.error("entry_count_mismatch", manifest_owner, "shard_count differs from entries")
         seen: set[str] = set()
         actual_total = 0
         payload_key = "skills" if kind == "registry" else "s" if kind == "search" else "records"
         for index, raw_entry in enumerate(entries):
-            owner = f"{pointer['manifest']}#{index}"
+            owner = f"{pointer_path}#entry-{index}"
             allowed = {"path", "gzip_path", "count", "bytes", "gzip_bytes", "sha256"}
             required = set(allowed)
             if kind == "registry":
@@ -391,35 +430,41 @@ class ArtifactValidator:
             if checked is None:
                 continue
             entry, payload = checked
-            self.require_schema(payload, str(entry.get("path")))
+            self.require_schema(payload, owner)
             expected_fields = {"schema_version", "count", payload_key}
             if kind == "registry":
                 expected_fields |= {"shard", "generated_at"}
-                identity_ok = payload.get("shard") == entry.get("id")
+                identity_ok = (
+                    payload.get("shard") == entry.get("id")
+                    and payload.get("generated_at") == manifest.get("generated_at")
+                )
             else:
                 expected_fields |= {"part", "part_count"}
                 if kind == "search":
                     expected_fields.add("v")
+                    version_ok = payload.get("v") == manifest.get("v")
                 else:
                     expected_fields.add("updated_at")
-                identity_ok = payload.get("part") == index and payload.get("part_count") == len(entries)
-            unknown_payload = sorted(set(payload) - expected_fields)
-            if unknown_payload:
-                self.error("unknown_payload_field", str(entry.get("path")), f"unknown fields: {','.join(unknown_payload)}")
+                    version_ok = payload.get("updated_at") == manifest.get("updated_at")
+                identity_ok = (
+                    payload.get("part") == index
+                    and payload.get("part_count") == len(entries)
+                    and version_ok
+                )
+            self.require_fields(payload, owner, required=expected_fields, code="unknown_payload_field")
             records = payload.get(payload_key)
-            payload_count = self.require_count(payload, "count", str(entry.get("path")))
+            payload_count = self.require_count(payload, "count", owner)
             if kind != "registry":
-                self.require_count(payload, "part_count", str(entry.get("path")))
+                self.require_count(payload, "part_count", owner)
             if not identity_ok:
-                self.error("payload_identity_mismatch", str(entry.get("path")), "payload identity is invalid")
+                self.error("payload_identity_mismatch", owner, "payload identity is invalid")
             if not isinstance(records, list):
-                self.error("invalid_payload_key", str(entry.get("path")), f"{payload_key} must be a list")
+                self.error("invalid_payload_key", owner, "payload array must be a list")
             elif payload_count != entry.get("count") or len(records) != entry.get("count"):
-                self.error("payload_count_mismatch", str(entry.get("path")), "payload count differs from entry")
+                self.error("payload_count_mismatch", owner, "payload count differs from entry")
         if total is not None and actual_total != total:
-            self.error("manifest_total_mismatch", pointer["manifest"], "entry counts do not sum to total_count")
+            self.error("manifest_total_mismatch", manifest_owner, "entry counts do not sum to total_count")
         return total
-
     def check_categories(self) -> int | None:
         loaded = self.load_json(self.docs, "categories/index.json", "categories/index.json")
         if loaded is None:
@@ -439,6 +484,7 @@ class ArtifactValidator:
             code="invalid_category_index_shape",
         )
         total = self.require_count(index_payload, "total_count", "categories/index.json")
+        index_updated_at = self.require_nonempty(index_payload, "updated_at", "categories/index.json")
         categories = index_payload.get("categories")
         category_count = self.require_count(index_payload, "category_count", "categories/index.json")
         if not isinstance(categories, list):
@@ -489,16 +535,25 @@ class ArtifactValidator:
             )
             if pointer is None or not isinstance(pointer.get("manifest"), str):
                 continue
-            if pointer.get("manifest") != category.get("manifest"):
+            if (
+                pointer.get("manifest") != category.get("manifest")
+                or pointer.get("category") != category.get("name")
+                or pointer.get("code") != category.get("code")
+                or pointer.get("updated_at") != index_updated_at
+            ):
                 self.error("category_manifest_mismatch", pointer_path, "index and pointer manifests differ")
-            manifest_loaded = self.load_json(self.docs, pointer["manifest"], pointer_path)
+            expected_replacement = pointer_path.removesuffix(".json") + "/part-*.json"
+            if pointer.get("replacement") != expected_replacement:
+                self.error("invalid_pointer_identity", pointer_path, "category replacement is invalid")
+            manifest_owner = f"{pointer_path}#manifest"
+            manifest_loaded = self.load_json(self.docs, pointer["manifest"], manifest_owner)
             if manifest_loaded is None:
                 continue
             _, manifest = manifest_loaded
-            self.require_schema(manifest, pointer["manifest"])
+            self.require_schema(manifest, manifest_owner)
             self.require_fields(
                 manifest,
-                pointer["manifest"],
+                manifest_owner,
                 required={
                     "schema_version",
                     "category",
@@ -514,25 +569,34 @@ class ArtifactValidator:
                 },
                 code="invalid_manifest_shape",
             )
-            manifest_count = self.require_count(manifest, "total_count", pointer["manifest"])
-            alias_count = self.require_count(manifest, "count", pointer["manifest"])
-            self.require_count(manifest, "largest_part_bytes", pointer["manifest"])
-            self.require_count(manifest, "largest_part_gzip_bytes", pointer["manifest"])
+            manifest_count = self.require_count(manifest, "total_count", manifest_owner)
+            alias_count = self.require_count(manifest, "count", manifest_owner)
+            manifest_parts = self.require_count(manifest, "part_count", manifest_owner)
+            self.require_count(manifest, "largest_part_bytes", manifest_owner)
+            self.require_count(manifest, "largest_part_gzip_bytes", manifest_owner)
             if manifest_count is not None:
                 manifest_total += manifest_count
             if len({entry_total, pointer.get("total_count"), manifest_count, alias_count}) != 1:
                 self.error("category_total_mismatch", pointer_path, "category totals differ")
+            if (
+                manifest.get("part_strategy") != "bounded-sequential-stars-desc"
+                or manifest.get("category") != category.get("name")
+                or manifest.get("code") != category.get("code")
+                or manifest.get("updated_at") != index_updated_at
+                or manifest_parts != category.get("part_count")
+            ):
+                self.error("category_identity_mismatch", manifest_owner, "category identity is invalid")
             parts = manifest.get("parts")
-            part_count = self.require_count(manifest, "part_count", pointer["manifest"])
+            part_count = manifest_parts
             if not isinstance(parts, list):
-                self.error("invalid_manifest", pointer["manifest"], "parts must be a list")
+                self.error("invalid_manifest", manifest_owner, "parts must be a list")
                 continue
             if part_count != len(parts):
-                self.error("entry_count_mismatch", pointer["manifest"], "part_count differs from entries")
+                self.error("entry_count_mismatch", manifest_owner, "part_count differs from entries")
             part_total = 0
             seen_parts: set[str] = set()
             for part_index, raw_entry in enumerate(parts):
-                part_owner = f"{pointer['manifest']}#{part_index}"
+                part_owner = f"{pointer_path}#part-{part_index}"
                 checked = self.check_file_entry(
                     self.docs,
                     raw_entry,
@@ -547,33 +611,55 @@ class ArtifactValidator:
                 if checked is None:
                     continue
                 entry, payload = checked
-                self.require_schema(payload, str(entry.get("path")))
+                self.require_schema(payload, part_owner)
                 expected = {"schema_version", "category", "code", "updated_at", "part", "part_count", "count", "skills"}
                 self.require_fields(
                     payload,
-                    str(entry.get("path")),
+                    part_owner,
                     required=expected,
                     code="unknown_payload_field",
                 )
                 skills = payload.get("skills")
-                payload_count = self.require_count(payload, "count", str(entry.get("path")))
-                self.require_count(payload, "part_count", str(entry.get("path")))
-                if payload.get("part") != part_index or payload.get("part_count") != len(parts):
-                    self.error("payload_identity_mismatch", str(entry.get("path")), "category part identity is invalid")
+                payload_count = self.require_count(payload, "count", part_owner)
+                self.require_count(payload, "part_count", part_owner)
+                if (
+                    payload.get("part") != part_index
+                    or payload.get("part_count") != len(parts)
+                    or payload.get("category") != manifest.get("category")
+                    or payload.get("code") != manifest.get("code")
+                    or payload.get("updated_at") != manifest.get("updated_at")
+                ):
+                    self.error("payload_identity_mismatch", part_owner, "category part identity is invalid")
                 if not isinstance(skills, list):
-                    self.error("invalid_payload_key", str(entry.get("path")), "skills must be a list")
+                    self.error("invalid_payload_key", part_owner, "payload array must be a list")
                 elif payload_count != entry.get("count") or len(skills) != entry.get("count"):
-                    self.error("payload_count_mismatch", str(entry.get("path")), "category payload count differs")
+                    self.error("payload_count_mismatch", part_owner, "category payload count differs")
             if manifest_count is not None and part_total != manifest_count:
-                self.error("manifest_total_mismatch", pointer["manifest"], "part counts do not sum to total_count")
+                self.error("manifest_total_mismatch", manifest_owner, "part counts do not sum to total_count")
         if total is not None and manifest_total != total:
             self.error("category_index_total_mismatch", "categories/index.json", "category totals do not sum to total_count")
         return total
-
+    def check_counted_document(self, path: str, fields: set[str], payload_key: str) -> None:
+        loaded = self.load_json(self.docs, path, path)
+        if loaded is None:
+            return
+        _, payload = loaded
+        if "schema_version" in fields:
+            self.require_schema(payload, path)
+        self.require_fields(payload, path, required=fields, code="invalid_public_document_shape")
+        self.require_nonempty(payload, "updated_at", path)
+        count = self.require_count(payload, "count", path)
+        records = payload.get(payload_key)
+        if not isinstance(records, list) or count is None or len(records) != count:
+            self.error("public_document_count_mismatch", path, "payload count is invalid")
     def check_simple_documents(self) -> tuple[int | None, int | None, int | None]:
         lite_loaded = self.load_json(self.docs, "search-index-lite.json", "search-index-lite.json")
         stats_loaded = self.load_json(self.docs, "stats.json", "stats.json")
         summary_loaded = self.load_json(self.root, "registry_summary.json", "registry_summary.json")
+        self.check_counted_document(
+            "featured.json", {"schema_version", "updated_at", "count", "skills"}, "skills"
+        )
+        self.check_counted_document("plugins.json", {"updated_at", "count", "plugins"}, "plugins")
         lite_total = stats_registry = summary_total = None
         if lite_loaded:
             _, lite = lite_loaded
@@ -614,11 +700,7 @@ class ArtifactValidator:
             }
             missing_stats = sorted(required_stats - stats.keys())
             if missing_stats:
-                self.error(
-                    "invalid_stats_shape",
-                    "stats.json",
-                    f"missing fields: {','.join(missing_stats)}",
-                )
+                self.error("invalid_stats_shape", "stats.json", f"missing field count={len(missing_stats)}")
             stats_registry = self.require_count(stats, "registry_skill_count_dedup", "stats.json")
             scan_count = self.require_count(stats, "indexed_skill_count_scan_shape", "stats.json")
             stable_count = self.require_count(stats, "lite_index_count", "stats.json")
@@ -638,8 +720,22 @@ class ArtifactValidator:
             summary_total = self.require_count(summary, "total_count", "registry_summary.json")
             self.require_count(summary, "plugin_count", "registry_summary.json")
         return lite_total, stats_registry, summary_total
-
     def validate(self) -> ValidationReport:
+        provenance_dir = self.root / "provenance"
+        if provenance_dir.exists():
+            loaded = self.load_json(
+                self.root, "provenance/merge-source.json", "provenance/merge-source.json"
+            )
+            if loaded:
+                _, provenance = loaded
+                fields = {"generated_at", "core_repo", "core_sha", "data_repo", "data_sha"}
+                self.require_fields(provenance, "provenance/merge-source.json", required=fields)
+                for key in fields:
+                    self.require_nonempty(provenance, key, "provenance/merge-source.json")
+                for key in ("core_sha", "data_sha"):
+                    value = provenance.get(key)
+                    if not isinstance(value, str) or len(value) != 40 or any(c not in "0123456789abcdef" for c in value):
+                        self.error("invalid_provenance", "provenance/merge-source.json", "source revision is invalid")
         registry_total = self.check_sharded(
             self.root, "registry.json", kind="registry", aliases={"registry_skill_count_dedup"}
         )
@@ -659,13 +755,12 @@ class ArtifactValidator:
         )
         for group, values in self.totals.items():
             if not values or len(set(values)) != 1:
-                self.error("group_total_mismatch", group, f"same-set totals differ: {values}")
+                self.error("group_total_mismatch", group, "same-set totals differ")
         return ValidationReport(
             checked_files=len(self.checked),
             totals=self.totals,
             errors=self.errors,
         )
-
 
 def validate_artifact_api(root: Path, docs_dir: Path | None = None) -> ValidationReport:
     resolved_root = root.resolve()
@@ -675,7 +770,6 @@ def validate_artifact_api(root: Path, docs_dir: Path | None = None) -> Validatio
     except ValueError as exc:
         raise ValueError("docs-dir must be inside root") from exc
     return ArtifactValidator(resolved_root, resolved_docs).validate()
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -694,7 +788,6 @@ def main() -> int:
     for error in report.errors:
         print(f"{error.code}: {error.path}: {error.message}")
     return 1 if report.errors else 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
