@@ -11,6 +11,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+import check_registry_shard_placement as registry_placement
+
 POINTER_REQUIRED = {
     "schema_version",
     "total_count",
@@ -54,7 +56,6 @@ class ValidationReport:
     checked_files: int
     totals: dict[str, list[int]]
     errors: list[ArtifactError]
-
     def as_dict(self) -> dict[str, Any]:
         return {
             "schema_version": 1,
@@ -406,6 +407,7 @@ class ArtifactValidator:
         if entry_count is not None and entry_count != len(entries):
             self.error("entry_count_mismatch", manifest_owner, "shard_count differs from entries")
         seen: set[str] = set()
+        registry_ids: set[str] = set()
         actual_total = 0
         payload_key = "skills" if kind == "registry" else "s" if kind == "search" else "records"
         for index, raw_entry in enumerate(entries):
@@ -424,6 +426,9 @@ class ArtifactValidator:
             )
             if not isinstance(raw_entry, dict):
                 continue
+            if kind == "registry":
+                for code in registry_placement.registry_entry_errors(raw_entry, registry_ids):
+                    self.error(code, owner, "registry shard placement is invalid")
             self.check_duplicate_entry_references(raw_entry, seen, owner)
             if _is_int(raw_entry.get("count")):
                 actual_total += raw_entry["count"]
@@ -434,10 +439,9 @@ class ArtifactValidator:
             expected_fields = {"schema_version", "count", payload_key}
             if kind == "registry":
                 expected_fields |= {"shard", "generated_at"}
-                identity_ok = (
-                    payload.get("shard") == entry.get("id")
-                    and payload.get("generated_at") == manifest.get("generated_at")
-                )
+                for code in registry_placement.registry_payload_errors(entry, payload):
+                    self.error(code, owner, "registry shard placement is invalid")
+                identity_ok = payload.get("generated_at") == manifest.get("generated_at")
             else:
                 expected_fields |= {"part", "part_count"}
                 if kind == "search":
@@ -464,6 +468,8 @@ class ArtifactValidator:
                 self.error("payload_count_mismatch", owner, "payload count differs from entry")
         if total is not None and actual_total != total:
             self.error("manifest_total_mismatch", manifest_owner, "entry counts do not sum to total_count")
+        if kind == "registry" and not registry_placement.registry_shard_set_is_complete(registry_ids, len(entries)):
+            self.error("registry_shard_set_mismatch", manifest_owner, "registry shard set is incomplete")
         return total
     def check_categories(self) -> int | None:
         loaded = self.load_json(self.docs, "categories/index.json", "categories/index.json")

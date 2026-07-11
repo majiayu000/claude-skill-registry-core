@@ -302,6 +302,53 @@ def test_validator_requires_public_documents(tmp_path, path):
     assert "missing_or_escaped_path" in _codes(report)
 
 
+@pytest.mark.parametrize("probe", ["duplicate", "invalid-id", "path"], ids=str)
+def test_validator_rejects_registry_shard_entry_placement_probes(tmp_path, probe):
+    docs = build_generated_fixture(tmp_path)
+    manifest_path = tmp_path / "registry-manifest.json"
+    manifest = _read(manifest_path)
+    if probe == "duplicate":
+        manifest["shards"][1] = dict(manifest["shards"][0])
+        expected = "duplicate_registry_shard_id"
+    elif probe == "invalid-id":
+        manifest["shards"][0]["id"] = "GG"
+        expected = "invalid_registry_shard_id"
+    else:
+        manifest["shards"][0]["path"] = manifest["shards"][1]["path"]
+        expected = "registry_shard_path_mismatch"
+    rebuild_registry.safe_write_json(manifest_path, manifest)
+
+    report = check_artifact_api.validate_artifact_api(tmp_path, docs)
+
+    assert expected in _codes(report)
+
+
+def test_validator_recomputes_registry_record_placement_after_integrity_refresh(tmp_path):
+    docs = build_generated_fixture(tmp_path)
+    manifest_path = tmp_path / "registry-manifest.json"
+    manifest = _read(manifest_path)
+    entry = next(item for item in manifest["shards"] if item["count"])
+    plain_path = tmp_path / entry["path"]
+    gzip_path = tmp_path / entry["gzip_path"]
+    payload = _read(plain_path)
+    skill = payload["skills"][0]
+    for suffix in range(1, 1000):
+        skill["branch"] = f"placement-drift-{suffix}"
+        if rebuild_registry.registry_shard_id(skill) != entry["id"]:
+            break
+    rebuild_registry.safe_write_json(plain_path, payload)
+    rebuild_registry.safe_write_gzip_json(gzip_path, payload)
+    entry["bytes"] = plain_path.stat().st_size
+    entry["gzip_bytes"] = gzip_path.stat().st_size
+    entry["sha256"] = rebuild_registry.file_sha256(plain_path)
+    rebuild_registry.safe_write_json(manifest_path, manifest)
+
+    report = check_artifact_api.validate_artifact_api(tmp_path, docs)
+
+    assert "registry_record_placement_mismatch" in _codes(report)
+    assert not {"bytes_mismatch", "gzip_bytes_mismatch", "sha256_mismatch"} & _codes(report)
+
+
 def test_validator_rejects_duplicate_reference_and_bad_gzip(tmp_path):
     docs = build_generated_fixture(tmp_path)
     manifest_path = tmp_path / "registry-manifest.json"

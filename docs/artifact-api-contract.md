@@ -126,6 +126,14 @@ Registry manifests use shard entries with:
 - `gzip_bytes`
 - `sha256`
 
+The registry manifest contains exactly the canonical 256 lowercase hexadecimal
+ids `00` through `ff`, once each. An id maps only to
+`registry-shards/<id>.json` and `registry-shards/<id>.json.gz`; the payload
+`shard` must equal that id. Every registry skill belongs to the first two
+hexadecimal characters of `sha256("<skill-install-key>|<branch>")`, where the
+install key is `repo/path`, then `repo`, then `local/path`, then
+`local/category/name`; an absent or empty branch is `main`.
+
 Consumers should validate `sha256` when they need reproducible syncs. Consumers
 should prefer `gzip_path` when bandwidth matters and plain `path` when a simpler
 client is more important.

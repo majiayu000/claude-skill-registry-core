@@ -243,6 +243,7 @@ def test_build_index_runs_generated_size_guard_before_pages_upload():
     assert validator_step["run"] == "python scripts/check_artifact_api.py --root . --docs-dir docs"
     assert "continue-on-error" not in validator_step
     assert "scripts/check_artifact_api.py" in workflow_text
+    assert "scripts/check_registry_shard_placement.py" in workflow_text
     assert "--include docs" in workflow_text
     assert "--docs-dir docs" in workflow_text
 
