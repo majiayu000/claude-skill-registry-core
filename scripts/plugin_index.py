@@ -18,6 +18,7 @@ class PluginIndexError(RuntimeError):
         self.source = source
         self.kind = kind
         self.path = path
+        self.detail = message
         super().__init__(f"{source}:{kind}:{path}: {message}")
 
 

@@ -243,7 +243,10 @@ def test_load_existing_plugins_missing_valid_and_invalid(tmp_path):
     assert outcome.status == "optional_missing"
 
     path = tmp_path / "plugins.json"
-    path.write_text('{"plugins":[{"repo":"owner/repo"}]}', encoding="utf-8")
+    path.write_text(
+        '{"plugins":[{"name":"demo","repo":"owner/repo"}]}',
+        encoding="utf-8",
+    )
     repos, outcome = discovery.load_existing_plugins(path)
     assert repos == {"owner/repo"}
     assert outcome.status == "success"
@@ -252,6 +255,44 @@ def test_load_existing_plugins_missing_valid_and_invalid(tmp_path):
     with pytest.raises(discovery.DiscoveryError) as caught:
         discovery.load_existing_plugins(path)
     assert caught.value.kind == "invalid_shape"
+
+
+@pytest.mark.parametrize(
+    "plugin",
+    [
+        {"repo": "owner/repo"},
+        {"name": "", "repo": "owner/repo"},
+        {"name": "demo", "repo": ""},
+    ],
+    ids=["missing-name", "empty-name", "empty-repo"],
+)
+def test_existing_plugin_invalid_item_is_authoritative_and_preserves_output(
+    tmp_path, plugin
+):
+    path = tmp_path / "plugins.json"
+    path.write_text(json.dumps({"plugins": [plugin]}), encoding="utf-8")
+
+    report = discovery.run_discovery(
+        plugins_path=path,
+        registry_path=tmp_path / "registry.json",
+        npm_only=True,
+        allow_partial=True,
+    )
+
+    assert report.status == "failed"
+    assert len(report.errors) == 1
+    error = report.errors[0]
+    assert error.source == "plugin_source"
+    assert error.operation == "read_existing"
+    assert error.kind == "invalid_shape"
+    assert error.subject == str(path)
+
+    output = tmp_path / "report.json"
+    output.write_bytes(b"trusted\n")
+    assert discovery.main(
+        ["--plugins", str(path), "--output", str(output), "--npm-only", "--allow-partial"]
+    ) == 1
+    assert output.read_bytes() == b"trusted\n"
 
 
 def test_load_existing_plugins_non_utf8_is_malformed(tmp_path):

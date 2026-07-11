@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Sequence
 
+from plugin_index import PluginIndexError, _validate_plugins
+
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
@@ -432,26 +434,17 @@ def load_existing_plugins(path: Path) -> tuple[set[str], SourceOutcome]:
         operation="read_existing",
         subject=str(path),
     )
-    if not isinstance(payload, dict) or not isinstance(payload.get("plugins"), list):
+    try:
+        plugins = _validate_plugins(payload, source="plugin_source", path=path)
+    except PluginIndexError as exc:
         raise DiscoveryError(
-            source="plugin_source",
+            source=exc.source,
             operation="read_existing",
-            kind="invalid_shape",
-            subject=str(path),
-            message="expected an object with a plugins list",
-        )
-    repos: set[str] = set()
-    for index, plugin in enumerate(payload["plugins"]):
-        if not isinstance(plugin, dict) or not isinstance(plugin.get("repo"), str):
-            raise DiscoveryError(
-                source="plugin_source",
-                operation="read_existing",
-                kind="invalid_shape",
-                subject=str(path),
-                message=f"plugins[{index}].repo must be a string",
-            )
-        if plugin["repo"]:
-            repos.add(plugin["repo"])
+            kind=exc.kind,
+            subject=str(exc.path),
+            message=exc.detail,
+        ) from exc
+    repos = {plugin["repo"] for plugin in plugins}
     return repos, SourceOutcome(unit="existing_plugins", status="success")
 
 

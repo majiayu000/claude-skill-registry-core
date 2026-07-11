@@ -284,6 +284,8 @@ def test_metadata_compliance_refuses_unexpected_zero_target_scan():
 
 def test_python_tests_workflow_runs_full_suite_with_coverage_gate():
     workflow = read_repo_file(".github/workflows/python-tests.yml")
+    pull_request_paths = workflow[workflow.index("pull_request:") : workflow.index("  push:")]
+    push_paths = workflow[workflow.index("  push:") : workflow.index("  workflow_dispatch:")]
 
     assert "name: Python Test Health" in workflow
     assert "fetch-depth: 0" in workflow
@@ -298,3 +300,5 @@ def test_python_tests_workflow_runs_full_suite_with_coverage_gate():
     assert "scripts/**" in workflow
     assert "taxonomy/**" in workflow
     assert "crawler/**" in workflow
+    assert "coverage-baseline.json" in pull_request_paths
+    assert "coverage-baseline.json" in push_paths
