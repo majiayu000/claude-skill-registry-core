@@ -463,6 +463,7 @@ def build_search_index(
 
     # Write SkillHub Plus lite and scoring indexes.
     lite_index = {
+        "schema_version": 1,
         "version": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "updated_at": utc_now_isoformat(),
         "total_count": len(all_lite_skills),
@@ -547,6 +548,7 @@ def build_search_index(
 
     # Write featured
     featured_data = {
+        "schema_version": 1,
         "updated_at": utc_now_isoformat(),
         "count": len(featured_skills),
         "skills": featured_skills,
@@ -588,6 +590,7 @@ def build_search_index(
 
     indexed_skill_count_scan_shape = len(skills)
     stats = {
+        "schema_version": 1,
         "updated_at": utc_now_isoformat(),
         "archive_skill_md_count_raw": archive_skill_md_count_raw,
         "archive_metadata_count_raw": archive_metadata_count_raw,
@@ -732,7 +735,7 @@ def main():
         archive_metadata_count_raw = count_named_files(skills_dir, "metadata.json")
         registry_skill_count_dedup = load_registry_count(registry_path)
         if registry_skill_count_dedup is None:
-            registry_skill_count_dedup = len(skills)
+            raise ValueError(f"registry total_count is required: {registry_path}")
     elif registry_path.exists():
         logger.info(f"Loading from registry: {registry_path}")
         skills = load_from_registry(registry_path)

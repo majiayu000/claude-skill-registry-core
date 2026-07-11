@@ -575,7 +575,7 @@ def test_write_registry_shards_references_paths_from_manifest_location(tmp_path)
     assert all(entry["gzip_path"].startswith("registry-shards/") for entry in entries)
 
 
-def test_build_compatibility_registry_can_omit_manifest_pointer():
+def test_build_compatibility_registry_defaults_to_v1_manifest_pointer():
     registry = rebuild_registry.build_compatibility_registry(
         generated_at="2026-05-14T00:00:00Z",
         total_count=2,
@@ -586,9 +586,13 @@ def test_build_compatibility_registry_can_omit_manifest_pointer():
 
     assert registry["total_count"] == 2
     assert registry["registry_skill_count_dedup"] == 2
-    assert "manifest" not in registry
+    assert registry["schema_version"] == 1
+    assert registry["manifest"] == "registry-manifest.json"
+    assert registry["replacement"] == "registry-shards/*.json"
+    assert registry["compat_since"] == "static-artifact-api-v1"
+    assert registry["compat_until"] == "static-artifact-api-v2"
     assert registry["deprecated_full_payload"] is True
-    assert "merged claude-skill-registry artifact" in registry["message"]
+    assert "registry-shards" in registry["message"]
     assert "skills" not in registry
 
 
