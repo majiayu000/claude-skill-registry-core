@@ -135,6 +135,35 @@ responses.set('search-index-lite.json', {
   assert.strictEqual(requests.length, missingCategoryStart);
   state.categories = [{ name: 'development', code: 'dev', manifest: 'categories/development/manifest.json' }];
 
+  categoryManifest.part_strategy = 'invalid';
+  state.categoryCache = {};
+  const failedElements = {
+    leaderboardSection: { classList: { remove() {} } },
+    leaderboardList: { innerHTML: 'must be cleared' },
+    leaderboardStatus: { textContent: '' }
+  };
+  const failedRunner = new Function(
+    'state', 'elements', 'CONFIG', 'normalizeSkillRecord', 'loadCategoryLeaderboardSkills',
+    'createLeaderboardCard', `${extract(render, 'showLeaderboard')}; return showLeaderboard;`
+  )(state, failedElements, CONFIG, normalizeSkillRecord, loadCategoryLeaderboardSkills,
+    () => { throw new Error('ranked cards must not render'); });
+  const invalidManifestStart = requests.length;
+  await failedRunner('dev');
+  assert.strictEqual(failedElements.leaderboardList.innerHTML, '');
+  assert.match(failedElements.leaderboardStatus.textContent, /load failed.*retry/i);
+  assert.deepStrictEqual(requests.slice(invalidManifestStart), [
+    'categories/development/manifest.json'
+  ]);
+  categoryManifest.part_strategy = 'bounded-sequential-stars-desc';
+  state.categories = [{ name: 'development', code: 'dev' }];
+  failedElements.leaderboardList.innerHTML = 'must be cleared again';
+  const missingManifestStart = requests.length;
+  await failedRunner('dev');
+  assert.strictEqual(failedElements.leaderboardList.innerHTML, '');
+  assert.match(failedElements.leaderboardStatus.textContent, /load failed.*retry/i);
+  assert.strictEqual(requests.length, missingManifestStart);
+  state.categories = [{ name: 'development', code: 'dev', manifest: 'categories/development/manifest.json' }];
+
   const beforeGlobal = requests.length;
   state.featured = [
     { name: 'Featured B', install: 'f/b', stars: 10 },

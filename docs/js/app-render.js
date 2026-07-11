@@ -31,11 +31,14 @@ async function showLeaderboard(categoryFilter = '') {
             : 'Top skills from the featured catalog — no full-index download';
     } catch (error) {
         if (requestToken !== state.leaderboardRequestToken) return;
+        if (categoryFilter) {
+            elements.leaderboardStatus.textContent =
+                `Leaderboard load failed: ${error.message}. Select the category again to retry.`;
+            return;
+        }
         elements.leaderboardStatus.textContent =
             `Leaderboard load failed: ${error.message}. Showing highlighted results; change category to retry.`;
-        skills = categoryFilter
-            ? state.index.s.filter(s => s.c === categoryFilter)
-            : state.index.s;
+        skills = state.index.s;
     }
 
     // Sort by stars descending
