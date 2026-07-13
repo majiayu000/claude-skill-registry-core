@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional
 
 from category_taxonomy import get_category_code, resolve_category
 from index_artifacts import write_category_artifacts, write_search_artifacts, write_signal_artifacts
-from plugin_index import build_plugins_index, load_plugins_from_registry, load_plugins_from_source
+from plugin_index import build_plugins_index, load_plugins_with_fallback
 from search_sources import (
     count_named_files,
     load_from_registry,
@@ -766,9 +766,7 @@ def main():
 
     # Load plugins
     sources_dir = Path(__file__).parent.parent / "sources"
-    plugins = load_plugins_from_source(sources_dir)
-    if not plugins:
-        plugins = load_plugins_from_registry(registry_path)
+    plugins = load_plugins_with_fallback(sources_dir, registry_path)
     if plugins:
         logger.info(f"Loaded {len(plugins)} plugins")
 
