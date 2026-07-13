@@ -272,11 +272,42 @@ def inspect_repo_structure(repo: str) -> dict[str, Any]:
             message="default_branch and integer stargazers_count are required",
         )
 
-    tree_raw = gh_api(
-        f"repos/{repo}/git/trees/{branch}?recursive=true",
-        "[.tree[].path] | .[]",
+    tree_raw = gh_api(f"repos/{repo}/git/trees/{branch}?recursive=true")
+    tree = _load_json(
+        tree_raw,
+        source="github",
+        operation="repo_tree",
+        subject=repo,
     )
-    paths = [path for path in tree_raw.splitlines() if path]
+    if not isinstance(tree, dict) or not isinstance(tree.get("truncated"), bool):
+        raise DiscoveryError(
+            source="github",
+            operation="repo_tree",
+            kind="invalid_shape",
+            subject=repo,
+            message="expected a recursive tree object with a boolean truncated flag",
+        )
+    if tree["truncated"]:
+        raise DiscoveryError(
+            source="github",
+            operation="repo_tree",
+            kind="api_failure",
+            subject=repo,
+            message="recursive repository tree response was truncated",
+        )
+    entries = tree.get("tree")
+    if not isinstance(entries, list) or any(
+        not isinstance(entry, dict) or not isinstance(entry.get("path"), str)
+        for entry in entries
+    ):
+        raise DiscoveryError(
+            source="github",
+            operation="repo_tree",
+            kind="invalid_shape",
+            subject=repo,
+            message="expected tree entries with string paths",
+        )
+    paths = [entry["path"] for entry in entries]
     result: dict[str, Any] = {
         "skills": [],
         "commands": [],

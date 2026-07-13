@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -42,6 +43,20 @@ def _structure(**overrides):
     }
     value.update(overrides)
     return value
+
+
+def _tree(*paths, truncated=False):
+    entries = [{"path": path, "type": "blob"} for path in paths]
+    return json.dumps({"truncated": truncated, "tree": entries})
+
+def _fail_reading(expected_path):
+    def fail(self, *args, **kwargs):
+        if self == expected_path:
+            raise OSError("secret detail")
+        return _ORIGINAL_READ_TEXT(self, *args, **kwargs)
+
+    return fail
+_ORIGINAL_READ_TEXT = Path.read_text
 
 
 def _report(status, *, allow_partial=False, candidates=None, errors=None):
@@ -182,7 +197,13 @@ def test_inspect_repo_structure_parses_signals(monkeypatch):
             json.dumps(
                 {"description": "demo", "stargazers_count": 12, "default_branch": "trunk"}
             ),
-            "skills/a/SKILL.md\nplugin/commands/run.md\nplugin/hooks/pre.js\npackage.json\n",
+            _tree(
+                "skills/a/SKILL.md",
+                "plugin/commands/run.md",
+                "plugin/hooks/pre.js",
+                "package.json",
+                "README.md",
+            ),
         ]
     )
     monkeypatch.setattr(discovery, "gh_api", lambda *args, **kwargs: next(replies))
@@ -194,6 +215,32 @@ def test_inspect_repo_structure_parses_signals(monkeypatch):
     assert result["hooks"] == ["plugin/hooks/pre.js"]
     assert result["has_package_json"] is True
     assert result["default_branch"] == "trunk"
+
+
+@pytest.mark.parametrize(
+    ("tree", "kind"),
+    [
+        (_tree("skills/a/SKILL.md", truncated=True), "api_failure"),
+        ("[]", "invalid_shape"),
+        ('{"tree":[]}', "invalid_shape"),
+        ('{"truncated":false,"tree":[null]}', "invalid_shape"),
+        ('{"truncated":false,"tree":[{}]}', "invalid_shape"),
+    ],
+)
+def test_inspect_repo_structure_rejects_incomplete_or_invalid_tree(
+    monkeypatch, tree, kind
+):
+    metadata = '{"description":"demo","stargazers_count":12,"default_branch":"main"}'
+    replies = iter([metadata, tree])
+    monkeypatch.setattr(discovery, "gh_api", lambda *args, **kwargs: next(replies))
+
+    with pytest.raises(discovery.DiscoveryError) as caught:
+        discovery.inspect_repo_structure("owner/repo")
+
+    assert caught.value.source == "github"
+    assert caught.value.operation == "repo_tree"
+    assert caught.value.kind == kind
+    assert caught.value.subject == "owner/repo"
 
 
 @pytest.mark.parametrize(
@@ -217,11 +264,30 @@ def test_get_install_command_parses_package(monkeypatch):
     assert discovery.get_install_command("owner/repo", "main") == "npx demo-cli@latest"
 
 
+@pytest.mark.parametrize(
+    ("payload", "expected"), [({"name": "demo"}, "demo"), ({"name": 42}, "")]
+)
+def test_get_install_command_accepts_package_without_bin(monkeypatch, payload, expected):
+    encoded = base64.b64encode(json.dumps(payload).encode()).decode()
+    monkeypatch.setattr(discovery, "gh_api", lambda *args, **kwargs: encoded)
+    assert discovery.get_install_command("owner/repo", "main") == expected
+
+
 @pytest.mark.parametrize("content", ["", "not-base64"])
 def test_get_install_command_rejects_bad_content(monkeypatch, content):
     monkeypatch.setattr(discovery, "gh_api", lambda *args, **kwargs: content)
     with pytest.raises(discovery.DiscoveryError):
         discovery.get_install_command("owner/repo", "main")
+
+
+@pytest.mark.parametrize("payload", ["[]", "{"])
+def test_get_install_command_rejects_invalid_package_json(monkeypatch, payload):
+    encoded = base64.b64encode(payload.encode()).decode()
+    monkeypatch.setattr(discovery, "gh_api", lambda *args, **kwargs: encoded)
+    with pytest.raises(discovery.DiscoveryError) as caught:
+        discovery.get_install_command("owner/repo", "main")
+    assert caught.value.operation == "package_content"
+    assert caught.value.kind in {"invalid_shape", "malformed_json"}
 
 
 def test_score_candidate_preserves_policy(monkeypatch):
@@ -303,6 +369,19 @@ def test_load_existing_plugins_non_utf8_is_malformed(tmp_path):
     assert caught.value.kind == "malformed_json"
 
 
+def test_load_existing_plugins_read_error_is_authoritative(monkeypatch, tmp_path):
+    path = tmp_path / "plugins.json"
+    path.write_text('{"plugins":[]}', encoding="utf-8")
+    monkeypatch.setattr(Path, "read_text", _fail_reading(path))
+
+    with pytest.raises(discovery.DiscoveryError) as caught:
+        discovery.load_existing_plugins(path)
+
+    assert caught.value.source == "plugin_source"
+    assert caught.value.operation == "read_existing"
+    assert caught.value.kind == "read_error"
+    assert "secret detail" not in str(caught.value)
+
 def test_discover_from_npm_retains_partial_errors(monkeypatch):
     monkeypatch.setattr(discovery, "NPM_QUERIES", ["good", "bad"])
 
@@ -378,6 +457,42 @@ def test_registry_loader_missing_valid_and_malformed(tmp_path):
     assert caught.value.kind == "malformed_json"
 
 
+def test_registry_loader_read_error_is_typed(monkeypatch, tmp_path):
+    path = tmp_path / "registry.json"
+    path.write_text('{"skills":[]}', encoding="utf-8")
+    monkeypatch.setattr(Path, "read_text", _fail_reading(path))
+
+    with pytest.raises(discovery.DiscoveryError) as caught:
+        discovery._load_registry_repos(path)
+
+    assert caught.value.source == "registry"
+    assert caught.value.operation == "read"
+    assert caught.value.kind == "read_error"
+    assert "secret detail" not in str(caught.value)
+
+
+@pytest.mark.parametrize("skill", [None, "bad", []])
+def test_registry_loader_rejects_malformed_items(tmp_path, skill):
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps({"skills": [skill]}), encoding="utf-8")
+
+    with pytest.raises(discovery.DiscoveryError) as caught:
+        discovery._load_registry_repos(path)
+
+    assert caught.value.source == "registry"
+    assert caught.value.operation == "read"
+    assert caught.value.kind == "invalid_shape"
+
+
+def test_registry_loader_ignores_items_without_repo(tmp_path):
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps({"skills": [{"name": "no-repo"}]}), encoding="utf-8")
+
+    repos, outcome = discovery._load_registry_repos(path)
+
+    assert repos == []
+    assert outcome.status == "success"
+
 def test_discover_from_registry_records_repo_error(monkeypatch, tmp_path):
     path = tmp_path / "registry.json"
     path.write_text(json.dumps({"skills": [{"repo": "owner/repo"}] * 10}), encoding="utf-8")
@@ -389,6 +504,87 @@ def test_discover_from_registry_records_repo_error(monkeypatch, tmp_path):
     outcomes = []
     assert discovery.discover_from_registry(path, set(), set(), outcomes) == []
     assert outcomes[-1].status == "error"
+
+
+def test_discover_from_registry_aggregates_parse_error(monkeypatch, tmp_path):
+    path = tmp_path / "registry.json"
+    path.write_text("{", encoding="utf-8")
+    outcomes = [discovery.SourceOutcome("npm_search:q", "success")]
+
+    assert discovery.discover_from_registry(path, set(), set(), outcomes) == []
+    assert outcomes[-1].unit == "registry_enrichment"
+    assert outcomes[-1].status == "error"
+    assert outcomes[-1].error is not None
+    assert outcomes[-1].error.kind == "malformed_json"
+    assert discovery.derive_status(outcomes) == "partial"
+
+
+def test_discover_from_registry_records_success_and_filters_known(monkeypatch, tmp_path):
+    path = tmp_path / "registry.json"
+    skills = []
+    for repo in ["known/repo", "checked/repo", "owner/claude-skill-registry-copy", "new/repo"]:
+        skills.extend({"repo": repo} for _ in range(10))
+    path.write_text(json.dumps({"skills": skills}), encoding="utf-8")
+    monkeypatch.setattr(discovery, "inspect_repo_structure", lambda repo: _structure(has_package_json=False))
+    outcomes = []
+
+    candidates = discovery.discover_from_registry(
+        path,
+        {"known/repo"},
+        {"checked/repo"},
+        outcomes,
+    )
+
+    assert [candidate["repo"] for candidate in candidates] == ["new/repo"]
+    assert outcomes[-1].unit == "registry_repo:new/repo"
+    assert outcomes[-1].status == "success"
+    assert outcomes[-1].candidate_count == 1
+
+
+def test_discover_from_registry_records_success_without_candidate(monkeypatch, tmp_path):
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps({"skills": [{"repo": "new/repo"}] * 10}), encoding="utf-8")
+    monkeypatch.setattr(
+        discovery,
+        "inspect_repo_structure",
+        lambda repo: _structure(skills=[]),
+    )
+    outcomes = []
+
+    assert discovery.discover_from_registry(path, set(), set(), outcomes) == []
+    assert outcomes[-1].status == "success"
+    assert outcomes[-1].candidate_count == 0
+
+
+def test_truncated_tree_error_propagates_to_partial_and_failed_status(monkeypatch):
+    error = discovery.DiscoveryError(
+        source="github",
+        operation="repo_tree",
+        kind="api_failure",
+        subject="owner/repo",
+        message="recursive repository tree response was truncated",
+    )
+    monkeypatch.setattr(discovery, "NPM_QUERIES", ["query"])
+    monkeypatch.setattr(discovery, "npm_search", lambda query: [{"name": "demo"}])
+    monkeypatch.setattr(
+        discovery,
+        "npm_view",
+        lambda name: {
+            "bin": {"demo": "cli.js"},
+            "repository": {"url": "https://github.com/owner/repo"},
+        },
+    )
+    monkeypatch.setattr(
+        discovery,
+        "inspect_repo_structure",
+        lambda repo: (_ for _ in ()).throw(error),
+    )
+    outcomes = []
+
+    assert discovery.discover_from_npm(set(), outcomes) == []
+    assert outcomes[-1].error is error
+    assert discovery.derive_status(outcomes) == "partial"
+    assert discovery.derive_status([outcomes[-1]]) == "failed"
 
 
 @pytest.mark.parametrize(
@@ -452,6 +648,37 @@ def test_run_discovery_zero_candidates_can_be_complete(monkeypatch, tmp_path):
     )
     assert report.status == "complete"
     assert report.candidates == []
+
+
+def test_run_discovery_aggregates_optional_registry_error(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        discovery,
+        "load_existing_plugins",
+        lambda path: (set(), discovery.SourceOutcome("existing_plugins", "success")),
+    )
+
+    def npm_success(existing, outcomes):
+        outcomes.append(discovery.SourceOutcome("npm_search:q", "success"))
+        return []
+
+    registry_error = _error("malformed_json", "registry.json")
+
+    def registry_failure(path, existing, checked, outcomes):
+        outcomes.append(discovery._error_outcome("registry_enrichment", registry_error))
+        return []
+
+    monkeypatch.setattr(discovery, "discover_from_npm", npm_success)
+    monkeypatch.setattr(discovery, "discover_from_registry", registry_failure)
+
+    report = discovery.run_discovery(
+        plugins_path=tmp_path / "plugins.json",
+        registry_path=tmp_path / "registry.json",
+        npm_only=False,
+        allow_partial=False,
+    )
+
+    assert report.status == "partial"
+    assert report.errors == [registry_error]
 
 
 def test_write_discovery_report_is_atomic(tmp_path):
@@ -540,3 +767,33 @@ def test_main_exit_and_output_contract(
         assert payload["allow_partial"] is allow_partial
     else:
         assert output.read_bytes() == b"trusted\n"
+
+
+def test_main_output_write_failure_becomes_failed_and_preserves_output(
+    monkeypatch, tmp_path, caplog
+):
+    caplog.set_level(logging.INFO)
+    output = tmp_path / "report.json"
+    output.write_bytes(b"trusted\n")
+    monkeypatch.setattr(
+        discovery,
+        "run_discovery",
+        lambda **kwargs: _report("complete"),
+    )
+    write_error = discovery.DiscoveryError(
+        source="output",
+        operation="write",
+        kind="write_error",
+        subject=str(output),
+        message="OSError",
+    )
+    monkeypatch.setattr(
+        discovery,
+        "write_discovery_report",
+        lambda path, report: (_ for _ in ()).throw(write_error),
+    )
+
+    assert discovery.main(["--output", str(output), "--npm-only"]) == 1
+    assert output.read_bytes() == b"trusted\n"
+    assert "output:write:write_error" in caplog.text
+    assert "status=failed" in caplog.text

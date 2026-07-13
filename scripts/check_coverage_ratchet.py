@@ -5,10 +5,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import string
 import subprocess
 from pathlib import Path
 from typing import Any, Sequence
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 compatibility for this CI-only tool.
+    import tomli as tomllib
 
 
 class CoverageRatchetError(ValueError):
@@ -23,6 +29,186 @@ def load_json_object(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise CoverageRatchetError(f"expected JSON object: {path}")
     return payload
+
+
+def load_toml_object(path: Path) -> dict[str, Any]:
+    try:
+        payload = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        raise CoverageRatchetError(f"unable to read TOML object {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise CoverageRatchetError(f"expected TOML object: {path}")
+    return payload
+
+
+def load_git_toml(ref: str, path: Path) -> dict[str, Any]:
+    result = subprocess.run(
+        ["git", "show", f"{ref}:{path.as_posix()}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise CoverageRatchetError(f"unable to read {path} at {ref}")
+    try:
+        payload = tomllib.loads(result.stdout)
+    except tomllib.TOMLDecodeError as exc:
+        raise CoverageRatchetError(f"malformed {path} at {ref}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise CoverageRatchetError(f"expected TOML object at {ref}:{path}")
+    return payload
+
+
+def _coverage_config(config: dict[str, Any], context: str) -> dict[str, Any]:
+    tool = config.get("tool")
+    coverage = tool.get("coverage") if isinstance(tool, dict) else None
+    if not isinstance(coverage, dict):
+        raise CoverageRatchetError(f"{context} must define tool.coverage")
+    return coverage
+
+
+def _string_list(section: dict[str, Any], key: str, context: str) -> list[str]:
+    value = section.get(key, [])
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise CoverageRatchetError(f"{context}.{key} must be a string list")
+    return value
+
+
+def _pytest_addopts(config: dict[str, Any], context: str) -> list[str]:
+    tool = config.get("tool")
+    pytest_config = tool.get("pytest") if isinstance(tool, dict) else None
+    ini_options = pytest_config.get("ini_options") if isinstance(pytest_config, dict) else None
+    addopts = ini_options.get("addopts", "") if isinstance(ini_options, dict) else ""
+    if not isinstance(addopts, str):
+        raise CoverageRatchetError(f"{context} pytest addopts must be a string")
+    return shlex.split(addopts)
+
+
+def validate_coverage_policy(
+    coverage: dict[str, Any],
+    current_config: dict[str, Any],
+    recorded_config: dict[str, Any],
+    *,
+    repo_root: Path,
+) -> list[str]:
+    """Reject configuration and evidence changes that can inflate coverage."""
+    errors: list[str] = []
+    current_coverage = _coverage_config(current_config, "current pyproject")
+    recorded_coverage = _coverage_config(recorded_config, "recorded pyproject")
+    current_run = current_coverage.get("run")
+    recorded_run = recorded_coverage.get("run")
+    if not isinstance(current_run, dict) or not isinstance(recorded_run, dict):
+        raise CoverageRatchetError("tool.coverage.run must be an object")
+    if current_run.get("branch") is not True:
+        errors.append("coverage branch measurement must remain enabled")
+
+    current_sources = _string_list(current_run, "source", "current tool.coverage.run")
+    recorded_sources = _string_list(recorded_run, "source", "recorded tool.coverage.run")
+    missing_sources = sorted(set(recorded_sources) - set(current_sources))
+    if missing_sources:
+        errors.append(f"coverage source scope cannot narrow: {', '.join(missing_sources)}")
+
+    current_addopts = _pytest_addopts(current_config, "current pyproject")
+    recorded_addopts = _pytest_addopts(recorded_config, "recorded pyproject")
+    current_cov_targets = {option for option in current_addopts if option.startswith("--cov=")}
+    recorded_cov_targets = {option for option in recorded_addopts if option.startswith("--cov=")}
+    if not recorded_cov_targets.issubset(current_cov_targets):
+        errors.append("pytest coverage source arguments cannot narrow")
+    if any(option.startswith("--cov-config") for option in current_addopts):
+        errors.append("pytest cannot override the audited coverage configuration")
+
+    section_names = set(recorded_coverage) | set(current_coverage)
+    for section_name in sorted(section_names):
+        current_section = current_coverage.get(section_name, {})
+        recorded_section = recorded_coverage.get(section_name, {})
+        if not isinstance(current_section, dict) or not isinstance(recorded_section, dict):
+            raise CoverageRatchetError(f"tool.coverage.{section_name} must be an object")
+        for key in ("omit", "exclude_lines", "exclude_also"):
+            current_values = _string_list(
+                current_section,
+                key,
+                f"current tool.coverage.{section_name}",
+            )
+            recorded_values = _string_list(
+                recorded_section,
+                key,
+                f"recorded tool.coverage.{section_name}",
+            )
+            added = sorted(set(current_values) - set(recorded_values))
+            if added:
+                errors.append(
+                    f"coverage {key} patterns cannot expand in {section_name}: "
+                    + ", ".join(added)
+                )
+        current_include = _string_list(
+            current_section,
+            "include",
+            f"current tool.coverage.{section_name}",
+        )
+        recorded_include = _string_list(
+            recorded_section,
+            "include",
+            f"recorded tool.coverage.{section_name}",
+        )
+        if current_include != recorded_include:
+            errors.append(f"coverage include scope cannot change in {section_name}")
+
+    meta = coverage.get("meta")
+    files = coverage.get("files")
+    if not isinstance(meta, dict) or meta.get("branch_coverage") is not True:
+        errors.append("coverage evidence must include branch measurement")
+    if not isinstance(files, dict):
+        raise CoverageRatchetError("coverage JSON files must be an object")
+    required_files: set[str] = set()
+    for source in current_sources:
+        source_path = repo_root / source
+        if not source_path.is_dir():
+            errors.append(f"coverage source root does not exist: {source}")
+            continue
+        required_files.update(
+            path.relative_to(repo_root).as_posix()
+            for path in source_path.rglob("*.py")
+            if "__pycache__" not in path.parts
+        )
+    missing_files = sorted(required_files - set(files))
+    if missing_files:
+        preview = ", ".join(missing_files[:5])
+        suffix = f" (+{len(missing_files) - 5} more)" if len(missing_files) > 5 else ""
+        errors.append(f"coverage evidence has narrowed source files: {preview}{suffix}")
+    return errors
+
+
+def validate_no_new_coverage_pragmas(
+    recorded_commit: str,
+    source_roots: Sequence[str],
+) -> list[str]:
+    forbidden_annotation = "pragma:" + " no cover"
+    result = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--unified=0",
+            "--no-ext-diff",
+            recorded_commit,
+            "--",
+            *source_roots,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise CoverageRatchetError("unable to inspect source diff for coverage pragmas")
+    added_pragmas = [
+        line
+        for line in result.stdout.splitlines()
+        if line.startswith("+")
+        and not line.startswith("+++")
+        and forbidden_annotation in line.lower()
+    ]
+    if added_pragmas:
+        return [f"new {forbidden_annotation} annotations are forbidden in measured source"]
+    return []
 
 
 def _number(payload: dict[str, Any], key: str, context: str) -> float:
@@ -180,6 +366,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--coverage", type=Path, default=Path("coverage.json"))
     parser.add_argument("--baseline", type=Path, default=Path("coverage-baseline.json"))
+    parser.add_argument("--pyproject", type=Path, default=Path("pyproject.toml"))
     parser.add_argument("--compare-ref", default="origin/main")
     return parser.parse_args(argv)
 
@@ -192,6 +379,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         previous = load_previous_baseline(args.compare_ref, args.baseline)
         errors = validate_coverage(coverage, baseline, previous_baseline=previous)
         errors.extend(validate_recorded_commit(baseline, args.compare_ref))
+        current_config = load_toml_object(args.pyproject)
+        recorded_config = load_git_toml(baseline["recorded_commit"], args.pyproject)
+        errors.extend(
+            validate_coverage_policy(
+                coverage,
+                current_config,
+                recorded_config,
+                repo_root=Path.cwd(),
+            )
+        )
+        current_coverage = _coverage_config(current_config, "current pyproject")
+        current_run = current_coverage.get("run")
+        if not isinstance(current_run, dict):
+            raise CoverageRatchetError("tool.coverage.run must be an object")
+        source_roots = _string_list(
+            current_run,
+            "source",
+            "current tool.coverage.run",
+        )
+        errors.extend(
+            validate_no_new_coverage_pragmas(
+                baseline["recorded_commit"],
+                source_roots,
+            )
+        )
     except CoverageRatchetError as exc:
         print(f"Coverage ratchet failed: {exc}")
         return 1

@@ -284,6 +284,7 @@ def test_metadata_compliance_refuses_unexpected_zero_target_scan():
 
 def test_python_tests_workflow_runs_full_suite_with_coverage_gate():
     workflow = read_repo_file(".github/workflows/python-tests.yml")
+    pyproject = read_repo_file("pyproject.toml")
     pull_request_paths = workflow[workflow.index("pull_request:") : workflow.index("  push:")]
     push_paths = workflow[workflow.index("  push:") : workflow.index("  workflow_dispatch:")]
 
@@ -294,6 +295,8 @@ def test_python_tests_workflow_runs_full_suite_with_coverage_gate():
     assert "--baseline coverage-baseline.json" in workflow
     assert "--compare-ref origin/main" in workflow
     assert "diff-cover coverage.xml --compare-branch=origin/main --fail-under=80" in workflow
+    assert "--cov=" not in workflow
+    assert "--cov-config" not in workflow
     assert "--cov-fail-under=50" not in workflow
     assert "scripts/check_taxonomy_governance.py" in workflow
     assert "--override-ini" not in workflow
@@ -302,3 +305,7 @@ def test_python_tests_workflow_runs_full_suite_with_coverage_gate():
     assert "crawler/**" in workflow
     assert "coverage-baseline.json" in pull_request_paths
     assert "coverage-baseline.json" in push_paths
+    assert 'source = ["scripts", "crawler"]' in pyproject
+    assert "branch = true" in pyproject
+    assert "omit =" not in pyproject
+    assert "exclude_also =" not in pyproject

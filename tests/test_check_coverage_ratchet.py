@@ -17,7 +17,21 @@ import check_coverage_ratchet as ratchet  # noqa: E402
 
 MODULES = ["scripts/discover_plugins.py", "scripts/plugin_index.py"]
 CRITICAL = {
-    "scripts/discover_plugins.py": ["_run_command", "_load_json"],
+    "scripts/discover_plugins.py": [
+        "_run_command",
+        "_load_json",
+        "npm_search",
+        "npm_view",
+        "inspect_repo_structure",
+        "get_install_command",
+        "load_existing_plugins",
+        "_load_registry_repos",
+        "discover_from_registry",
+        "derive_status",
+        "run_discovery",
+        "write_discovery_report",
+        "main",
+    ],
     "scripts/plugin_index.py": ["_validate_plugins"],
 }
 
@@ -49,6 +63,38 @@ def _coverage(global_line=90.0):
     return {
         "totals": {"percent_statements_covered": global_line},
         "files": files,
+    }
+
+
+def _config(*, sources=None, run=None, report=None):
+    run_config = {"branch": True, "source": sources or ["scripts", "crawler"]}
+    run_config.update(run or {})
+    return {
+        "tool": {
+            "pytest": {
+                "ini_options": {
+                    "addopts": "--cov=scripts --cov=crawler --cov-report=term-missing"
+                }
+            },
+            "coverage": {
+                "run": run_config,
+                "report": report
+                or {
+                    "exclude_lines": [
+                        "pragma: no cover",
+                        "if __name__ == .__main__.:",
+                        "raise NotImplementedError",
+                    ]
+                },
+            }
+        }
+    }
+
+
+def _policy_coverage(*files):
+    return {
+        "meta": {"branch_coverage": True},
+        "files": {path: {} for path in files},
     }
 
 
@@ -161,3 +207,163 @@ def test_validate_recorded_commit_pass_and_fail(monkeypatch):
     assert "not an ancestor" in ratchet.validate_recorded_commit(
         _baseline(), "origin/main"
     )[0]
+
+
+def test_validate_coverage_policy_accepts_complete_unchanged_scope(tmp_path):
+    for path in [tmp_path / "scripts" / "a.py", tmp_path / "crawler" / "b.py"]:
+        path.parent.mkdir(exist_ok=True)
+        path.write_text("value = 1\n", encoding="utf-8")
+    config = _config()
+    coverage = _policy_coverage("scripts/a.py", "crawler/b.py")
+
+    assert ratchet.validate_coverage_policy(
+        coverage,
+        config,
+        deepcopy(config),
+        repo_root=tmp_path,
+    ) == []
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected"),
+    [
+        (
+            lambda config: config["tool"]["coverage"]["run"].update(source=["scripts"]),
+            "source scope cannot narrow",
+        ),
+        (
+            lambda config: config["tool"]["coverage"]["run"].update(omit=["scripts/risky.py"]),
+            "omit patterns cannot expand",
+        ),
+        (
+            lambda config: config["tool"]["coverage"]["report"]["exclude_lines"].append(
+                "def risky"
+            ),
+            "exclude_lines patterns cannot expand",
+        ),
+        (
+            lambda config: config["tool"]["coverage"]["report"].update(
+                exclude_also=["raise SecurityError"]
+            ),
+            "exclude_also patterns cannot expand",
+        ),
+        (
+            lambda config: config["tool"]["coverage"]["run"].update(
+                include=["scripts/safe.py"]
+            ),
+            "include scope cannot change",
+        ),
+        (
+            lambda config: config["tool"]["coverage"]["run"].update(branch=False),
+            "branch measurement must remain enabled",
+        ),
+        (
+            lambda config: config["tool"]["pytest"]["ini_options"].update(
+                addopts="--cov=scripts --cov-report=term-missing"
+            ),
+            "pytest coverage source arguments cannot narrow",
+        ),
+        (
+            lambda config: config["tool"]["pytest"]["ini_options"].update(
+                addopts="--cov=scripts --cov=crawler --cov-config=unsafe.ini"
+            ),
+            "cannot override the audited coverage configuration",
+        ),
+    ],
+)
+def test_validate_coverage_policy_rejects_bypass_config(tmp_path, mutate, expected):
+    for path in [tmp_path / "scripts" / "a.py", tmp_path / "crawler" / "b.py"]:
+        path.parent.mkdir(exist_ok=True)
+        path.write_text("value = 1\n", encoding="utf-8")
+    recorded = _config()
+    current = deepcopy(recorded)
+    mutate(current)
+
+    errors = ratchet.validate_coverage_policy(
+        _policy_coverage("scripts/a.py", "crawler/b.py"),
+        current,
+        recorded,
+        repo_root=tmp_path,
+    )
+
+    assert any(expected in error for error in errors)
+
+
+def test_validate_coverage_policy_rejects_narrowed_evidence(tmp_path):
+    for path in [tmp_path / "scripts" / "a.py", tmp_path / "crawler" / "b.py"]:
+        path.parent.mkdir(exist_ok=True)
+        path.write_text("value = 1\n", encoding="utf-8")
+
+    errors = ratchet.validate_coverage_policy(
+        _policy_coverage("scripts/a.py"),
+        _config(),
+        _config(),
+        repo_root=tmp_path,
+    )
+
+    assert any("narrowed source files" in error and "crawler/b.py" in error for error in errors)
+
+
+def test_validate_coverage_policy_requires_branch_evidence(tmp_path):
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "crawler").mkdir()
+    coverage = _policy_coverage()
+    coverage["meta"]["branch_coverage"] = False
+
+    errors = ratchet.validate_coverage_policy(
+        coverage,
+        _config(),
+        _config(),
+        repo_root=tmp_path,
+    )
+
+    assert "coverage evidence must include branch measurement" in errors
+
+
+def test_validate_no_new_coverage_pragmas_rejects_added_annotation(monkeypatch):
+    monkeypatch.setattr(
+        ratchet.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0],
+            0,
+            "diff --git a/scripts/a.py b/scripts/a.py\n+value = 1  # pragma: no cover\n",
+            "",
+        ),
+    )
+
+    assert ratchet.validate_no_new_coverage_pragmas("a" * 40, ["scripts"]) == [
+        "new pragma: no cover annotations are forbidden in measured source"
+    ]
+
+
+def test_validate_no_new_coverage_pragmas_accepts_context_only(monkeypatch):
+    monkeypatch.setattr(
+        ratchet.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0],
+            0,
+            " value = 1  # pragma: no cover\n+value = 2\n",
+            "",
+        ),
+    )
+    assert ratchet.validate_no_new_coverage_pragmas("a" * 40, ["scripts"]) == []
+
+
+def test_load_toml_object_and_git_toml_fail_closed(monkeypatch, tmp_path):
+    path = tmp_path / "pyproject.toml"
+    path.write_text("[tool.coverage.run]\nbranch = true\n", encoding="utf-8")
+    assert ratchet.load_toml_object(path)["tool"]["coverage"]["run"]["branch"] is True
+
+    path.write_text("[", encoding="utf-8")
+    with pytest.raises(ratchet.CoverageRatchetError):
+        ratchet.load_toml_object(path)
+
+    monkeypatch.setattr(
+        ratchet.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 1, "", "missing"),
+    )
+    with pytest.raises(ratchet.CoverageRatchetError):
+        ratchet.load_git_toml("a" * 40, Path("pyproject.toml"))
