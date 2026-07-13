@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Validate the complete static-artifact-api-v1 publish tree."""
-
 from __future__ import annotations
 
 import argparse
@@ -12,6 +11,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 import check_registry_shard_placement as registry_placement
+from artifact_api_records import is_int, search_key_errors
 
 POINTER_REQUIRED = {
     "schema_version",
@@ -64,9 +64,6 @@ class ValidationReport:
             "totals": self.totals,
             "errors": [asdict(error) for error in self.errors],
         }
-
-def _is_int(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 class ArtifactValidator:
     def __init__(self, root: Path, docs_dir: Path) -> None:
@@ -139,7 +136,7 @@ class ArtifactValidator:
         return True
     def require_count(self, payload: dict, key: str, path: str) -> int | None:
         value = payload.get(key)
-        if not _is_int(value):
+        if not is_int(value):
             self.error("invalid_count", path, "count field must be a non-negative integer")
             return None
         return value
@@ -407,6 +404,7 @@ class ArtifactValidator:
         if entry_count is not None and entry_count != len(entries):
             self.error("entry_count_mismatch", manifest_owner, "shard_count differs from entries")
         seen: set[str] = set()
+        search_keys: set[tuple[str, str]] = set()
         registry_ids: set[str] = set()
         actual_total = 0
         payload_key = "skills" if kind == "registry" else "s" if kind == "search" else "records"
@@ -430,7 +428,7 @@ class ArtifactValidator:
                 for code in registry_placement.registry_entry_errors(raw_entry, registry_ids):
                     self.error(code, owner, "registry shard placement is invalid")
             self.check_duplicate_entry_references(raw_entry, seen, owner)
-            if _is_int(raw_entry.get("count")):
+            if is_int(raw_entry.get("count")):
                 actual_total += raw_entry["count"]
             if checked is None:
                 continue
@@ -466,6 +464,9 @@ class ArtifactValidator:
                 self.error("invalid_payload_key", owner, "payload array must be a list")
             elif payload_count != entry.get("count") or len(records) != entry.get("count"):
                 self.error("payload_count_mismatch", owner, "payload count differs from entry")
+            if kind == "search":
+                for code in search_key_errors(records, search_keys):
+                    self.error(code, owner, "search record stable key is invalid")
         if total is not None and actual_total != total:
             self.error("manifest_total_mismatch", manifest_owner, "entry counts do not sum to total_count")
         if kind == "registry" and not registry_placement.registry_shard_set_is_complete(registry_ids, len(entries)):
@@ -611,7 +612,7 @@ class ArtifactValidator:
                 )
                 if not isinstance(raw_entry, dict):
                     continue
-                if _is_int(raw_entry.get("count")):
+                if is_int(raw_entry.get("count")):
                     part_total += raw_entry["count"]
                 self.check_duplicate_entry_references(raw_entry, seen_parts, part_owner)
                 if checked is None:

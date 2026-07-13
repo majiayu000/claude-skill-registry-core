@@ -1,13 +1,19 @@
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS_DIR = ROOT / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from build_search_index import build_search_index  # noqa: E402
 
 
-def run_node_harness(script: str) -> dict:
+def run_node_harness(script: str, *args: str) -> dict:
     completed = subprocess.run(
-        ["node", "-e", script],
+        ["node", "-e", script, *args],
         cwd=ROOT,
         check=False,
         capture_output=True,
@@ -352,3 +358,158 @@ responses.set('search-index-lite.json', {
     assert result["fuseSize"] == 4
     assert result["rerunQuery"] == "needle"
     assert "categories/development/part-001.json" not in result["requests"]
+
+
+def test_generated_full_index_uses_lite_stable_key_winners(tmp_path):
+    output_dir = tmp_path / "docs"
+    duplicate_skills = [
+        {
+            "name": "Lower-ranked duplicate",
+            "description": "short",
+            "category": "other",
+            "repo": "acme/demo",
+            "install": "acme/demo",
+            "branch": "main",
+            "path": "",
+            "stars": 1,
+        },
+        {
+            "name": "Deterministic winner",
+            "description": "A much more complete description for the stable-key winner.",
+            "category": "development",
+            "repo": "acme/demo",
+            "install": "acme/demo",
+            "branch": "main",
+            "path": "",
+            "stars": 50,
+        },
+    ]
+
+    stats = build_search_index(duplicate_skills, output_dir)
+    manifest = json.loads((output_dir / "search-index-manifest.json").read_text())
+    full_records = []
+    for shard in manifest["shards"]:
+        payload = json.loads((output_dir / shard["path"]).read_text())
+        full_records.extend(payload["s"])
+    lite = json.loads((output_dir / "search-index-lite.json").read_text())
+    category_index = json.loads((output_dir / "categories/index.json").read_text())
+    category_manifest = json.loads(
+        (output_dir / "categories/development/manifest.json").read_text()
+    )
+
+    assert manifest["total_count"] == len(full_records) == lite["total_count"] == 1
+    assert full_records[0]["n"] == lite["skills"][0]["name"] == "Deterministic winner"
+    assert len(category_index["categories"]) == 1
+    assert {
+        key: category_index["categories"][0][key] for key in ("name", "code", "count")
+    } == {"name": "development", "code": "dev", "count": 1}
+    assert category_manifest["count"] == 1
+    assert stats["indexed_skill_count_scan_shape"] == 2
+    assert stats["lite_index_count"] == manifest["total_count"]
+    assert sum(item["count"] for item in stats["category_counts"]) == manifest["total_count"]
+
+    reversed_output_dir = tmp_path / "docs-reversed"
+    build_search_index(list(reversed(duplicate_skills)), reversed_output_dir)
+    reversed_lite = json.loads(
+        (reversed_output_dir / "search-index-lite.json").read_text()
+    )
+    reversed_manifest = json.loads(
+        (reversed_output_dir / "search-index-manifest.json").read_text()
+    )
+    reversed_shard = json.loads(
+        (reversed_output_dir / reversed_manifest["shards"][0]["path"]).read_text()
+    )
+    assert reversed_lite["skills"][0]["name"] == "Deterministic winner"
+    assert reversed_shard["s"][0]["n"] == "Deterministic winner"
+
+    reader_result = run_node_harness(
+        r"""
+const fs = require('fs');
+const path = require('path');
+const assert = require('assert');
+const root = process.argv[1];
+const app = fs.readFileSync('docs/js/app.js', 'utf8');
+const artifactApi = fs.readFileSync('docs/js/artifact-api.js', 'utf8');
+
+function extract(source, name) {
+  const asyncStart = source.indexOf(`async function ${name}(`);
+  const start = asyncStart >= 0 ? asyncStart : source.indexOf(`function ${name}(`);
+  assert(start >= 0, `missing function ${name}`);
+  const bodyStart = source.indexOf('{', start);
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  for (let i = bodyStart; i < source.length; i += 1) {
+    const char = source[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"' || char === '`') quote = char;
+    else if (char === '{') depth += 1;
+    else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+  }
+  throw new Error(`unterminated function ${name}`);
+}
+
+global.fetch = async url => {
+  const artifactPath = path.join(root, url);
+  if (!fs.existsSync(artifactPath)) return { ok: false, status: 404 };
+  return { ok: true, status: 200, json: async () => JSON.parse(fs.readFileSync(artifactPath)) };
+};
+const CONFIG = { LEGACY_INDEX_URL: 'search-index.json' };
+const CATEGORY_CODES_REVERSE = { development: 'dev', other: 'oth' };
+let state = { index: { isLite: true }, fullIndex: null };
+eval(extract(app, 'fetchJson'));
+eval(extract(app, 'normalizeCategoryCode'));
+eval(extract(app, 'normalizeSkillRecord'));
+eval(extract(artifactApi, 'requireExactFields'));
+eval(extract(artifactApi, 'requireSchemaOne'));
+eval(extract(artifactApi, 'isSafeArtifactPath'));
+eval(extract(artifactApi, 'requireNonNegativeInteger'));
+eval(extract(artifactApi, 'normalizeSearchIndex'));
+eval(extract(artifactApi, 'validateSearchPointer'));
+eval(extract(artifactApi, 'validateSearchManifest'));
+eval(extract(artifactApi, 'validateSearchShardEntry'));
+eval(extract(artifactApi, 'validateSearchShardPayload'));
+eval(extract(app, 'loadFullSearchIndex'));
+
+loadFullSearchIndex().then(full => {
+  process.stdout.write(JSON.stringify({ total: full.t, count: full.s.length, name: full.s[0].n }));
+}).catch(error => { console.error(error); process.exit(1); });
+""",
+        str(output_dir),
+    )
+    assert reader_result == {"total": 1, "count": 1, "name": "Deterministic winner"}
+
+
+def test_generated_stable_key_winner_is_order_independent_for_equal_scores(tmp_path):
+    tied_skills = [
+        {
+            "name": name,
+            "description": "same-length-description",
+            "category": "development",
+            "repo": "acme/demo",
+            "install": "acme/demo",
+            "branch": "main",
+            "path": "",
+            "stars": 10,
+        }
+        for name in ("Alpha", "Beta")
+    ]
+
+    winners = []
+    for index, skills in enumerate((tied_skills, list(reversed(tied_skills)))):
+        output_dir = tmp_path / f"equal-score-{index}"
+        build_search_index(skills, output_dir)
+        manifest = json.loads((output_dir / "search-index-manifest.json").read_text())
+        shard = json.loads((output_dir / manifest["shards"][0]["path"]).read_text())
+        lite = json.loads((output_dir / "search-index-lite.json").read_text())
+        winners.append((shard["s"][0]["n"], lite["skills"][0]["name"]))
+
+    assert winners == [("Beta", "Beta"), ("Beta", "Beta")]

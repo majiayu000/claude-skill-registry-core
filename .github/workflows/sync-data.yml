@@ -24,30 +24,163 @@ permissions:
 
 concurrency:
   group: sync-data-pipeline
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require main branch authority
+        env:
+          GITHUB_REF_VALUE: ${{ github.ref }}
+        run: |
+          if [ "$GITHUB_REF_VALUE" != "refs/heads/main" ]; then
+            echo "sync-data may only run from refs/heads/main (got $GITHUB_REF_VALUE)."
+            exit 1
+          fi
+
+      - name: Validate target repositories and write permissions
+        env:
+          CORE_REPO: ${{ github.repository }}
+          REGISTRY_DATA_REPO: ${{ vars.REGISTRY_DATA_REPO }}
+          DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
+          REGISTRY_MAIN_REPO: ${{ vars.REGISTRY_MAIN_REPO }}
+          MAIN_REPO_TOKEN: ${{ secrets.MAIN_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in REGISTRY_DATA_REPO DATA_REPO_TOKEN REGISTRY_MAIN_REPO MAIN_REPO_TOKEN; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required sync-data configuration: $name"
+              exit 1
+            fi
+          done
+
+          python - <<'PY'
+          import os
+          import re
+
+          repo_pattern = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+          repos = {
+              "CORE_REPO": os.environ["CORE_REPO"],
+              "REGISTRY_DATA_REPO": os.environ["REGISTRY_DATA_REPO"],
+              "REGISTRY_MAIN_REPO": os.environ["REGISTRY_MAIN_REPO"],
+          }
+          invalid = [name for name, value in repos.items() if not repo_pattern.fullmatch(value)]
+          if invalid:
+              raise SystemExit(f"Invalid owner/name repository configuration: {', '.join(invalid)}")
+          if len({value.casefold() for value in repos.values()}) != len(repos):
+              raise SystemExit("Core, data, and main repositories must be distinct")
+          PY
+
+          validate_repo() {
+            local repo="$1"
+            local token="$2"
+            local response="$RUNNER_TEMP/repo-$3.json"
+            curl --silent --show-error --fail-with-body \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $token" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              --output "$response" \
+              "https://api.github.com/repos/$repo"
+            REPO_RESPONSE="$response" REPO_NAME="$repo" python - <<'PY'
+          import json
+          import os
+
+          with open(os.environ["REPO_RESPONSE"], encoding="utf-8") as handle:
+              response = json.load(handle)
+          repo = os.environ["REPO_NAME"]
+          if response.get("full_name", "").casefold() != repo.casefold():
+              raise SystemExit(f"Repository API identity mismatch for {repo}")
+          if response.get("default_branch") != "main":
+              raise SystemExit(f"Repository {repo} default branch must be main")
+          if response.get("permissions", {}).get("push") is not True:
+              raise SystemExit(f"Credential does not have push permission for {repo}")
+          PY
+          }
+
+          validate_repo "$REGISTRY_DATA_REPO" "$DATA_REPO_TOKEN" data
+          validate_repo "$REGISTRY_MAIN_REPO" "$MAIN_REPO_TOKEN" main
+
+      - name: Download replay handoff
+        if: github.run_attempt > 1
+        uses: actions/download-artifact@v7
+        with:
+          # No run-id/repository override: restore only from this workflow run.
+          name: sync-publish-handoff
+          path: replay-handoff
+
+      - name: Validate replay handoff before mutation boundary
+        if: github.run_attempt > 1
+        env:
+          EXPECTED_RUN_ID: ${{ github.run_id }}
+          EXPECTED_CORE_REPO: ${{ github.repository }}
+          EXPECTED_DATA_REPO: ${{ vars.REGISTRY_DATA_REPO }}
+          EXPECTED_TARGET_REPO: ${{ vars.REGISTRY_MAIN_REPO }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path("replay-handoff")
+          payload_path = root / "publish-dispatch-payload.json"
+          evidence_path = root / "publish-dispatch-evidence.json"
+          if not payload_path.is_file() or not evidence_path.is_file():
+              raise SystemExit("Rerun requires both handoff files from the original attempt")
+
+          payload_bytes = payload_path.read_bytes()
+          payload = json.loads(payload_bytes)
+          evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+          payload_keys = {"event_type", "client_payload"}
+          client_keys = {"core_repo", "core_sha", "data_repo", "data_sha"}
+          evidence_keys = {
+              "schema_version", "run_id", "run_attempt", "target_repo", "core_repo",
+              "core_sha", "data_repo", "data_sha", "event_type", "payload_sha256",
+          }
+          if set(payload) != payload_keys or set(payload.get("client_payload", {})) != client_keys:
+              raise SystemExit("Replay payload has unexpected or missing fields")
+          if set(evidence) != evidence_keys:
+              raise SystemExit("Replay evidence has unexpected or missing fields")
+          expected = {
+              "schema_version": 1,
+              "run_id": os.environ["EXPECTED_RUN_ID"],
+              "run_attempt": 1,
+              "target_repo": os.environ["EXPECTED_TARGET_REPO"],
+              "core_repo": os.environ["EXPECTED_CORE_REPO"],
+              "data_repo": os.environ["EXPECTED_DATA_REPO"],
+              "event_type": "publish_from_core",
+          }
+          for key, value in expected.items():
+              if evidence.get(key) != value:
+                  raise SystemExit(f"Replay evidence mismatch: {key}")
+          client = payload["client_payload"]
+          for key in client_keys:
+              if client.get(key) != evidence.get(key):
+                  raise SystemExit(f"Replay payload/evidence mismatch: {key}")
+          if payload["event_type"] != evidence["event_type"]:
+              raise SystemExit("Replay event_type mismatch")
+          if not re.fullmatch(r"[0-9a-f]{40}", evidence["core_sha"]):
+              raise SystemExit("Invalid replay core SHA")
+          if not re.fullmatch(r"[0-9a-f]{40}", evidence["data_sha"]):
+              raise SystemExit("Invalid replay data SHA")
+          digest = hashlib.sha256(payload_bytes).hexdigest()
+          if digest != evidence["payload_sha256"]:
+              raise SystemExit("Replay payload hash mismatch")
+          print(f"Validated replay handoff for run {evidence['run_id']} ({digest})")
+          PY
+
   sync:
+    needs: preflight
+    if: github.run_attempt == 1
     runs-on: ubuntu-latest
     steps:
       - name: Checkout core
         uses: actions/checkout@v6
         with:
+          ref: main
           fetch-depth: 0
-
-      - name: Validate data repo config
-        env:
-          REGISTRY_DATA_REPO: ${{ vars.REGISTRY_DATA_REPO }}
-          DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
-        run: |
-          if [ -z "$REGISTRY_DATA_REPO" ]; then
-            echo "Missing repo variable: REGISTRY_DATA_REPO (e.g. yourname/claude-skill-registry-data)"
-            exit 1
-          fi
-          if [ -z "$DATA_REPO_TOKEN" ]; then
-            echo "Missing secret: DATA_REPO_TOKEN (PAT that can push to the data repo)"
-            exit 1
-          fi
 
       - name: Checkout data repo to ./skills
         uses: actions/checkout@v6
@@ -55,6 +188,7 @@ jobs:
           repository: ${{ vars.REGISTRY_DATA_REPO }}
           token: ${{ secrets.DATA_REPO_TOKEN }}
           path: skills
+          ref: main
           fetch-depth: 0
 
       - name: Set up Python
@@ -496,7 +630,7 @@ jobs:
           else
             git commit -m "chore: update skills archive $(date -u +%Y-%m-%d)"
             for attempt in 1 2 3; do
-              if git push; then
+              if git push origin HEAD:main; then
                 echo "Data push succeeded on attempt $attempt"
                 break
               fi
@@ -528,7 +662,7 @@ jobs:
             COUNT=$(python3 -c "import json; print(json.load(open('registry_summary.json')).get('total_count', 0))")
             git commit -m "chore: sync registry ($COUNT skills) $(date -u +%Y-%m-%d)"
             for attempt in 1 2 3; do
-              if git push; then
+              if git push origin HEAD:main; then
                 echo "Core push succeeded on attempt $attempt"
                 break
               fi
@@ -553,47 +687,186 @@ jobs:
           echo "core_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "data_sha=$(git -C skills rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Validate main publish config
-        id: maincfg
+      - name: Build immutable publish handoff
         env:
-          REGISTRY_MAIN_REPO: ${{ vars.REGISTRY_MAIN_REPO }}
-          MAIN_REPO_TOKEN: ${{ secrets.MAIN_REPO_TOKEN }}
-        run: |
-          if [ -z "$REGISTRY_MAIN_REPO" ]; then
-            echo "::warning::Missing repo variable REGISTRY_MAIN_REPO; skipping main publish dispatch."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ -z "$MAIN_REPO_TOKEN" ]; then
-            echo "::warning::Missing secret MAIN_REPO_TOKEN; skipping main publish dispatch."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "ready=true" >> "$GITHUB_OUTPUT"
-
-      - name: Dispatch main publish workflow
-        if: steps.maincfg.outputs.ready == 'true'
-        env:
-          REGISTRY_MAIN_REPO: ${{ vars.REGISTRY_MAIN_REPO }}
-          MAIN_REPO_TOKEN: ${{ secrets.MAIN_REPO_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
           CORE_REPO: ${{ github.repository }}
           CORE_SHA: ${{ steps.refs.outputs.core_sha }}
           DATA_REPO: ${{ vars.REGISTRY_DATA_REPO }}
           DATA_SHA: ${{ steps.refs.outputs.data_sha }}
+          REGISTRY_MAIN_REPO: ${{ vars.REGISTRY_MAIN_REPO }}
         run: |
-          PAYLOAD=$(cat <<JSON
-          {"event_type":"publish_from_core","client_payload":{"core_repo":"$CORE_REPO","core_sha":"$CORE_SHA","data_repo":"$DATA_REPO","data_sha":"$DATA_SHA"}}
-          JSON
+          mkdir -p sync-publish-handoff
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          sha_pattern = re.compile(r"[0-9a-f]{40}")
+          core_sha = os.environ["CORE_SHA"]
+          data_sha = os.environ["DATA_SHA"]
+          if not sha_pattern.fullmatch(core_sha) or not sha_pattern.fullmatch(data_sha):
+              raise SystemExit("Cannot build handoff from invalid source SHA")
+
+          payload = {
+              "event_type": "publish_from_core",
+              "client_payload": {
+                  "core_repo": os.environ["CORE_REPO"],
+                  "core_sha": core_sha,
+                  "data_repo": os.environ["DATA_REPO"],
+                  "data_sha": data_sha,
+              },
+          }
+          root = Path("sync-publish-handoff")
+          payload_path = root / "publish-dispatch-payload.json"
+          payload_bytes = (json.dumps(payload, separators=(",", ":")) + "\n").encode()
+          payload_path.write_bytes(payload_bytes)
+          evidence = {
+              "schema_version": 1,
+              "run_id": os.environ["RUN_ID"],
+              "run_attempt": 1,
+              "target_repo": os.environ["REGISTRY_MAIN_REPO"],
+              "core_repo": os.environ["CORE_REPO"],
+              "core_sha": core_sha,
+              "data_repo": os.environ["DATA_REPO"],
+              "data_sha": data_sha,
+              "event_type": "publish_from_core",
+              "payload_sha256": hashlib.sha256(payload_bytes).hexdigest(),
+          }
+          (root / "publish-dispatch-evidence.json").write_text(
+              json.dumps(evidence, indent=2) + "\n", encoding="utf-8"
           )
-          curl --fail-with-body -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $MAIN_REPO_TOKEN" \
-            "https://api.github.com/repos/$REGISTRY_MAIN_REPO/dispatches" \
-            -d "$PAYLOAD"
-          echo "Dispatched publish: $REGISTRY_MAIN_REPO (core=$CORE_SHA data=$DATA_SHA)"
+          print(
+              "Prepared immutable publish handoff "
+              f"core={core_sha} data={data_sha} hash={evidence['payload_sha256']}"
+          )
+          PY
+
+      - name: Upload immutable publish handoff
+        uses: actions/upload-artifact@v7
+        with:
+          name: sync-publish-handoff
+          path: sync-publish-handoff/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: [preflight, sync]
+    if: >-
+      ${{
+        always() &&
+        needs.preflight.result == 'success' &&
+        (needs.sync.result == 'success' ||
+          (github.run_attempt > 1 && needs.sync.result == 'skipped'))
+      }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download immutable publish handoff
+        uses: actions/download-artifact@v7
+        with:
+          # No run-id/repository override: restore only from this workflow run.
+          name: sync-publish-handoff
+          path: sync-publish-handoff
+
+      - name: Validate immutable publish handoff
+        id: handoff
+        env:
+          EXPECTED_RUN_ID: ${{ github.run_id }}
+          EXPECTED_CORE_REPO: ${{ github.repository }}
+          EXPECTED_DATA_REPO: ${{ vars.REGISTRY_DATA_REPO }}
+          EXPECTED_TARGET_REPO: ${{ vars.REGISTRY_MAIN_REPO }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path("sync-publish-handoff")
+          payload_path = root / "publish-dispatch-payload.json"
+          evidence_path = root / "publish-dispatch-evidence.json"
+          if not payload_path.is_file() or not evidence_path.is_file():
+              raise SystemExit("Publish handoff is missing required files")
+          payload_bytes = payload_path.read_bytes()
+          payload = json.loads(payload_bytes)
+          evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+          payload_keys = {"event_type", "client_payload"}
+          client_keys = {"core_repo", "core_sha", "data_repo", "data_sha"}
+          evidence_keys = {
+              "schema_version", "run_id", "run_attempt", "target_repo", "core_repo",
+              "core_sha", "data_repo", "data_sha", "event_type", "payload_sha256",
+          }
+          if set(payload) != payload_keys or set(payload.get("client_payload", {})) != client_keys:
+              raise SystemExit("Publish payload has unexpected or missing fields")
+          if set(evidence) != evidence_keys:
+              raise SystemExit("Publish evidence has unexpected or missing fields")
+          expected = {
+              "schema_version": 1,
+              "run_id": os.environ["EXPECTED_RUN_ID"],
+              "run_attempt": 1,
+              "target_repo": os.environ["EXPECTED_TARGET_REPO"],
+              "core_repo": os.environ["EXPECTED_CORE_REPO"],
+              "data_repo": os.environ["EXPECTED_DATA_REPO"],
+              "event_type": "publish_from_core",
+          }
+          for key, value in expected.items():
+              if evidence.get(key) != value:
+                  raise SystemExit(f"Publish evidence mismatch: {key}")
+          client = payload["client_payload"]
+          for key in client_keys:
+              if client.get(key) != evidence.get(key):
+                  raise SystemExit(f"Publish payload/evidence mismatch: {key}")
+          if payload["event_type"] != evidence["event_type"]:
+              raise SystemExit("Publish event_type mismatch")
+          if not re.fullmatch(r"[0-9a-f]{40}", evidence["core_sha"]):
+              raise SystemExit("Invalid publish core SHA")
+          if not re.fullmatch(r"[0-9a-f]{40}", evidence["data_sha"]):
+              raise SystemExit("Invalid publish data SHA")
+          if hashlib.sha256(payload_bytes).hexdigest() != evidence["payload_sha256"]:
+              raise SystemExit("Publish payload hash mismatch")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key in ("target_repo", "core_sha", "data_sha", "payload_sha256"):
+                  output.write(f"{key}={evidence[key]}\n")
+          print(f"Validated immutable publish handoff ({evidence['payload_sha256']})")
+          PY
+
+      - name: Dispatch main publish workflow from immutable handoff
+        env:
+          MAIN_REPO_TOKEN: ${{ secrets.MAIN_REPO_TOKEN }}
+          TARGET_REPO: ${{ steps.handoff.outputs.target_repo }}
+          CORE_SHA: ${{ steps.handoff.outputs.core_sha }}
+          DATA_SHA: ${{ steps.handoff.outputs.data_sha }}
+          PAYLOAD_SHA256: ${{ steps.handoff.outputs.payload_sha256 }}
+        run: |
+          set -euo pipefail
+          PAYLOAD_FILE="sync-publish-handoff/publish-dispatch-payload.json"
+          if ! curl --fail-with-body -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $MAIN_REPO_TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/$TARGET_REPO/dispatches" \
+              --data-binary "@$PAYLOAD_FILE"; then
+            {
+              echo "## Publish dispatch failed"
+              echo ""
+              echo "- target_repo: $TARGET_REPO"
+              echo "- core_sha: $CORE_SHA"
+              echo "- data_sha: $DATA_SHA"
+              echo "- payload_sha256: $PAYLOAD_SHA256"
+              echo ""
+              echo "Replay payload:"
+              cat "$PAYLOAD_FILE"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Publish dispatch failed: target=$TARGET_REPO core=$CORE_SHA data=$DATA_SHA hash=$PAYLOAD_SHA256"
+            cat "$PAYLOAD_FILE"
+            exit 1
+          fi
+          echo "Dispatched publish: $TARGET_REPO (core=$CORE_SHA data=$DATA_SHA hash=$PAYLOAD_SHA256)"
 
       - name: Dispatch build-index to refresh Pages
-        if: steps.maincfg.outputs.ready == 'true'
         env:
           MAIN_REPO_TOKEN: ${{ secrets.MAIN_REPO_TOKEN }}
         run: |

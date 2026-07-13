@@ -349,6 +349,41 @@ def test_validator_recomputes_registry_record_placement_after_integrity_refresh(
     assert not {"bytes_mismatch", "gzip_bytes_mismatch", "sha256_mismatch"} & _codes(report)
 
 
+@pytest.mark.parametrize(
+    ("probe", "expected"),
+    [
+        ("duplicate", "duplicate_search_stable_key"),
+        ("missing", "invalid_search_stable_key"),
+    ],
+)
+def test_validator_rejects_search_stable_key_probes_after_integrity_refresh(
+    tmp_path, probe, expected
+):
+    docs = build_generated_fixture(tmp_path)
+    manifest_path = docs / "search-index-manifest.json"
+    manifest = _read(manifest_path)
+    entry = next(item for item in manifest["shards"] if item["count"] >= 2)
+    plain_path = docs / entry["path"]
+    gzip_path = docs / entry["gzip_path"]
+    payload = _read(plain_path)
+    if probe == "duplicate":
+        payload["s"][1]["i"] = payload["s"][0]["i"]
+        payload["s"][1]["b"] = payload["s"][0]["b"]
+    else:
+        payload["s"][0].pop("i")
+    rebuild_registry.safe_write_json(plain_path, payload)
+    rebuild_registry.safe_write_gzip_json(gzip_path, payload)
+    entry["bytes"] = plain_path.stat().st_size
+    entry["gzip_bytes"] = gzip_path.stat().st_size
+    entry["sha256"] = rebuild_registry.file_sha256(plain_path)
+    rebuild_registry.safe_write_json(manifest_path, manifest)
+
+    report = check_artifact_api.validate_artifact_api(tmp_path, docs)
+
+    assert expected in _codes(report)
+    assert not {"bytes_mismatch", "gzip_bytes_mismatch", "sha256_mismatch"} & _codes(report)
+
+
 def test_validator_rejects_duplicate_reference_and_bad_gzip(tmp_path):
     docs = build_generated_fixture(tmp_path)
     manifest_path = tmp_path / "registry-manifest.json"
