@@ -169,43 +169,6 @@ function normalizeSkillRecord(skill) {
     };
 }
 
-function normalizeSearchIndex(indexData) {
-    if (Array.isArray(indexData.s)) {
-        return {
-            ...indexData,
-            s: indexData.s.map(normalizeSkillRecord),
-            includedCount: indexData.s.length,
-            isLite: false
-        };
-    }
-
-    if (Array.isArray(indexData.skills)) {
-        return {
-            v: indexData.version || indexData.updated_at || '',
-            t: Number(indexData.total_count || indexData.skills.length),
-            s: indexData.skills.map(normalizeSkillRecord),
-            includedCount: Number(indexData.included_count || indexData.skills.length),
-            isLite: true
-        };
-    }
-
-    throw new Error('Unsupported search index schema');
-}
-
-function requireSchemaOne(value, label) {
-    if (!value || value.schema_version !== 1) throw new Error(`${label} schema_version must be 1`);
-}
-
-function isSafeArtifactPath(path, prefix) {
-    return typeof path === 'string' && path.startsWith(prefix) &&
-        !path.startsWith('/') && !path.includes('\\') && !path.includes('://') &&
-        path.split('/').every(part => part && part !== '.' && part !== '..');
-}
-
-function requireNonNegativeInteger(value, label) {
-    if (!Number.isInteger(value) || value < 0) throw new Error(`${label} must be a non-negative integer`);
-}
-
 async function loadSearchIndex() {
     return normalizeSearchIndex(await fetchJson(CONFIG.INDEX_URL));
 }
@@ -347,28 +310,15 @@ async function loadCategoryLeaderboardSkills(categoryCode) {
 
     const category = findCategoryByCode(categoryCode);
     if (!category) throw new Error(`Unknown leaderboard category: ${categoryCode}`);
-    if (!isSafeArtifactPath(category.manifest, 'categories/')) throw new Error('Invalid category manifest path');
+    validateCategoryIndexEntry(category, categoryCode);
 
     const manifest = await fetchJson(category.manifest);
-    requireSchemaOne(manifest, 'Category manifest');
-    if (manifest.part_strategy !== 'bounded-sequential-stars-desc') {
-        throw new Error('Category manifest is not stars-desc ranked');
-    }
-    if (manifest.code !== categoryCode || manifest.category !== category.name) {
-        throw new Error('Category manifest identity mismatch');
-    }
-    requireNonNegativeInteger(manifest.count, 'Category count');
-    requireNonNegativeInteger(manifest.part_count, 'Category part_count');
-    const parts = Array.isArray(manifest.parts) ? manifest.parts : [];
-    if (parts.length !== manifest.part_count) throw new Error('Category part_count mismatch');
+    validateCategoryManifest(manifest, category, categoryCode);
+    const parts = manifest.parts;
     const paths = new Set();
     let entryTotal = 0;
     parts.forEach(part => {
-        requireNonNegativeInteger(part.count, 'Category part entry count');
-        if (!isSafeArtifactPath(part.path, 'categories/') || paths.has(part.path)) {
-            throw new Error('Invalid or duplicate category part path');
-        }
-        paths.add(part.path);
+        validateCategoryPartEntry(part, paths);
         entryTotal += part.count;
     });
     if (entryTotal !== manifest.count) throw new Error('Category part counts do not match total');
@@ -378,14 +328,8 @@ async function loadCategoryLeaderboardSkills(categoryCode) {
     const required = Math.min(CONFIG.LEADERBOARD_SIZE, manifest.count);
     if (!firstPart.path.endsWith('/part-000.json') || firstPart.count < required) throw new Error('First ranked part cannot satisfy leaderboard');
     const payload = await fetchJson(firstPart.path);
-    requireSchemaOne(payload, 'Category part');
-    if (payload.part !== 0 || payload.part_count !== manifest.part_count ||
-        payload.category !== manifest.category || payload.code !== categoryCode) {
-        throw new Error('Category first-part identity mismatch');
-    }
-    if (!Array.isArray(payload.skills) || payload.count !== firstPart.count ||
-        payload.skills.length !== firstPart.count) throw new Error('Category first-part count mismatch');
-    const skills = (payload.skills || []).map(normalizeSkillRecord);
+    validateCategoryPartPayload(payload, firstPart, manifest, categoryCode);
+    const skills = payload.skills.map(normalizeSkillRecord);
     state.categoryCache[categoryCode] = skills;
     return skills;
 }
@@ -398,35 +342,20 @@ async function loadFullSearchIndex() {
         return state.fullIndex;
     }
     const pointer = await fetchJson(CONFIG.LEGACY_INDEX_URL);
-    requireSchemaOne(pointer, 'Search index pointer');
-    if (pointer.deprecated_full_payload !== true || pointer.manifest !== 'search-index-manifest.json') {
-        throw new Error('Search index pointer has invalid manifest path');
-    }
+    validateSearchPointer(pointer);
     const manifest = await fetchJson(pointer.manifest);
-    requireSchemaOne(manifest, 'Search index manifest');
-    requireNonNegativeInteger(manifest.total_count, 'Search total_count');
-    requireNonNegativeInteger(manifest.shard_count, 'Search shard_count');
-    const shards = Array.isArray(manifest.shards) ? manifest.shards : [];
-    if (shards.length !== manifest.shard_count || pointer.t !== manifest.total_count) {
-        throw new Error('Search manifest count mismatch');
-    }
+    validateSearchManifest(manifest, pointer);
+    const shards = manifest.shards;
     const paths = new Set();
     let entryTotal = 0;
     shards.forEach(shard => {
-        requireNonNegativeInteger(shard.count, 'Search shard entry count');
-        if (!isSafeArtifactPath(shard.path, 'search-shards/') || paths.has(shard.path)) {
-            throw new Error('Invalid or duplicate search shard path');
-        }
-        paths.add(shard.path);
+        validateSearchShardEntry(shard, paths);
         entryTotal += shard.count;
     });
     if (entryTotal !== manifest.total_count) throw new Error('Search shard counts do not match total');
     const payloads = await Promise.all(shards.map(shard => fetchJson(shard.path)));
     payloads.forEach((payload, index) => {
-        requireSchemaOne(payload, 'Search shard');
-        if (payload.part !== index || payload.part_count !== manifest.shard_count ||
-            !Array.isArray(payload.s) || payload.count !== shards[index].count ||
-            payload.s.length !== shards[index].count) throw new Error('Search shard identity/count mismatch');
+        validateSearchShardPayload(payload, shards[index], index, manifest);
     });
     const skills = payloads.flatMap(payload => payload.s);
     if (skills.some(skill => typeof skill.i !== 'string' || !skill.i ||
@@ -435,8 +364,7 @@ async function loadFullSearchIndex() {
     if (new Set(stableKeys).size !== skills.length) {
         throw new Error('Search shards contain missing or duplicate stable records');
     }
-    const total = manifest.total_count;
-    state.fullIndex = normalizeSearchIndex({ v: manifest.v || pointer.v || '', t: total, s: skills });
+    state.fullIndex = normalizeSearchIndex({ v: manifest.v, t: manifest.total_count, s: skills });
     return state.fullIndex;
 }
 

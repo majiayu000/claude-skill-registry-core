@@ -30,6 +30,7 @@ def test_pages_request_budgets_and_exhaustive_search_behavior():
 const fs = require('fs');
 const assert = require('assert');
 const app = fs.readFileSync('docs/js/app.js', 'utf8');
+const artifactApi = fs.readFileSync('docs/js/artifact-api.js', 'utf8');
 const render = fs.readFileSync('docs/js/app-render.js', 'utf8');
 
 function extract(source, name) {
@@ -86,17 +87,28 @@ let state = {
 eval(extract(app, 'fetchJson'));
 eval(extract(app, 'normalizeCategoryCode'));
 eval(extract(app, 'normalizeSkillRecord'));
-eval(extract(app, 'normalizeSearchIndex'));
-eval(extract(app, 'requireSchemaOne'));
-eval(extract(app, 'isSafeArtifactPath'));
-eval(extract(app, 'requireNonNegativeInteger'));
+eval(extract(artifactApi, 'requireExactFields'));
+eval(extract(artifactApi, 'requireSchemaOne'));
+eval(extract(artifactApi, 'isSafeArtifactPath'));
+eval(extract(artifactApi, 'requireNonNegativeInteger'));
+eval(extract(artifactApi, 'normalizeSearchIndex'));
+eval(extract(artifactApi, 'validateSearchPointer'));
+eval(extract(artifactApi, 'validateSearchManifest'));
+eval(extract(artifactApi, 'validateSearchShardEntry'));
+eval(extract(artifactApi, 'validateSearchShardPayload'));
+eval(extract(artifactApi, 'validateCategoryIndexEntry'));
+eval(extract(artifactApi, 'validateCategoryManifest'));
+eval(extract(artifactApi, 'validateCategoryPartEntry'));
+eval(extract(artifactApi, 'validateCategoryPartPayload'));
 eval(extract(app, 'loadSearchIndex'));
 eval(extract(app, 'findCategoryByCode'));
 eval(extract(app, 'loadCategoryLeaderboardSkills'));
 eval(extract(app, 'loadFullSearchIndex'));
 
 responses.set('search-index-lite.json', {
-  version: 'lite', total_count: 4, included_count: 2,
+  schema_version: 1, version: 'lite', updated_at: '2026-07-11T00:00:00Z',
+  total_count: 4, included_count: 2, limit: 1000, raw_count: 4,
+  dedupe_key: 'install|branch',
   skills: [{ name: 'Lite A', install: 'a/a' }, { name: 'Lite B', install: 'b/b' }]
 });
 
@@ -105,24 +117,39 @@ responses.set('search-index-lite.json', {
   assert.deepStrictEqual(requests, ['search-index-lite.json']);
   assert.strictEqual(state.index.isLite, true);
   assert.strictEqual(state.index.includedCount, 2);
+  assert.throws(() => normalizeSearchIndex({
+    ...responses.get('search-index-lite.json'), unexpected: []
+  }), /shape mismatch/);
+  assert.throws(() => normalizeSearchIndex({
+    ...responses.get('search-index-lite.json'), included_count: 1
+  }), /count or identity mismatch/);
 
   const firstPart = Array.from({ length: 60 }, (_, i) => ({
     name: `Rank ${i}`, install: `owner/rank-${i}`, stars: 1000 - i, category: 'development'
   }));
   responses.set('categories/development/manifest.json', {
-    schema_version: 1, category: 'development', code: 'dev', count: 70, part_count: 2,
-    part_strategy: 'bounded-sequential-stars-desc',
+    schema_version: 1, category: 'development', code: 'dev',
+    updated_at: '2026-07-11T00:00:00Z', total_count: 70, count: 70, part_count: 2,
+    part_strategy: 'bounded-sequential-stars-desc', largest_part_bytes: 200,
+    largest_part_gzip_bytes: 100,
     parts: [
-      { path: 'categories/development/part-000.json', count: 60 },
-      { path: 'categories/development/part-001.json', count: 10 }
+      { path: 'categories/development/part-000.json',
+        gzip_path: 'categories/development/part-000.json.gz', count: 60,
+        bytes: 200, gzip_bytes: 100, sha256: 'c'.repeat(64) },
+      { path: 'categories/development/part-001.json',
+        gzip_path: 'categories/development/part-001.json.gz', count: 10,
+        bytes: 100, gzip_bytes: 50, sha256: 'd'.repeat(64) }
     ]
   });
   responses.set('categories/development/part-000.json', {
-    schema_version: 1, category: 'development', code: 'dev', part: 0, part_count: 2,
-    count: 60, skills: firstPart
+    schema_version: 1, category: 'development', code: 'dev',
+    updated_at: '2026-07-11T00:00:00Z', part: 0, part_count: 2, count: 60, skills: firstPart
   });
   responses.set('categories/development/part-001.json', { skills: [{ name: 'Must not fetch' }] });
-  state.categories = [{ name: 'development', code: 'dev', manifest: 'categories/development/manifest.json' }];
+  const categoryEntry = { name: 'development', code: 'dev', count: 70,
+    path: 'categories/development.json', manifest: 'categories/development/manifest.json',
+    part_count: 2, largest_part_bytes: 200, largest_part_gzip_bytes: 100 };
+  state.categories = [categoryEntry];
   const categorySkills = await loadCategoryLeaderboardSkills('dev');
   assert.strictEqual(categorySkills.length, 60);
   assert.deepStrictEqual(requests.slice(1), [
@@ -132,14 +159,14 @@ responses.set('search-index-lite.json', {
   const categoryManifest = responses.get('categories/development/manifest.json');
   delete categoryManifest.part_strategy;
   const invalidCategoryStart = requests.length;
-  await assert.rejects(loadCategoryLeaderboardSkills('dev'), /not stars-desc ranked/);
+  await assert.rejects(loadCategoryLeaderboardSkills('dev'), /shape mismatch/);
   assert.deepStrictEqual(requests.slice(invalidCategoryStart), ['categories/development/manifest.json']);
   categoryManifest.part_strategy = 'bounded-sequential-stars-desc';
   state.categories = [];
   const missingCategoryStart = requests.length;
   await assert.rejects(loadCategoryLeaderboardSkills('dev'), /Unknown leaderboard category/);
   assert.strictEqual(requests.length, missingCategoryStart);
-  state.categories = [{ name: 'development', code: 'dev', manifest: 'categories/development/manifest.json' }];
+  state.categories = [categoryEntry];
 
   categoryManifest.part_strategy = 'invalid';
   state.categoryCache = {};
@@ -168,7 +195,7 @@ responses.set('search-index-lite.json', {
   assert.strictEqual(failedElements.leaderboardList.innerHTML, '');
   assert.match(failedElements.leaderboardStatus.textContent, /load failed.*retry/i);
   assert.strictEqual(requests.length, missingManifestStart);
-  state.categories = [{ name: 'development', code: 'dev', manifest: 'categories/development/manifest.json' }];
+  state.categories = [categoryEntry];
 
   const beforeGlobal = requests.length;
   state.featured = [
@@ -214,21 +241,28 @@ responses.set('search-index-lite.json', {
   assert.strictEqual(delayedElements.leaderboardStatus.textContent, currentStatus);
 
   responses.set('search-index.json', {
-    schema_version: 1, t: 4, deprecated_full_payload: true, manifest: 'search-index-manifest.json'
+    schema_version: 1, total_count: 4, t: 4, v: 'full', deprecated_full_payload: true,
+    message: 'Full search payload moved to shards', manifest: 'search-index-manifest.json',
+    replacement: 'search-shards/part-*.json', compat_since: 'static-artifact-api-v1',
+    compat_until: 'static-artifact-api-v2'
   });
   responses.set('search-index-manifest.json', {
-    schema_version: 1, v: 'full', total_count: 4, shard_count: 2,
+    schema_version: 1, v: 'full', updated_at: '2026-07-11T00:00:00Z', total_count: 4,
+    shard_strategy: 'bounded-sequential-stars-desc', record_schema: 'search-mini-v2',
+    shard_count: 2, largest_shard_bytes: 200, largest_shard_gzip_bytes: 100,
     shards: [
-      { path: 'search-shards/part-000.json', count: 2 },
-      { path: 'search-shards/part-001.json', count: 2 }
+      { path: 'search-shards/part-000.json', gzip_path: 'search-shards/part-000.json.gz',
+        count: 2, bytes: 200, gzip_bytes: 100, sha256: 'a'.repeat(64) },
+      { path: 'search-shards/part-001.json', gzip_path: 'search-shards/part-001.json.gz',
+        count: 2, bytes: 200, gzip_bytes: 100, sha256: 'b'.repeat(64) }
     ]
   });
   responses.set('search-shards/part-000.json', {
-    schema_version: 1, part: 0, part_count: 2, count: 2,
+    schema_version: 1, v: 'full', part: 0, part_count: 2, count: 2,
     s: [{ n: 'A', i: 'a/skill', b: 'main' }, { n: 'B', i: 'b/skill', b: 'main' }]
   });
   responses.set('search-shards/part-001.json', {
-    schema_version: 1, part: 1, part_count: 2, count: 2,
+    schema_version: 1, v: 'full', part: 1, part_count: 2, count: 2,
     s: [{ n: 'C', i: 'c/skill', b: 'main' }, { n: 'Needle', i: 'n/skill', b: 'main' }]
   });
   const full = await loadFullSearchIndex();
@@ -237,6 +271,29 @@ responses.set('search-index-lite.json', {
     'search-index.json', 'search-index-manifest.json',
     'search-shards/part-000.json', 'search-shards/part-001.json'
   ]);
+
+  state.fullIndex = null;
+  responses.get('search-index.json').unexpected = [];
+  await assert.rejects(loadFullSearchIndex(), /pointer shape mismatch/);
+  delete responses.get('search-index.json').unexpected;
+
+  state.fullIndex = null;
+  responses.get('search-index-manifest.json').unexpected = [];
+  await assert.rejects(loadFullSearchIndex(), /manifest shape mismatch/);
+  delete responses.get('search-index-manifest.json').unexpected;
+
+  state.fullIndex = null;
+  responses.get('search-index-manifest.json').shards[0].unexpected = 1;
+  await assert.rejects(loadFullSearchIndex(), /entry shape mismatch/);
+  delete responses.get('search-index-manifest.json').shards[0].unexpected;
+
+  state.fullIndex = null;
+  const firstPayload = responses.get('search-shards/part-000.json');
+  firstPayload.skills = firstPayload.s;
+  delete firstPayload.s;
+  await assert.rejects(loadFullSearchIndex(), /payload shape mismatch/);
+  firstPayload.s = firstPayload.skills;
+  delete firstPayload.skills;
 
   state.fullIndex = null;
   responses.get('search-shards/part-001.json').s[1] = { n: 'Duplicate', i: 'a/skill', b: 'main' };
@@ -258,12 +315,17 @@ responses.set('search-index-lite.json', {
 
   state.fullIndex = null;
   delete responses.get('search-index.json').schema_version;
+  await assert.rejects(loadFullSearchIndex(), /shape mismatch/);
+  responses.get('search-index.json').schema_version = 1;
+
+  state.fullIndex = null;
+  responses.get('search-index.json').schema_version = 2;
   await assert.rejects(loadFullSearchIndex(), /schema_version must be 1/);
   responses.get('search-index.json').schema_version = 1;
 
   state.fullIndex = null;
   searchManifest.shard_count = 3;
-  await assert.rejects(loadFullSearchIndex(), /manifest count mismatch/);
+  await assert.rejects(loadFullSearchIndex(), /manifest count or identity mismatch/);
   searchManifest.shard_count = 2;
 
   const actionState = { index: state.index, currentQuery: 'needle' };
@@ -367,6 +429,7 @@ const path = require('path');
 const assert = require('assert');
 const root = process.argv[1];
 const app = fs.readFileSync('docs/js/app.js', 'utf8');
+const artifactApi = fs.readFileSync('docs/js/artifact-api.js', 'utf8');
 
 function extract(source, name) {
   const asyncStart = source.indexOf(`async function ${name}(`);
@@ -405,10 +468,15 @@ let state = { index: { isLite: true }, fullIndex: null };
 eval(extract(app, 'fetchJson'));
 eval(extract(app, 'normalizeCategoryCode'));
 eval(extract(app, 'normalizeSkillRecord'));
-eval(extract(app, 'normalizeSearchIndex'));
-eval(extract(app, 'requireSchemaOne'));
-eval(extract(app, 'isSafeArtifactPath'));
-eval(extract(app, 'requireNonNegativeInteger'));
+eval(extract(artifactApi, 'requireExactFields'));
+eval(extract(artifactApi, 'requireSchemaOne'));
+eval(extract(artifactApi, 'isSafeArtifactPath'));
+eval(extract(artifactApi, 'requireNonNegativeInteger'));
+eval(extract(artifactApi, 'normalizeSearchIndex'));
+eval(extract(artifactApi, 'validateSearchPointer'));
+eval(extract(artifactApi, 'validateSearchManifest'));
+eval(extract(artifactApi, 'validateSearchShardEntry'));
+eval(extract(artifactApi, 'validateSearchShardPayload'));
 eval(extract(app, 'loadFullSearchIndex'));
 
 loadFullSearchIndex().then(full => {

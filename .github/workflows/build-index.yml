@@ -10,6 +10,11 @@ on:
     paths:
       - 'registry.json'
       - 'scripts/build_search_index.py'
+      - 'scripts/index_artifacts.py'
+      - 'scripts/rebuild_registry.py'
+      - 'scripts/build_registry_summary.py'
+      - 'scripts/check_artifact_api.py'
+      - 'scripts/check_registry_shard_placement.py'
       - 'scripts/search_sources.py'
       - 'scripts/check_canonical_categories.py'
       - 'scripts/security_blocklist.py'
@@ -300,6 +305,20 @@ jobs:
           test -s "$SECURITY_REPORT"
           test -s "$SECURITY_EVIDENCE"
 
+      - name: Rebuild root registry artifacts
+        run: |
+          python scripts/rebuild_registry.py \
+            --skills-dir skills \
+            --registry registry.json \
+            --manifest registry-manifest.json \
+            --shards-dir registry-shards \
+            --skip-categories \
+            --compat-manifest-pointer
+          python scripts/build_registry_summary.py \
+            --registry registry.json \
+            --plugins sources/plugins.json \
+            --output registry_summary.json
+
       - name: Build search index
         run: |
           echo "Building search index from archive tree (recursive)..."
@@ -330,6 +349,9 @@ jobs:
 
       - name: Check published categories are canonical
         run: python scripts/check_canonical_categories.py --docs-dir docs
+
+      - name: Validate static artifact API v1
+        run: python scripts/check_artifact_api.py --root . --docs-dir docs
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
