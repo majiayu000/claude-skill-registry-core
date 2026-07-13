@@ -1,3 +1,4 @@
+import gzip
 import hashlib
 import json
 import os
@@ -12,6 +13,138 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def read_repo_file(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+def build_index_workflow_step(name: str) -> dict:
+    workflow = yaml.safe_load(read_repo_file(".github/workflows/build-index.yml"))
+    return next(
+        step for step in workflow["jobs"]["build-index"]["steps"] if step.get("name") == name
+    )
+
+
+def write_fake_security_scanner(sandbox: Path) -> None:
+    script_path = sandbox / "scripts" / "security_scanner.py"
+    script_path.parent.mkdir(parents=True)
+    script_path.write_text(
+        """import json
+import os
+import sys
+from pathlib import Path
+
+mode = os.environ["FAKE_SCANNER_MODE"]
+output_path = Path(sys.argv[sys.argv.index("--output") + 1])
+if mode == "missing":
+    raise SystemExit(0)
+if mode == "invalid":
+    output_path.write_text("not-json", encoding="utf-8")
+    raise SystemExit(0)
+
+sentinel = os.environ["SENTINEL_SECRET_MARKER"]
+failed = mode in {"scanner_nonzero", "failed_exit_zero"}
+require_metadata = mode != "metadata_disabled"
+skill = {
+    "path": "development/private-source/SKILL.md",
+    "safe": not failed,
+    "security_decision": {
+        "status": "failed" if failed or mode == "decision_mismatch" else "passed",
+        "policy": {"require_metadata": require_metadata},
+    },
+    "issues": ([{
+        "severity": "error",
+        "type": "hardcoded_credential",
+        "message": f"credential marker: {sentinel}",
+        "code": f"Authorization: Bearer {sentinel}",
+        "file": f"/private/archive/{sentinel}/SKILL.md",
+    }] if failed else []),
+}
+if mode == "missing_decision":
+    skill.pop("security_decision")
+report = {
+    "scanner": {
+        "name": "claude-skill-registry-security-scanner",
+        "version": "1.1.2",
+        "ruleset_sha256": "a" * 64,
+    },
+    "scan_policy": {"require_metadata": require_metadata},
+    "total": 2 if mode == "count_mismatch" else 1,
+    "passed": 0 if failed else 1,
+    "failed": 1 if failed else 0,
+    "skills": [skill],
+}
+output_path.write_text(json.dumps(report), encoding="utf-8")
+raise SystemExit(1 if mode == "scanner_nonzero" else 0)
+""",
+        encoding="utf-8",
+    )
+
+
+def run_security_generation(tmp_path: Path, mode: str) -> dict:
+    sandbox = tmp_path / mode
+    sandbox.mkdir()
+    write_fake_security_scanner(sandbox)
+    (sandbox / "skills").mkdir()
+    report_path = sandbox / "security-report.json"
+    evidence_path = sandbox / "security-evidence.json"
+    output_path = sandbox / "github-output.txt"
+    summary_path = sandbox / "github-summary.md"
+    output_path.touch()
+    summary_path.touch()
+    env = {
+        **os.environ,
+        "FAKE_SCANNER_MODE": mode,
+        "SENTINEL_SECRET_MARKER": "SENTINEL_DO_NOT_UPLOAD_12345",
+        "SECURITY_REPORT": str(report_path),
+        "SECURITY_EVIDENCE": str(evidence_path),
+        "GITHUB_OUTPUT": str(output_path),
+        "GITHUB_STEP_SUMMARY": str(summary_path),
+    }
+    result = subprocess.run(
+        ["bash", "-c", "set -euo pipefail\n" + build_index_workflow_step(
+            "Generate security report for checked-out data"
+        )["run"]],
+        cwd=sandbox,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    outputs = {}
+    for line in output_path.read_text(encoding="utf-8").splitlines():
+        key, value = line.split("=", 1)
+        outputs[key] = value
+    return {
+        "result": result,
+        "env": env,
+        "outputs": outputs,
+        "report": report_path,
+        "evidence": evidence_path,
+        "archive": Path(f"{evidence_path}.gz"),
+        "summary": summary_path,
+    }
+
+
+def run_security_enforcement(generation: dict, upload_outcome: str = "success"):
+    outputs = generation["outputs"]
+    env = {
+        **generation["env"],
+        "SCAN_EXIT": outputs.get("exit_code", ""),
+        "REPORT_PRESENT": outputs.get("report_present", ""),
+        "REPORT_VALID": outputs.get("report_valid", ""),
+        "EVIDENCE_PRESENT": outputs.get("evidence_present", ""),
+        "EVIDENCE_ARCHIVE_PRESENT": outputs.get("evidence_archive_present", ""),
+        "FAILED_COUNT": outputs.get("failed_count", ""),
+        "EVIDENCE_UPLOAD_OUTCOME": upload_outcome,
+    }
+    return subprocess.run(
+        ["bash", "-c", "set -euo pipefail\n" + build_index_workflow_step(
+            "Enforce archive security scan"
+        )["run"]],
+        cwd=generation["report"].parent,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
 
 
 def read_workflow(path: str) -> dict:
@@ -301,21 +434,139 @@ def test_build_index_generates_security_report_for_checked_out_data():
     build_steps = workflow[workflow.index("Generate security report for checked-out data") :]
 
     security_pos = build_steps.index("scripts/security_scanner.py")
+    upload_pos = build_steps.index("Upload security scan evidence")
+    enforce_pos = build_steps.index("Enforce archive security scan")
     build_pos = build_steps.index("scripts/build_search_index.py")
+    security_block = build_steps[security_pos:upload_pos]
+    upload_block = build_steps[upload_pos:enforce_pos]
+    enforce_block = build_steps[enforce_pos:build_pos]
 
-    assert security_pos < build_pos
-    assert "--output \"$RUNNER_TEMP/security-report.json\"" in build_steps
+    assert security_pos < upload_pos < enforce_pos < build_pos
+    assert "--output \"$SECURITY_REPORT\"" in security_block
     assert "--security-report \"$RUNNER_TEMP/security-report.json\"" in build_steps
     assert "--output docs/security-report.json" not in build_steps
     assert "unzip -o security-report.zip -d docs || true" not in build_steps
-    assert "test -f \"$RUNNER_TEMP/security-report.json\"" in build_steps
+    assert "--require-metadata" in security_block
+    assert "--report-only" not in security_block
+    assert "continue-on-error" not in security_block
+    assert "|| true" not in security_block
+    assert "scan_exit=$?" in security_block
+    assert "GITHUB_STEP_SUMMARY" in security_block
+    assert "Error taxonomy" in security_block
+    assert "gzip -c \"$SECURITY_EVIDENCE\"" in security_block
+    assert "failed_skill_ids" in security_block
+    assert "error_type_counts" in security_block
+    assert "message" not in upload_block
+    assert "if: always()" in upload_block
+    assert "actions/upload-artifact@v7" in upload_block
+    assert "security-evidence.json.gz" in upload_block
+    assert "SECURITY_REPORT" not in upload_block
+    assert "security-report.json.gz" not in build_steps
+    assert "if: always()" in enforce_block
+    assert "steps.security_scan.outputs.exit_code" in enforce_block
+    assert "steps.security_scan.outputs.report_present" in enforce_block
+    assert "steps.security_scan.outputs.report_valid" in enforce_block
+    assert "steps.security_scan.outputs.evidence_present" in enforce_block
+    assert "steps.security_scan.outputs.evidence_archive_present" in enforce_block
+    assert "steps.security_scan.outputs.failed_count" in enforce_block
+    assert "steps.security_evidence.outcome" in enforce_block
+    assert "exit 1" in enforce_block
+    assert "test -s \"$SECURITY_REPORT\"" in enforce_block
     assert "--allow-missing-security-evidence" not in build_steps
     assert "'scripts/build_search_index.py'" in workflow
     assert "'scripts/search_sources.py'" in workflow
     assert "'scripts/security_scanner.py'" in workflow
+    assert "'scripts/security_rules.py'" in workflow
     assert "'scripts/security_blocklist.py'" in workflow
+    assert "'scripts/utils.py'" in workflow
     assert "'sources/security_blocklist.json'" in workflow
     assert "'schema/skill.schema.json'" in workflow
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "scanner_nonzero",
+        "missing",
+        "invalid",
+        "count_mismatch",
+        "missing_decision",
+        "decision_mismatch",
+        "metadata_disabled",
+    ],
+)
+def test_build_index_actual_security_gate_blocks_invalid_scanner_evidence(tmp_path, mode):
+    generation = run_security_generation(tmp_path, mode)
+
+    assert generation["result"].returncode == 0
+    assert run_security_enforcement(generation).returncode != 0
+
+
+def test_build_index_actual_security_gate_accepts_valid_sanitized_evidence(tmp_path):
+    generation = run_security_generation(tmp_path, "valid")
+
+    assert generation["result"].returncode == 0
+    assert generation["outputs"] == {
+        "exit_code": "0",
+        "report_present": "true",
+        "report_valid": "true",
+        "evidence_present": "true",
+        "evidence_archive_present": "true",
+        "failed_count": "0",
+    }
+    assert run_security_enforcement(generation).returncode == 0
+
+
+def test_build_index_actual_security_gate_blocks_failed_decision_with_zero_exit(tmp_path):
+    generation = run_security_generation(tmp_path, "failed_exit_zero")
+
+    assert generation["result"].returncode == 0
+    assert generation["outputs"]["exit_code"] == "0"
+    assert generation["outputs"]["report_valid"] == "true"
+    assert generation["outputs"]["failed_count"] == "1"
+    assert run_security_enforcement(generation).returncode != 0
+
+
+@pytest.mark.parametrize("missing_output", ["evidence", "archive"])
+def test_build_index_actual_security_gate_blocks_missing_sanitized_output(
+    tmp_path, missing_output
+):
+    generation = run_security_generation(tmp_path, "valid")
+    generation[missing_output].unlink()
+
+    assert run_security_enforcement(generation).returncode != 0
+
+
+def test_build_index_actual_security_gate_blocks_failed_evidence_upload(tmp_path):
+    generation = run_security_generation(tmp_path, "valid")
+
+    assert run_security_enforcement(generation, upload_outcome="failure").returncode != 0
+
+
+def test_uploaded_security_evidence_excludes_raw_secret_markers(tmp_path):
+    generation = run_security_generation(tmp_path, "scanner_nonzero")
+    sentinel = generation["env"]["SENTINEL_SECRET_MARKER"]
+    evidence_text = generation["evidence"].read_text(encoding="utf-8")
+    archived_text = gzip.decompress(generation["archive"].read_bytes()).decode("utf-8")
+    summary_text = generation["summary"].read_text(encoding="utf-8")
+    evidence = json.loads(evidence_text)
+
+    assert evidence_text == archived_text
+    assert sentinel not in evidence_text
+    assert sentinel not in summary_text
+    assert set(evidence) == {
+        "schema_version",
+        "scanner",
+        "scan_policy",
+        "counts",
+        "failed_skill_ids",
+        "error_type_counts",
+    }
+    assert evidence["error_type_counts"] == {"hardcoded_credential": 1}
+    assert len(evidence["failed_skill_ids"]) == 1
+    assert len(evidence["failed_skill_ids"][0]) == 64
+    assert "issues" not in evidence_text
+    assert "/private/" not in evidence_text
 
 
 def test_build_index_runs_generated_size_guard_before_pages_upload():
