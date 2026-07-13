@@ -79,6 +79,7 @@ jobs:
           report_valid=false
           evidence_present=false
           evidence_archive_present=false
+          failed_count=
           if [ -s "$SECURITY_REPORT" ]; then
             report_present=true
             if python - "$SECURITY_REPORT" "$SECURITY_EVIDENCE" <<'PY'
@@ -115,9 +116,7 @@ jobs:
               r"[0-9a-f]{64}", ruleset_sha256
           ):
               raise ValueError("security report has invalid ruleset hash")
-          if not isinstance(scan_policy, dict) or not isinstance(
-              scan_policy.get("require_metadata"), bool
-          ):
+          if not isinstance(scan_policy, dict) or scan_policy.get("require_metadata") is not True:
               raise ValueError("security report has invalid scan policy")
           if not isinstance(skills, list):
               raise ValueError("security report is missing skills")
@@ -131,6 +130,17 @@ jobs:
           for result in skills:
               if not isinstance(result, dict) or not isinstance(result.get("safe"), bool):
                   raise ValueError("security report has invalid skill decision")
+              security_decision = result.get("security_decision")
+              if not isinstance(security_decision, dict):
+                  raise ValueError("security report is missing a security decision")
+              expected_status = "passed" if result["safe"] else "failed"
+              if security_decision.get("status") != expected_status:
+                  raise ValueError("security decision does not match the safe flag")
+              decision_policy = security_decision.get("policy")
+              if not isinstance(decision_policy, dict) or (
+                  decision_policy.get("require_metadata") is not True
+              ):
+                  raise ValueError("security decision has invalid scan policy")
               relative_path = result.get("path")
               if not isinstance(relative_path, str) or not relative_path:
                   raise ValueError("security report has invalid skill path")
@@ -198,6 +208,15 @@ jobs:
               report_valid=true
               if [ -s "$SECURITY_EVIDENCE" ]; then
                 evidence_present=true
+                failed_count=$(python - "$SECURITY_EVIDENCE" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              evidence = json.load(handle)
+          print(evidence["counts"]["failed"])
+          PY
+          )
               fi
             else
               echo "Security report is not valid JSON evidence." >> "$GITHUB_STEP_SUMMARY"
@@ -218,6 +237,7 @@ jobs:
             echo "report_valid=$report_valid"
             echo "evidence_present=$evidence_present"
             echo "evidence_archive_present=$evidence_archive_present"
+            echo "failed_count=$failed_count"
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload security scan evidence
@@ -238,6 +258,7 @@ jobs:
           REPORT_VALID: ${{ steps.security_scan.outputs.report_valid }}
           EVIDENCE_PRESENT: ${{ steps.security_scan.outputs.evidence_present }}
           EVIDENCE_ARCHIVE_PRESENT: ${{ steps.security_scan.outputs.evidence_archive_present }}
+          FAILED_COUNT: ${{ steps.security_scan.outputs.failed_count }}
           EVIDENCE_UPLOAD_OUTCOME: ${{ steps.security_evidence.outcome }}
           SECURITY_REPORT: ${{ runner.temp }}/security-report.json
           SECURITY_EVIDENCE: ${{ runner.temp }}/security-evidence.json
@@ -249,6 +270,10 @@ jobs:
           fi
           if [ "$REPORT_PRESENT" != "true" ] || [ "$REPORT_VALID" != "true" ]; then
             echo "::error::Security report is missing or invalid."
+            failed=1
+          fi
+          if [ "$FAILED_COUNT" != "0" ]; then
+            echo "::error::Security report contains ${FAILED_COUNT:-unknown} failed decisions."
             failed=1
           fi
           if [ "$EVIDENCE_PRESENT" != "true" ] || [ ! -s "$SECURITY_EVIDENCE" ]; then

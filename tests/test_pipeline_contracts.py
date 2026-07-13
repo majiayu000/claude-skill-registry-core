@@ -39,10 +39,15 @@ if mode == "invalid":
     raise SystemExit(0)
 
 sentinel = os.environ["SENTINEL_SECRET_MARKER"]
-failed = mode == "scanner_nonzero"
+failed = mode in {"scanner_nonzero", "failed_exit_zero"}
+require_metadata = mode != "metadata_disabled"
 skill = {
     "path": "development/private-source/SKILL.md",
     "safe": not failed,
+    "security_decision": {
+        "status": "failed" if failed or mode == "decision_mismatch" else "passed",
+        "policy": {"require_metadata": require_metadata},
+    },
     "issues": ([{
         "severity": "error",
         "type": "hardcoded_credential",
@@ -51,20 +56,22 @@ skill = {
         "file": f"/private/archive/{sentinel}/SKILL.md",
     }] if failed else []),
 }
+if mode == "missing_decision":
+    skill.pop("security_decision")
 report = {
     "scanner": {
         "name": "claude-skill-registry-security-scanner",
         "version": "1.1.2",
         "ruleset_sha256": "a" * 64,
     },
-    "scan_policy": {"require_metadata": True},
+    "scan_policy": {"require_metadata": require_metadata},
     "total": 2 if mode == "count_mismatch" else 1,
     "passed": 0 if failed else 1,
     "failed": 1 if failed else 0,
     "skills": [skill],
 }
 output_path.write_text(json.dumps(report), encoding="utf-8")
-raise SystemExit(1 if failed else 0)
+raise SystemExit(1 if mode == "scanner_nonzero" else 0)
 """,
         encoding="utf-8",
     )
@@ -124,6 +131,7 @@ def run_security_enforcement(generation: dict, upload_outcome: str = "success"):
         "REPORT_VALID": outputs.get("report_valid", ""),
         "EVIDENCE_PRESENT": outputs.get("evidence_present", ""),
         "EVIDENCE_ARCHIVE_PRESENT": outputs.get("evidence_archive_present", ""),
+        "FAILED_COUNT": outputs.get("failed_count", ""),
         "EVIDENCE_UPLOAD_OUTCOME": upload_outcome,
     }
     return subprocess.run(
@@ -357,6 +365,7 @@ def test_build_index_generates_security_report_for_checked_out_data():
     assert "steps.security_scan.outputs.report_valid" in enforce_block
     assert "steps.security_scan.outputs.evidence_present" in enforce_block
     assert "steps.security_scan.outputs.evidence_archive_present" in enforce_block
+    assert "steps.security_scan.outputs.failed_count" in enforce_block
     assert "steps.security_evidence.outcome" in enforce_block
     assert "exit 1" in enforce_block
     assert "test -s \"$SECURITY_REPORT\"" in enforce_block
@@ -373,7 +382,15 @@ def test_build_index_generates_security_report_for_checked_out_data():
 
 @pytest.mark.parametrize(
     "mode",
-    ["scanner_nonzero", "missing", "invalid", "count_mismatch"],
+    [
+        "scanner_nonzero",
+        "missing",
+        "invalid",
+        "count_mismatch",
+        "missing_decision",
+        "decision_mismatch",
+        "metadata_disabled",
+    ],
 )
 def test_build_index_actual_security_gate_blocks_invalid_scanner_evidence(tmp_path, mode):
     generation = run_security_generation(tmp_path, mode)
@@ -392,8 +409,19 @@ def test_build_index_actual_security_gate_accepts_valid_sanitized_evidence(tmp_p
         "report_valid": "true",
         "evidence_present": "true",
         "evidence_archive_present": "true",
+        "failed_count": "0",
     }
     assert run_security_enforcement(generation).returncode == 0
+
+
+def test_build_index_actual_security_gate_blocks_failed_decision_with_zero_exit(tmp_path):
+    generation = run_security_generation(tmp_path, "failed_exit_zero")
+
+    assert generation["result"].returncode == 0
+    assert generation["outputs"]["exit_code"] == "0"
+    assert generation["outputs"]["report_valid"] == "true"
+    assert generation["outputs"]["failed_count"] == "1"
+    assert run_security_enforcement(generation).returncode != 0
 
 
 @pytest.mark.parametrize("missing_output", ["evidence", "archive"])
