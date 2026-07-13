@@ -96,6 +96,12 @@ Category manifests use part entries with:
 - `gzip_bytes`
 - `sha256`
 
+Category manifests also publish
+`part_strategy: bounded-sequential-stars-desc`. Parts are ordered by stars
+descending, then name and install path, so consumers may fetch only the first
+part for a bounded top-skills leaderboard. Consumers must fail closed if this
+strategy or the first-part identity/count metadata is absent or invalid.
+
 Registry manifests use shard entries with:
 
 - `id`

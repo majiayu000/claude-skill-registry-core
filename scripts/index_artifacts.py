@@ -151,6 +151,7 @@ def write_search_artifacts(
     safe_write_json(output_dir / "search-index-manifest.json", manifest)
 
     pointer = {
+        "schema_version": 1,
         "v": version,
         "t": len(search_records),
         "deprecated_full_payload": True,
@@ -308,6 +309,7 @@ def write_category_artifacts(
             "updated_at": updated_at,
             "count": len(sorted_skills),
             "part_count": part_count,
+            "part_strategy": "bounded-sequential-stars-desc",
             "largest_part_bytes": max((entry["bytes"] for entry in part_entries), default=0),
             "largest_part_gzip_bytes": max(
                 (entry["gzip_bytes"] for entry in part_entries),
