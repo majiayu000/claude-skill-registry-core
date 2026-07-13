@@ -142,6 +142,7 @@ def test_build_plugins_index_and_stats_use_plugin_keys(tmp_path):
     assert stats_data["top_repositories"] == [{"repo": "owner/repo", "count": 1}]
     assert stats_data["largest_generated_file_bytes"] > 0
     assert search_pointer["deprecated_full_payload"] is True
+    assert search_pointer["schema_version"] == 1
     assert search_pointer["manifest"] == "search-index-manifest.json"
     assert "s" not in search_pointer
     assert search_manifest["shard_count"] == 1
@@ -151,6 +152,7 @@ def test_build_plugins_index_and_stats_use_plugin_keys(tmp_path):
     assert category_pointer["manifest"] == "categories/development/manifest.json"
     assert "skills" not in category_pointer
     assert category_manifest["part_count"] == 1
+    assert category_manifest["part_strategy"] == "bounded-sequential-stars-desc"
     assert sum(part["count"] for part in category_manifest["parts"]) == 1
     assert lite_data["dedupe_key"] == "install|branch"
     assert lite_data["total_count"] == 1

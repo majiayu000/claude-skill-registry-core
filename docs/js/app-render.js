@@ -13,19 +13,32 @@ function showFeatured() {
 
 // Show leaderboard
 async function showLeaderboard(categoryFilter = '') {
+    const requestToken = ++state.leaderboardRequestToken;
     elements.leaderboardSection.classList.remove('hidden');
     elements.leaderboardList.innerHTML = '';
+    elements.leaderboardStatus.textContent = categoryFilter
+        ? 'Loading the first stars-ranked category part…'
+        : 'Ranking the already-loaded featured catalog…';
 
     let skills;
     try {
         skills = categoryFilter
-            ? await loadCategorySkills(categoryFilter)
-            : await loadFullSearchSkills();
+            ? await loadCategoryLeaderboardSkills(categoryFilter)
+            : state.featured.map(normalizeSkillRecord);
+        if (requestToken !== state.leaderboardRequestToken) return;
+        elements.leaderboardStatus.textContent = categoryFilter
+            ? 'Top skills from the first stars-ranked category part'
+            : 'Top skills from the featured catalog — no full-index download';
     } catch (error) {
-        console.warn('Failed to load full leaderboard data; using startup index:', error);
-        skills = categoryFilter
-            ? state.index.s.filter(s => s.c === categoryFilter)
-            : state.index.s;
+        if (requestToken !== state.leaderboardRequestToken) return;
+        if (categoryFilter) {
+            elements.leaderboardStatus.textContent =
+                `Leaderboard load failed: ${error.message}. Select the category again to retry.`;
+            return;
+        }
+        elements.leaderboardStatus.textContent =
+            `Leaderboard load failed: ${error.message}. Showing highlighted results; change category to retry.`;
+        skills = state.index.s;
     }
 
     // Sort by stars descending

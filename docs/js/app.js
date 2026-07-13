@@ -28,7 +28,6 @@ const CONFIG = {
     }
 };
 
-// Category code to full name mapping
 const CATEGORY_NAMES = {
     'dev': 'Development',
     'ops': 'DevOps',
@@ -44,12 +43,10 @@ const CATEGORY_NAMES = {
     'oth': 'Other'
 };
 
-// Full category name to short code mapping
 const CATEGORY_CODES_REVERSE = Object.fromEntries(
     Object.entries(CATEGORY_NAMES).map(([code, name]) => [name.toLowerCase(), code])
 );
 
-// Category colors for charts
 const CATEGORY_COLORS = {
     'dev': '#00fff2',
     'ops': '#ff6b6b',
@@ -65,7 +62,6 @@ const CATEGORY_COLORS = {
     'oth': '#576574'
 };
 
-// State
 let state = {
     index: null,
     fullIndex: null,
@@ -80,6 +76,7 @@ let state = {
     currentCategory: '',
     currentSort: 'relevance',
     currentView: 'featured',
+    leaderboardRequestToken: 0,
     currentStarsFilter: '',
     currentSourceFilter: '',
     currentTagFilters: [],
@@ -89,7 +86,6 @@ let state = {
     isLoading: true
 };
 
-// DOM Elements
 const elements = {
     searchInput: document.getElementById('search-input'),
     metaDescription: document.querySelector('meta[name="description"]'),
@@ -98,6 +94,8 @@ const elements = {
     totalCount: document.getElementById('total-count'),
     resultCount: document.getElementById('result-count'),
     searchTime: document.getElementById('search-time'),
+    searchScope: document.getElementById('search-scope'),
+    searchAllBtn: document.getElementById('search-all-btn'),
     statsBar: document.getElementById('stats-bar'),
     loading: document.getElementById('loading'),
     featuredSection: document.getElementById('featured-section'),
@@ -105,6 +103,7 @@ const elements = {
     leaderboardSection: document.getElementById('leaderboard-section'),
     leaderboardList: document.getElementById('leaderboard-list'),
     leaderboardCategory: document.getElementById('leaderboard-category'),
+    leaderboardStatus: document.getElementById('leaderboard-status'),
     statsSection: document.getElementById('stats-section'),
     pluginsSection: document.getElementById('plugins-section'),
     pluginsList: document.getElementById('plugins-list'),
@@ -123,7 +122,6 @@ const elements = {
     modal: document.getElementById('skill-modal'),
     modalClose: document.getElementById('modal-close'),
     modalBody: document.getElementById('modal-body'),
-    // Advanced filters
     filterToggle: document.getElementById('filter-toggle'),
     advancedFilters: document.getElementById('advanced-filters'),
     starsFilter: document.getElementById('stars-filter'),
@@ -131,7 +129,6 @@ const elements = {
     tagFilter: document.getElementById('tag-filter'),
     activeTags: document.getElementById('active-tags'),
     clearFilters: document.getElementById('clear-filters'),
-    // Theme
     themeToggle: document.getElementById('theme-toggle'),
     themeIcon: document.getElementById('theme-icon')
 };
@@ -195,39 +192,22 @@ function normalizeSearchIndex(indexData) {
     throw new Error('Unsupported search index schema');
 }
 
-async function loadShardedSearchIndex(pointerData) {
-    const manifestPath = pointerData.manifest;
-    if (!manifestPath) {
-        throw new Error('Search index pointer is missing manifest');
-    }
-
-    const manifest = await fetchJson(manifestPath);
-    const shardPayloads = await Promise.all(
-        (manifest.shards || []).map(shard => fetchJson(shard.path))
-    );
-    const skills = shardPayloads.flatMap(payload => payload.s || []);
-    return normalizeSearchIndex({
-        v: manifest.v || pointerData.v || '',
-        t: manifest.total_count || pointerData.t || skills.length,
-        s: skills
-    });
+function requireSchemaOne(value, label) {
+    if (!value || value.schema_version !== 1) throw new Error(`${label} schema_version must be 1`);
 }
 
-async function loadSearchIndexUrl(url) {
-    const indexData = await fetchJson(url);
-    if (indexData.deprecated_full_payload && indexData.manifest) {
-        return loadShardedSearchIndex(indexData);
-    }
-    return normalizeSearchIndex(indexData);
+function isSafeArtifactPath(path, prefix) {
+    return typeof path === 'string' && path.startsWith(prefix) &&
+        !path.startsWith('/') && !path.includes('\\') && !path.includes('://') &&
+        path.split('/').every(part => part && part !== '.' && part !== '..');
+}
+
+function requireNonNegativeInteger(value, label) {
+    if (!Number.isInteger(value) || value < 0) throw new Error(`${label} must be a non-negative integer`);
 }
 
 async function loadSearchIndex() {
-    try {
-        return await loadSearchIndexUrl(CONFIG.INDEX_URL);
-    } catch (error) {
-        console.warn(`Failed to load ${CONFIG.INDEX_URL}; falling back to ${CONFIG.LEGACY_INDEX_URL}:`, error);
-        return await loadSearchIndexUrl(CONFIG.LEGACY_INDEX_URL);
-    }
+    return normalizeSearchIndex(await fetchJson(CONFIG.INDEX_URL));
 }
 
 function formatResultCount(count) {
@@ -285,12 +265,22 @@ function updateRegistryCountDisplay() {
             `Search and discover ${formattedDeduped} Claude Code skills for Claude Code, Codex CLI, and ChatGPT.`
         );
     }
+    updateSearchScopeDisplay();
 }
 
-// Initialize
+function updateSearchScopeDisplay() {
+    const included = Number(state.index?.includedCount || state.index?.s?.length || 0);
+    const total = Number(state.index?.t || getDisplaySkillCount() || included);
+    const full = !state.index?.isLite;
+    elements.searchScope.textContent = full
+        ? `Searching all ${total.toLocaleString()} skills`
+        : `Searching ${included.toLocaleString()} highlighted of ${total.toLocaleString()} skills`;
+    elements.searchAllBtn.textContent = full ? 'All skills loaded' : `Search all ${total.toLocaleString()}`;
+    elements.searchAllBtn.disabled = full;
+}
+
 async function init() {
     try {
-        // Load index and featured in parallel
         const [indexData, featuredData, categoriesData, statsData, pluginsData] = await Promise.all([
             loadSearchIndex(),
             fetch(CONFIG.FEATURED_URL).then(r => r.json()).catch(() => ({ skills: [] })),
@@ -305,21 +295,16 @@ async function init() {
         state.categories = categoriesData.categories || [];
         state.stats = statsData || {};
 
-        // Initialize Fuse.js
         state.fuse = new Fuse(state.index.s, CONFIG.FUSE_OPTIONS);
 
-        // Update UI
         updateRegistryCountDisplay();
         elements.lastUpdated.textContent = `Updated: ${state.index.v}`;
 
-        // Populate category filters
         populateCategoryFilter();
         populateLeaderboardCategoryFilter();
 
-        // Show featured
         showFeatured();
 
-        // Hide loading
         elements.loading.classList.add('hidden');
         state.isLoading = false;
 
@@ -333,7 +318,6 @@ async function init() {
     }
 }
 
-// Populate category filter
 function populateCategoryFilter() {
     state.categories.forEach(cat => {
         const option = document.createElement('option');
@@ -343,7 +327,6 @@ function populateCategoryFilter() {
     });
 }
 
-// Populate leaderboard category filter
 function populateLeaderboardCategoryFilter() {
     state.categories.forEach(cat => {
         const option = document.createElement('option');
@@ -357,59 +340,134 @@ function findCategoryByCode(code) {
     return state.categories.find(cat => cat.code === code);
 }
 
-async function loadCategorySkills(categoryCode) {
-    if (!categoryCode) {
-        return state.index.s;
-    }
+async function loadCategoryLeaderboardSkills(categoryCode) {
     if (state.categoryCache[categoryCode]) {
         return state.categoryCache[categoryCode];
     }
 
     const category = findCategoryByCode(categoryCode);
-    if (!category || !category.manifest) {
-        return state.index.s.filter(skill => skill.c === categoryCode);
-    }
+    if (!category) throw new Error(`Unknown leaderboard category: ${categoryCode}`);
+    if (!isSafeArtifactPath(category.manifest, 'categories/')) throw new Error('Invalid category manifest path');
 
     const manifest = await fetchJson(category.manifest);
-    const partPayloads = await Promise.all(
-        (manifest.parts || []).map(part => fetchJson(part.path))
-    );
-    const skills = partPayloads
-        .flatMap(part => part.skills || [])
-        .map(normalizeSkillRecord);
+    requireSchemaOne(manifest, 'Category manifest');
+    if (manifest.part_strategy !== 'bounded-sequential-stars-desc') {
+        throw new Error('Category manifest is not stars-desc ranked');
+    }
+    if (manifest.code !== categoryCode || manifest.category !== category.name) {
+        throw new Error('Category manifest identity mismatch');
+    }
+    requireNonNegativeInteger(manifest.count, 'Category count');
+    requireNonNegativeInteger(manifest.part_count, 'Category part_count');
+    const parts = Array.isArray(manifest.parts) ? manifest.parts : [];
+    if (parts.length !== manifest.part_count) throw new Error('Category part_count mismatch');
+    const paths = new Set();
+    let entryTotal = 0;
+    parts.forEach(part => {
+        requireNonNegativeInteger(part.count, 'Category part entry count');
+        if (!isSafeArtifactPath(part.path, 'categories/') || paths.has(part.path)) {
+            throw new Error('Invalid or duplicate category part path');
+        }
+        paths.add(part.path);
+        entryTotal += part.count;
+    });
+    if (entryTotal !== manifest.count) throw new Error('Category part counts do not match total');
+    const firstPart = parts[0];
+    if (!firstPart && manifest.count > 0) throw new Error('Category manifest has no first part');
+    if (!firstPart) return [];
+    const required = Math.min(CONFIG.LEADERBOARD_SIZE, manifest.count);
+    if (!firstPart.path.endsWith('/part-000.json') || firstPart.count < required) throw new Error('First ranked part cannot satisfy leaderboard');
+    const payload = await fetchJson(firstPart.path);
+    requireSchemaOne(payload, 'Category part');
+    if (payload.part !== 0 || payload.part_count !== manifest.part_count ||
+        payload.category !== manifest.category || payload.code !== categoryCode) {
+        throw new Error('Category first-part identity mismatch');
+    }
+    if (!Array.isArray(payload.skills) || payload.count !== firstPart.count ||
+        payload.skills.length !== firstPart.count) throw new Error('Category first-part count mismatch');
+    const skills = (payload.skills || []).map(normalizeSkillRecord);
     state.categoryCache[categoryCode] = skills;
     return skills;
 }
 
-async function loadFullSearchSkills() {
+async function loadFullSearchIndex() {
     if (!state.index?.isLite) {
-        return state.index?.s || [];
+        return state.index;
     }
     if (state.fullIndex) {
-        return state.fullIndex.s;
+        return state.fullIndex;
     }
-
-    state.fullIndex = await loadSearchIndexUrl(CONFIG.LEGACY_INDEX_URL);
-    return state.fullIndex.s;
+    const pointer = await fetchJson(CONFIG.LEGACY_INDEX_URL);
+    requireSchemaOne(pointer, 'Search index pointer');
+    if (pointer.deprecated_full_payload !== true || pointer.manifest !== 'search-index-manifest.json') {
+        throw new Error('Search index pointer has invalid manifest path');
+    }
+    const manifest = await fetchJson(pointer.manifest);
+    requireSchemaOne(manifest, 'Search index manifest');
+    requireNonNegativeInteger(manifest.total_count, 'Search total_count');
+    requireNonNegativeInteger(manifest.shard_count, 'Search shard_count');
+    const shards = Array.isArray(manifest.shards) ? manifest.shards : [];
+    if (shards.length !== manifest.shard_count || pointer.t !== manifest.total_count) {
+        throw new Error('Search manifest count mismatch');
+    }
+    const paths = new Set();
+    let entryTotal = 0;
+    shards.forEach(shard => {
+        requireNonNegativeInteger(shard.count, 'Search shard entry count');
+        if (!isSafeArtifactPath(shard.path, 'search-shards/') || paths.has(shard.path)) {
+            throw new Error('Invalid or duplicate search shard path');
+        }
+        paths.add(shard.path);
+        entryTotal += shard.count;
+    });
+    if (entryTotal !== manifest.total_count) throw new Error('Search shard counts do not match total');
+    const payloads = await Promise.all(shards.map(shard => fetchJson(shard.path)));
+    payloads.forEach((payload, index) => {
+        requireSchemaOne(payload, 'Search shard');
+        if (payload.part !== index || payload.part_count !== manifest.shard_count ||
+            !Array.isArray(payload.s) || payload.count !== shards[index].count ||
+            payload.s.length !== shards[index].count) throw new Error('Search shard identity/count mismatch');
+    });
+    const skills = payloads.flatMap(payload => payload.s);
+    if (skills.some(skill => typeof skill.i !== 'string' || !skill.i ||
+        typeof skill.b !== 'string' || !skill.b)) throw new Error('Search record stable key is missing');
+    const stableKeys = skills.map(skill => `${skill.i}|${skill.b}`);
+    if (new Set(stableKeys).size !== skills.length) {
+        throw new Error('Search shards contain missing or duplicate stable records');
+    }
+    const total = manifest.total_count;
+    state.fullIndex = normalizeSearchIndex({ v: manifest.v || pointer.v || '', t: total, s: skills });
+    return state.fullIndex;
 }
 
 async function getFilterBaseSkills() {
-    if (state.currentCategory && !state.currentQuery) {
-        return loadCategorySkills(state.currentCategory);
-    }
     return state.index.s;
 }
 
-// Switch view
+async function activateFullSearch() {
+    elements.searchAllBtn.disabled = true;
+    elements.searchAllBtn.textContent = 'Loading all shards…';
+    elements.searchScope.textContent = 'Loading the complete offline search index…';
+    try {
+        state.index = await loadFullSearchIndex();
+        state.fuse = new Fuse(state.index.s, CONFIG.FUSE_OPTIONS);
+        updateSearchScopeDisplay();
+        if (state.currentQuery) search(state.currentQuery);
+        else if (hasActiveFilters()) await searchWithFiltersOnly();
+    } catch (error) {
+        elements.searchScope.textContent = `Full search failed: ${error.message}`;
+        elements.searchAllBtn.textContent = 'Retry Search all';
+        elements.searchAllBtn.disabled = false;
+    }
+}
+
 function switchView(view) {
     state.currentView = view;
 
-    // Update nav tabs
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.classList.toggle('active', tab.dataset.view === view);
     });
 
-    // Hide all sections
     elements.featuredSection.classList.add('hidden');
     elements.leaderboardSection.classList.add('hidden');
     elements.statsSection.classList.add('hidden');
@@ -420,7 +478,6 @@ function switchView(view) {
     elements.loadMore.classList.add('hidden');
     elements.statsBar.classList.toggle('hidden', view !== 'featured');
 
-    // Show selected section
     switch (view) {
         case 'featured':
             showFeatured();
@@ -440,7 +497,6 @@ function switchView(view) {
     }
 }
 
-// Search
 function search(query) {
     const startTime = performance.now();
 
@@ -454,7 +510,6 @@ function search(query) {
         return;
     }
 
-    // Hide all sections, show search results
     elements.featuredSection.classList.add('hidden');
     elements.leaderboardSection.classList.add('hidden');
     elements.statsSection.classList.add('hidden');
@@ -463,16 +518,12 @@ function search(query) {
     elements.searchResults.classList.remove('hidden');
     elements.statsBar.classList.remove('hidden');
 
-    // Reset nav tabs
     document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
 
-    // Perform search
     let results = state.fuse.search(state.currentQuery);
 
-    // Apply all filters (category, stars, source, tags)
     results = applyAllFilters(results);
 
-    // Apply sort
     if (state.currentSort === 'stars') {
         results.sort((a, b) => (b.item.r || 0) - (a.item.r || 0));
     } else if (state.currentSort === 'name') {
@@ -484,7 +535,6 @@ function search(query) {
     const endTime = performance.now();
     const searchTimeMs = (endTime - startTime).toFixed(1);
 
-    // Update UI
     elements.resultCount.textContent = formatResultCount(results.length);
     elements.searchTime.textContent = `${searchTimeMs}ms`;
 
@@ -498,7 +548,6 @@ function search(query) {
     }
 }
 
-// Event Listeners
 elements.searchInput.addEventListener('input', debounce((e) => {
     search(e.target.value);
 }, CONFIG.DEBOUNCE_MS));
@@ -520,28 +569,24 @@ elements.sortFilter.addEventListener('change', (e) => {
 });
 
 elements.loadMoreBtn.addEventListener('click', displayResults);
+elements.searchAllBtn.addEventListener('click', activateFullSearch);
 
-// Nav tabs
 elements.navTabs.addEventListener('click', (e) => {
     const tab = e.target.closest('.nav-tab');
     if (tab) {
         const view = tab.dataset.view;
         switchView(view);
-        // Clear search when switching views
         elements.searchInput.value = '';
         state.currentQuery = '';
     }
 });
 
-// Leaderboard category filter
 elements.leaderboardCategory.addEventListener('change', (e) => {
     showLeaderboard(e.target.value);
 });
 
-// Random button
 elements.randomBtn.addEventListener('click', showRandomSkill);
 
-// Quick tags
 elements.quickTags.addEventListener('click', (e) => {
     if (e.target.classList.contains('tag')) {
         const query = e.target.dataset.query;
@@ -550,7 +595,6 @@ elements.quickTags.addEventListener('click', (e) => {
     }
 });
 
-// Modal
 elements.modalClose.addEventListener('click', () => {
     elements.modal.classList.add('hidden');
 });
@@ -565,42 +609,31 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
-    // Focus search on '/'
     if (e.key === '/' && document.activeElement !== elements.searchInput) {
         e.preventDefault();
         elements.searchInput.focus();
     }
-    // Random skill on 'r'
     if (e.key === 'r' && document.activeElement !== elements.searchInput && !elements.modal.classList.contains('hidden') === false) {
         showRandomSkill();
     }
 });
 
-// ═══════════════════════════════════════════════════════════
-// ADVANCED FILTERS
-// ═══════════════════════════════════════════════════════════
-
-// Toggle advanced filters panel
 elements.filterToggle.addEventListener('click', () => {
     elements.advancedFilters.classList.toggle('hidden');
     elements.filterToggle.classList.toggle('active');
 });
 
-// Stars filter
 elements.starsFilter.addEventListener('change', (e) => {
     state.currentStarsFilter = e.target.value;
     runFilterSearch();
 });
 
-// Source filter
 elements.sourceFilter.addEventListener('change', (e) => {
     state.currentSourceFilter = e.target.value;
     runFilterSearch();
 });
 
-// Tag filter input
 elements.tagFilter.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.value.trim()) {
         e.preventDefault();
@@ -614,7 +647,6 @@ elements.tagFilter.addEventListener('keydown', (e) => {
     }
 });
 
-// Render active tag filters
 function renderActiveTags() {
     elements.activeTags.innerHTML = state.currentTagFilters.map(tag => {
         const safe = escapeHtml(tag);
@@ -622,7 +654,6 @@ function renderActiveTags() {
     }).join('');
 }
 
-// Delegate click for tag removal (avoids inline onclick XSS risk)
 elements.activeTags.addEventListener('click', (e) => {
     const btn = e.target.closest('.remove-tag-btn');
     if (btn) {
@@ -633,7 +664,6 @@ elements.activeTags.addEventListener('click', (e) => {
     }
 });
 
-// Clear all filters
 elements.clearFilters.addEventListener('click', () => {
     state.currentStarsFilter = '';
     state.currentSourceFilter = '';
@@ -653,23 +683,19 @@ function runFilterSearch() {
     });
 }
 
-// Apply all filters and search
 async function applyFiltersAndSearch() {
     if (state.currentQuery) {
         search(state.currentQuery);
     } else if (hasActiveFilters()) {
-        // If no search query but filters active, search all
         await searchWithFiltersOnly();
     }
 }
 
-// Check if any filters are active
 function hasActiveFilters() {
     return state.currentStarsFilter || state.currentSourceFilter ||
            state.currentTagFilters.length > 0 || state.currentCategory;
 }
 
-// Search with only filters (no query)
 async function searchWithFiltersOnly() {
     const startTime = performance.now();
     state.displayedCount = 0;
@@ -677,10 +703,8 @@ async function searchWithFiltersOnly() {
     const baseSkills = await getFilterBaseSkills();
     let results = baseSkills.map(item => ({ item, score: 0 }));
 
-    // Apply filters
     results = applyAllFilters(results);
 
-    // Apply sort
     if (state.currentSort === 'stars') {
         results.sort((a, b) => (b.item.r || 0) - (a.item.r || 0));
     } else if (state.currentSort === 'name') {
@@ -692,7 +716,6 @@ async function searchWithFiltersOnly() {
     const endTime = performance.now();
     const searchTimeMs = (endTime - startTime).toFixed(1);
 
-    // Update UI
     elements.featuredSection.classList.add('hidden');
     elements.leaderboardSection.classList.add('hidden');
     elements.statsSection.classList.add('hidden');
@@ -716,14 +739,11 @@ async function searchWithFiltersOnly() {
     }
 }
 
-// Apply all filters to results
 function applyAllFilters(results) {
-    // Category filter
     if (state.currentCategory) {
         results = results.filter(r => r.item.c === state.currentCategory);
     }
 
-    // Stars filter
     if (state.currentStarsFilter) {
         const minStars = parseStarsFilter(state.currentStarsFilter);
         if (minStars === 0) {
@@ -733,7 +753,6 @@ function applyAllFilters(results) {
         }
     }
 
-    // Source filter
     if (state.currentSourceFilter) {
         if (state.currentSourceFilter === 'official') {
             results = results.filter(r => r.item.c === 'off');
@@ -742,7 +761,6 @@ function applyAllFilters(results) {
         }
     }
 
-    // Tag filters
     if (state.currentTagFilters.length > 0) {
         results = results.filter(r => {
             const tags = (r.item.g || []).map(t => t.toLowerCase());
@@ -755,7 +773,6 @@ function applyAllFilters(results) {
     return results;
 }
 
-// Parse stars filter value
 function parseStarsFilter(value) {
     if (value === '0') return 0;
     if (value === '10+') return 10;
@@ -765,17 +782,11 @@ function parseStarsFilter(value) {
     return -1;
 }
 
-// ═══════════════════════════════════════════════════════════
-// THEME TOGGLE
-// ═══════════════════════════════════════════════════════════
-
-// Initialize theme
 function initTheme() {
     document.documentElement.setAttribute('data-theme', state.theme);
     elements.themeIcon.textContent = state.theme === 'dark' ? '🌙' : '☀️';
 }
 
-// Toggle theme
 elements.themeToggle.addEventListener('click', () => {
     state.theme = state.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', state.theme);
@@ -783,8 +794,6 @@ elements.themeToggle.addEventListener('click', () => {
     elements.themeIcon.textContent = state.theme === 'dark' ? '🌙' : '☀️';
 });
 
-// Initialize theme on load
 initTheme();
 
-// Initialize
 init();
