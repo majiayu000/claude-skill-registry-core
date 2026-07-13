@@ -13,6 +13,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from plugin_index import load_plugins_from_source
 from utils import (
     extract_description,
     is_declared_bundled_skill_file,
@@ -386,17 +387,9 @@ def build_category_indexes(skills: list, output_dir: Path):
 
 
 def load_plugins(sources_dir: Path) -> list:
-    """Load plugins from sources/plugins.json."""
-    plugins_path = sources_dir / "plugins.json"
-    if not plugins_path.exists():
-        return []
-    try:
-        with open(plugins_path, encoding="utf-8") as f:
-            data = json.load(f)
-        return data.get("plugins", [])
-    except Exception as e:
-        logger.warning(f"Failed to load plugins: {e}")
-        return []
+    """Load plugins from the optional strict source index."""
+    result = load_plugins_from_source(sources_dir)
+    return result.plugins if result.present else []
 
 
 if __name__ == "__main__":
