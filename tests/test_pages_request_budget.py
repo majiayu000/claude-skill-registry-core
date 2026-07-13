@@ -418,3 +418,30 @@ loadFullSearchIndex().then(full => {
         str(output_dir),
     )
     assert reader_result == {"total": 1, "count": 1, "name": "Deterministic winner"}
+
+
+def test_generated_stable_key_winner_is_order_independent_for_equal_scores(tmp_path):
+    tied_skills = [
+        {
+            "name": name,
+            "description": "same-length-description",
+            "category": "development",
+            "repo": "acme/demo",
+            "install": "acme/demo",
+            "branch": "main",
+            "path": "",
+            "stars": 10,
+        }
+        for name in ("Alpha", "Beta")
+    ]
+
+    winners = []
+    for index, skills in enumerate((tied_skills, list(reversed(tied_skills)))):
+        output_dir = tmp_path / f"equal-score-{index}"
+        build_search_index(skills, output_dir)
+        manifest = json.loads((output_dir / "search-index-manifest.json").read_text())
+        shard = json.loads((output_dir / manifest["shards"][0]["path"]).read_text())
+        lite = json.loads((output_dir / "search-index-lite.json").read_text())
+        winners.append((shard["s"][0]["n"], lite["skills"][0]["name"]))
+
+    assert winners == [("Beta", "Beta"), ("Beta", "Beta")]

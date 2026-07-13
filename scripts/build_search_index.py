@@ -361,14 +361,30 @@ def build_search_index(
         dedupe_key = f"{install}|{branch}"
         existing_records = records_by_key.get(dedupe_key)
         existing = existing_records["lite"] if existing_records else None
-        if not existing or (
+        candidate_rank = (
             stars,
             quality_score,
             len(description),
-        ) > (
+            json.dumps(
+                full_record,
+                ensure_ascii=True,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
+        existing_rank = (
             int(existing.get("stars", 0) or 0),
             int(existing.get("quality_score", 0) or 0),
             int(existing.get("_description_length", 0) or 0),
+            json.dumps(
+                existing_records["full"],
+                ensure_ascii=True,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        ) if existing_records else None
+        if not existing or (
+            existing_rank is not None and candidate_rank > existing_rank
         ):
             records_by_key[dedupe_key] = {
                 "mini": mini_record,
