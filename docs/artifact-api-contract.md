@@ -194,8 +194,9 @@ Compatibility pointer fields:
 - `compat_until`: planned end of this V1 compatibility window
 - `replacement`: path or path pattern consumers should use
 
-If `compat_until` is absent, consumers may assume no removal date has been
-announced yet.
+`compat_until` is required for every V1 compatibility pointer. Consumers must
+treat a pointer without it as invalid rather than guessing an unannounced
+removal date.
 
 ## Consumer Guidance
 
