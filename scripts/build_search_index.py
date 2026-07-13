@@ -269,14 +269,8 @@ def build_search_index(
     )
 
     # Build minimal search index
-    search_index = {"v": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "t": len(skills), "s": []}
-
-    # Category indexes
-    categories: Dict[str, List[Dict]] = {}
-
-    # Featured skills
-    featured_skills = []
-    lite_skills_by_key: Dict[str, Dict[str, Any]] = {}
+    search_index = {"v": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "t": 0, "s": []}
+    records_by_key: Dict[str, Dict[str, Dict[str, Any]]] = {}
     quality_records_by_id: Dict[str, Dict[str, Any]] = {}
     security_records_by_id: Dict[str, Dict[str, Any]] = {}
     ranking_records_by_id: Dict[str, Dict[str, Any]] = {}
@@ -321,8 +315,6 @@ def build_search_index(
             "i": install,
             "b": branch,  # branch for GitHub URL
         }
-        search_index["s"].append(mini_record)
-
         # Full record
         full_record = {
             "name": name,
@@ -344,15 +336,6 @@ def build_search_index(
             "trust_score": trust_score,
             "compatible_agents": compatible_agents,
         }
-
-        # Add to category
-        if category not in categories:
-            categories[category] = []
-        categories[category].append(full_record)
-
-        # Track for featured
-        if stars > 0:
-            featured_skills.append(full_record)
 
         lite_record = {
             "id": skill_id,
@@ -376,7 +359,8 @@ def build_search_index(
             "_description_length": len(description),
         }
         dedupe_key = f"{install}|{branch}"
-        existing = lite_skills_by_key.get(dedupe_key)
+        existing_records = records_by_key.get(dedupe_key)
+        existing = existing_records["lite"] if existing_records else None
         if not existing or (
             stars,
             quality_score,
@@ -386,7 +370,11 @@ def build_search_index(
             int(existing.get("quality_score", 0) or 0),
             int(existing.get("_description_length", 0) or 0),
         ):
-            lite_skills_by_key[dedupe_key] = lite_record
+            records_by_key[dedupe_key] = {
+                "mini": mini_record,
+                "full": full_record,
+                "lite": lite_record,
+            }
             quality_records_by_id[skill_id] = {
                 "id": skill_id,
                 "install": install,
@@ -418,12 +406,26 @@ def build_search_index(
                 ),
             }
 
+    # Every published search/category view must use the same stable-key winners
+    # as the lite index; otherwise the strict full-index reader rejects the
+    # generator's own duplicate records.
+    categories: Dict[str, List[Dict]] = {}
+    featured_skills = []
+    for records in records_by_key.values():
+        full_record = records["full"]
+        category = full_record["category"]
+        categories.setdefault(category, []).append(full_record)
+        if full_record["stars"] > 0:
+            featured_skills.append(full_record)
+        search_index["s"].append(records["mini"])
+    search_index["t"] = len(search_index["s"])
+
     # Sort by stars
     search_index["s"].sort(key=lambda x: x.get("r", 0), reverse=True)
     featured_skills.sort(key=lambda x: x.get("stars", 0), reverse=True)
     featured_skills = featured_skills[:100]
     all_lite_skills = sorted(
-        lite_skills_by_key.values(),
+        (records["lite"] for records in records_by_key.values()),
         key=lambda x: (
             x.get("quality_score", 0),
             x.get("trust_score", 0),
