@@ -1434,6 +1434,32 @@ def test_filter_pending_skills_skips_existing_root_skill():
     assert skipped_rows == []
 
 
+def test_filter_pending_skills_keeps_pathless_skill_with_different_root_name():
+    module = load_module()
+    archived = {
+        "repo": "acme/multi",
+        "name": "root-skill",
+        "path": "SKILL.md",
+        "category": "development",
+    }
+    pending = {
+        "repo": "acme/multi",
+        "name": "nested-skill",
+        "category": "development",
+    }
+
+    filtered, skipped, skipped_rows = module.filter_pending_skills(
+        [pending],
+        existing={module.skill_key(archived)},
+        negative_cache={},
+        now_utc=module.utc_now(),
+    )
+
+    assert filtered == [pending]
+    assert skipped == {"existing": 0, "no_repo": 0, "cooldown_not_found": 0}
+    assert skipped_rows == []
+
+
 def test_sync_pipeline_category_sanitization_does_not_use_legacy_aliases():
     module = load_support_module()
     assert module.sanitize_category("dev") == "dev"
