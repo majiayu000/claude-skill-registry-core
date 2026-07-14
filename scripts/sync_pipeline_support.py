@@ -55,10 +55,9 @@ def sanitize_category(category: str) -> str:
 def skill_key(skill: dict) -> str:
     repo = (skill.get("repo") or "").strip()
     path = (skill.get("path") or skill.get("github_path") or "").strip()
-    if repo and path:
-        return f"{repo}:{path}"
     if repo:
-        return repo
+        normalized_key = build_skill_key(repo, path)
+        return normalized_key if normalized_key == repo else f"{repo}:{path}"
     name = skill.get("name") or ""
     category = sanitize_category(skill.get("category") or "other")
     return f"{category}:{name}"
