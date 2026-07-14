@@ -40,7 +40,7 @@ def safe_write_registry(registry_path: Path, registry: dict) -> bool:
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(registry, f, ensure_ascii=False, separators=(",", ":"))
 
-        temp_path.rename(registry_path)
+        temp_path.replace(registry_path)
         return True
     except Exception:
         logger.exception("Failed to write registry")
