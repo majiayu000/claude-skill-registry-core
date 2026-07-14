@@ -103,6 +103,11 @@ def parse_standard_relative_path(value: object, *, parts: int) -> PurePosixPath 
 
 def path_within_skills_dir(skills_dir: Path, relative_path: PurePosixPath) -> Path | None:
     path = skills_dir.joinpath(*relative_path.parts)
+    component = skills_dir
+    for part in relative_path.parts:
+        component = component / part
+        if component.is_symlink():
+            return None
     try:
         path.resolve().relative_to(skills_dir.resolve())
     except (OSError, RuntimeError, ValueError):

@@ -316,6 +316,61 @@ def test_apply_plan_rejects_escaping_paths(tmp_path):
     assert (outside / "SKILL.md").exists()
 
 
+def test_plan_and_apply_reject_symlinked_skill_path(tmp_path, monkeypatch):
+    migrator = _load_module()
+    skills_dir = tmp_path / "skills"
+    _write_skill(skills_dir, "other", "victim")
+    victim_dir = skills_dir / "other" / "victim"
+    source_dir = skills_dir / "other" / "alias"
+    try:
+        source_dir.symlink_to(victim_dir, target_is_directory=True)
+    except OSError:
+        path_type = type(source_dir)
+        original_is_symlink = path_type.is_symlink
+
+        def is_symlink(path):
+            return path == source_dir or original_is_symlink(path)
+
+        monkeypatch.setattr(path_type, "is_symlink", is_symlink)
+    classification = tmp_path / "classification.jsonl"
+    _write_classification(
+        classification,
+        [
+            {
+                "path": "other/alias/SKILL.md",
+                "name": "alias",
+                "current_category": "other",
+                "llm_category": "devops",
+                "confidence": 0.95,
+                "status": "ok",
+            }
+        ],
+    )
+
+    plan = migrator.build_apply_plan(
+        skills_dir=skills_dir,
+        classification_jsonl=classification,
+    )
+
+    assert plan["summary"]["planned_move_count"] == 0
+    with pytest.raises(ValueError, match="plan path escapes skills directory"):
+        migrator.apply_plan(
+            skills_dir,
+            {
+                "moves": [
+                    {
+                        "operation": "move",
+                        "source_path": "other/alias",
+                        "target_path": "devops/alias",
+                    }
+                ]
+            },
+        )
+    metadata = json.loads((victim_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["category"] == "other"
+    assert metadata["dir_name"] == "victim"
+
+
 def test_movable_only_skips_blocked_moves_and_fills_limit(tmp_path):
     migrator = _load_module()
     skills_dir = tmp_path / "skills"
