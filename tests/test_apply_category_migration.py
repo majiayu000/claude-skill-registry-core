@@ -254,6 +254,68 @@ def test_missing_source_skill_file_blocks_apply_plan(tmp_path):
     assert plan["summary"]["reject_reasons"] == {"source SKILL.md missing": 1}
 
 
+@pytest.mark.parametrize(
+    ("source_path", "reason"),
+    [
+        ("../outside/SKILL.md", "source path is not standard <category>/<skill>/SKILL.md"),
+        ("/outside/SKILL.md", "source path is not standard <category>/<skill>/SKILL.md"),
+        ("C:/outside/SKILL.md", "source path is not standard <category>/<skill>/SKILL.md"),
+        ("other\\outside\\SKILL.md", "classification path is not a SKILL.md path"),
+    ],
+)
+def test_plan_rejects_nonstandard_source_paths(tmp_path, source_path, reason):
+    migrator = _load_module()
+    skills_dir = tmp_path / "skills"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "SKILL.md").write_text("outside", encoding="utf-8")
+    classification = tmp_path / "classification.jsonl"
+    _write_classification(
+        classification,
+        [
+            {
+                "path": source_path,
+                "name": "outside",
+                "current_category": "other",
+                "llm_category": "devops",
+                "confidence": 0.95,
+                "status": "ok",
+            }
+        ],
+    )
+
+    plan = migrator.build_apply_plan(
+        skills_dir=skills_dir,
+        classification_jsonl=classification,
+    )
+
+    assert plan["summary"]["planned_move_count"] == 0
+    assert plan["summary"]["reject_reasons"] == {reason: 1}
+    assert (outside / "SKILL.md").exists()
+
+
+def test_apply_plan_rejects_escaping_paths(tmp_path):
+    migrator = _load_module()
+    skills_dir = tmp_path / "skills"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "SKILL.md").write_text("outside", encoding="utf-8")
+    plan = {
+        "moves": [
+            {
+                "operation": "move",
+                "source_path": "../outside",
+                "target_path": "devops/outside",
+            }
+        ]
+    }
+
+    with pytest.raises(ValueError, match="invalid source or target path"):
+        migrator.apply_plan(skills_dir, plan)
+
+    assert (outside / "SKILL.md").exists()
+
+
 def test_movable_only_skips_blocked_moves_and_fills_limit(tmp_path):
     migrator = _load_module()
     skills_dir = tmp_path / "skills"
