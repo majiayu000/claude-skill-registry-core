@@ -477,6 +477,20 @@ def test_safe_write_registry_writes_compact_json(tmp_path):
     assert content == '{"skills":[{"name":"demo","repo":"owner/repo"}]}'
 
 
+def test_safe_write_registry_replaces_existing_file(tmp_path, monkeypatch):
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text('{"skills":["stale"]}', encoding="utf-8")
+
+    def fail_rename(self, target):
+        raise FileExistsError("Windows refuses to overwrite a target with rename")
+
+    monkeypatch.setattr(Path, "rename", fail_rename)
+
+    assert rebuild_registry.safe_write_registry(registry_path, {"skills": []})
+    assert registry_path.read_text(encoding="utf-8") == '{"skills":[]}'
+    assert not registry_path.with_suffix(".json.tmp").exists()
+
+
 def test_safe_write_registry_raises_on_write_failure(tmp_path):
     registry_path = tmp_path / "missing" / "registry.json"
 
