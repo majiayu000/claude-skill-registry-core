@@ -315,6 +315,36 @@ Common category codes include:
 
 3. Submit a PR to `majiayu000/claude-skill-registry-core` (not `claude-skill-registry`, which is a generated publish artifact)
 
+### Validate a submitted skill locally
+
+Before opening an issue or PR, confirm that the source repository is public and
+that its `SKILL.md` starts with YAML frontmatter containing non-empty `name` and
+`description` values:
+
+```yaml
+---
+name: your-skill-name
+description: A concise description of what the skill does.
+---
+```
+
+Remove secrets, tokens, and private endpoints from the skill and any bundled
+files. From a core checkout with the repository requirements installed, run:
+
+```bash
+# If the PR updates sources/community.json, validate the source entry
+python scripts/validate_sources.py community.json
+
+# Scan the checked-out skill directory, including bundled files
+python scripts/security_scanner.py /path/to/skill-directory
+```
+
+These are the normal community-submission checks. The
+`python scripts/rebuild_registry.py --help` and
+`python scripts/build_search_index.py --help` interfaces are archive-wide
+maintainer references; rebuilding the registry or indexes is not a normal
+submission prerequisite.
+
 ### Report Issues
 
 We welcome feedback! Please open an issue for:
