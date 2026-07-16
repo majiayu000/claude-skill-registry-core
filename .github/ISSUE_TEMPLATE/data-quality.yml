@@ -28,5 +28,11 @@ body:
     attributes:
       label: Details
       description: Include the current value, expected value, and source evidence when possible.
+      placeholder: |-
+        Duplicate skill — Current: two entries point to the same skill. Expected: one canonical entry. Source evidence: links to both entries and the upstream skill.
+        Wrong category — Current: listed under “Testing”. Expected: “Security”. Source evidence: registry link and upstream description.
+        Stale metadata — Current: version is 1.2. Expected: version 1.4. Source evidence: registry metadata and upstream release.
+        Unsafe content — Current: hardcoded credential `sk-REDACTED`. Expected: read it from an environment variable. Source evidence: permalink to the affected line with credentials redacted.
+        Missing bundled file — Current: `references/setup.md` is absent. Expected: include the referenced file. Source evidence: registry archive and upstream file tree.
     validations:
       required: true
