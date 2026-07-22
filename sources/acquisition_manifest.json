@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated_at": "2026-07-21T03:17:22.141634Z",
-  "total_count": 1600,
+  "updated_at": "2026-07-22T03:16:08.598934Z",
+  "total_count": 1601,
   "entries": {
     "Xquik-dev/x-twitter-scraper": {
       "repo": "Xquik-dev/x-twitter-scraper",
@@ -9181,7 +9181,7 @@
       "repo": "Xquik-dev/x-twitter-scraper",
       "branch": "master",
       "relative_path": "skills/x-twitter-scraper/SKILL.md",
-      "updated_at": "2026-07-21T03:17:01.879447Z"
+      "updated_at": "2026-07-22T03:15:50.722426Z"
     },
     "Digidai/product-manager-skills:name:product-manager-skills": {
       "repo": "Digidai/product-manager-skills",
@@ -9205,13 +9205,13 @@
       "repo": "yusufkaraaslan/Skill_Seekers",
       "branch": "main",
       "relative_path": "skills/skill-seekers/SKILL.md",
-      "updated_at": "2026-07-21T03:16:49.628296Z"
+      "updated_at": "2026-07-22T03:15:34.173215Z"
     },
     "lackeyjb/playwright-skill:name:playwright-skill": {
       "repo": "lackeyjb/playwright-skill",
       "branch": "main",
       "relative_path": "skills/playwright-skill/SKILL.md",
-      "updated_at": "2026-07-21T03:16:49.831594Z"
+      "updated_at": "2026-07-22T03:15:34.376187Z"
     },
     "ToniPerea/humanizar-texto-es:name:humanizar-texto-es": {
       "repo": "ToniPerea/humanizar-texto-es",
@@ -9253,7 +9253,7 @@
       "repo": "alonw0/web-asset-generator",
       "branch": "main",
       "relative_path": "skills/web-asset-generator/SKILL.md",
-      "updated_at": "2026-07-21T03:16:51.484502Z"
+      "updated_at": "2026-07-22T03:15:35.908886Z"
     },
     "varfolomejev/query-victorialogs:name:query-victorialogs": {
       "repo": "varfolomejev/query-victorialogs",
@@ -9265,7 +9265,7 @@
       "repo": "Enreign/pagerunner-skill",
       "branch": "main",
       "relative_path": "skills/pagerunner-skill/SKILL.md",
-      "updated_at": "2026-07-21T03:16:51.860586Z"
+      "updated_at": "2026-07-22T03:15:37.124950Z"
     },
     "miningstore/confluence-to-agent-knowledge-base:name:confluence-to-agent-knowledge-base": {
       "repo": "miningstore/confluence-to-agent-knowledge-base",
@@ -9571,19 +9571,19 @@
       "repo": "RS42-AI/scout-ai-lite",
       "branch": "main",
       "relative_path": "SKILL.md",
-      "updated_at": "2026-07-21T03:16:50.010569Z"
+      "updated_at": "2026-07-22T03:15:34.594323Z"
     },
     "Dicklesworthstone/slb:name:unknown": {
       "repo": "Dicklesworthstone/slb",
       "branch": "main",
       "relative_path": "SKILL.md",
-      "updated_at": "2026-07-21T03:16:51.441069Z"
+      "updated_at": "2026-07-22T03:15:36.416685Z"
     },
     "diskd-ai/gemini-api:name:unknown": {
       "repo": "diskd-ai/gemini-api",
       "branch": "main",
       "relative_path": "SKILL.md",
-      "updated_at": "2026-07-21T03:16:51.917742Z"
+      "updated_at": "2026-07-22T03:15:36.824401Z"
     },
     "baileywickham/ibkr:skills/ibkr": {
       "repo": "baileywickham/ibkr",
@@ -9602,6 +9602,12 @@
       "branch": "main",
       "relative_path": "SKILL.md",
       "updated_at": "2026-07-19T03:17:45.811514Z"
+    },
+    "Vincentwei1021/video-shotcraft:name:unknown": {
+      "repo": "Vincentwei1021/video-shotcraft",
+      "branch": "main",
+      "relative_path": "SKILL.md",
+      "updated_at": "2026-07-22T03:15:57.322788Z"
     }
   }
 }

@@ -1,7 +1,7 @@
 {
-  "discovered_at": "2026-07-21T03:16:09.282191Z",
+  "discovered_at": "2026-07-22T03:15:09.317984Z",
   "total_repos": 300,
-  "total_skills": 143,
+  "total_skills": 226,
   "scanned_repos": 300,
   "limits": {
     "max_repos": 300,
@@ -65,7 +65,6 @@
     "MoizIbnYousaf/marketing-cli",
     "Natively-AI-assistant/natively-cluely-ai-assistant",
     "NevaMind-AI/memU",
-    "NintendaDev/unikit-ai",
     "NulightJens/rocket-fuel-skill",
     "OpenRaiser/NanoResearch",
     "Orchestra-Research/AI-Research-SKILLs",
@@ -73,10 +72,8 @@
     "Othmane-Khadri/gtm-engineer-playbook",
     "OutlineDriven/odin-claude-plugin",
     "Panmax/awesome-nuwa",
-    "PaodingAI/skills",
     "Prat011/awesome-llm-skills",
     "REMvisual/claude-handoff",
-    "RazvanGabrielNiculae/picasso-claude-design-claude-code-bridge-loop",
     "SamJHudson01/Carmack-Council",
     "SamurAIGPT/Generative-Media-Skills",
     "Shanyin-ai/shanyin-screenwriting-master",
@@ -87,6 +84,7 @@
     "TheStack-ai/swing-skills",
     "Tibsfox/gsd-skill-creator",
     "ToluVictor/canvas-apps-tools",
+    "UiPath/coder_eval",
     "VikashLoomba/copilot-mcp",
     "Vincentwei1021/video-shotcraft",
     "ViryaZheng/recomby-geo",
@@ -98,6 +96,7 @@
     "a5c-ai/babysitter",
     "aaron-he-zhu/aaron-marketing-skills",
     "aaronjmars/agent-credit",
+    "abullard1/claude-bionify",
     "activeloopai/hivemind",
     "addyosmani/web-quality-skills",
     "adityaarsharma/youtube-marketing-skills",
@@ -186,6 +185,7 @@
     "ikaijua/Awesome-AITools",
     "ilang-ai/autocode",
     "imarvinle/Claude-Pro",
+    "indranilbanerjee/digital-marketing-pro",
     "inngest/inngest-skills",
     "instavm/coderunner",
     "itsmostafa/aws-agent-skills",
@@ -228,7 +228,6 @@
     "mikesheehan54/Claude-Code-Design-AI",
     "minsight-ai-info/AI-Search-Hub",
     "mliu98/awesome-human-distillation",
-    "mnvsk97/eyeroll",
     "mohitagw15856/pm-claude-skills",
     "motherduckdb/agent-skills",
     "mxyhi/ok-skills",
@@ -296,6 +295,7 @@
     "vibeeval/vibecosystem",
     "vitaecontext/vitaecontext",
     "vladikk/modularity",
+    "wanghuan9/skilldock",
     "wanshuiyin/Anti-Autoresearch",
     "wanshuiyin/Auto-claude-code-research-in-sleep",
     "wells1137/media-skills",
@@ -314,576 +314,908 @@
   ],
   "skills": [
     {
-      "repo": "0xwilliamortiz/agents-council",
-      "path": "skills/agent-council/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/learn/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/learn/examples/ascii-name/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/product-image-processor/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/product-spec-bulk-fetch/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/product-spec-pdf-parser/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/color-palette-generator/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/environmental-analysis/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/demographics-analysis/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/learn/examples/tasks/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/product-data-cleanup/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/slide-deck-generator/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/occupancy-calculator/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/workplace-programmer/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/product-data-import/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/zoning-analysis-nyc/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/nyc-property-report/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/nyc-dob-violations/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/epd-to-spec/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/skill-maker/templates/example-skill/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/learn/examples/clean-downloads/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/mobility-analysis/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/product-pair/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/nyc-landmarks/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/skills/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/studio/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/nyc-bsa/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/nyc-hpd/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/decision/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/nyc-acris/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/sif-to-csv/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/csv-to-sif/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/epd-parser/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/skill-maker/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/epd-compare/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/spec-writer/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/epd-research/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/site-history/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/resize-images/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/product-match/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/product-enrich/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/master-schedule/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/zoning-envelope/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/product-research/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/nyc-dob-permits/SKILL.md"
-    },
-    {
-      "repo": "AlpacaLabsLLC/skills-for-architects",
-      "path": "skills/project-dossier/SKILL.md"
-    },
-    {
       "repo": "OutlineDriven/odin-claude-plugin",
-      "path": "skills/contract-driven/SKILL.md"
+      "path": "skills/breaking-driven/SKILL.md"
     },
     {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/ebay-item-detail/SKILL.md"
+      "repo": "Vincentwei1021/video-shotcraft",
+      "path": "SKILL.md"
     },
     {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/etsy-shop-catalog/SKILL.md"
+      "repo": "artokun/comfyui-mcp",
+      "path": "plugin/skills/ltx-director/SKILL.md"
     },
     {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/etsy-product-detail/SKILL.md"
+      "repo": "artokun/comfyui-mcp",
+      "path": "plugin/skills/train-character-lora/SKILL.md"
     },
     {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/ebay-search-listing/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/1688-product-detail/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/etsy-keyword-search/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/airbnb-search-listing/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/airbnb-listing-detail/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/amazon-search-listing/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/etsy-category-listing/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/amazon-product-detail/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/walmart-product-detail/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/walmart-keyword-search/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/walmart-product-reviews/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/walmart-category-listing/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/amazon-bestseller-listing/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/ecommerce/ebay-sold-listings-search/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/video-platforms/douyin-video-search/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/social-listening/threads-user-posts/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/lead-generation/trustpilot-company-info/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/social-listening/threads-keyword-search/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/social-listening/threads-profile-search/SKILL.md"
-    },
-    {
-      "repo": "browser-act/skills",
-      "path": "solutions/social-listening/xiaohongshu-search-full/SKILL.md"
+      "repo": "boshu2/agentops",
+      "path": "packs/agentops-executor/agents/implementer-claude/skills/implement/SKILL.md"
     },
     {
       "repo": "fcakyon/claude-codex-settings",
-      "path": "plugins/mongodb-skills/skills/mongodb-atlas-stream-processing/SKILL.md"
+      "path": "plugins/fable-advisor/skills/fable-advisor/SKILL.md"
     },
     {
-      "repo": "gabelul/stitch-kit",
-      "path": "skills/stitch-mcp-create-design-system-from-design-md/SKILL.md"
+      "repo": "fcakyon/claude-codex-settings",
+      "path": "plugins/adhd-output-style/skills/adhd-output-style/SKILL.md"
     },
     {
-      "repo": "gabelul/stitch-kit",
-      "path": "skills/stitch-mcp-upload-design-md/SKILL.md"
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/cro/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/help/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/learn/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/recall/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/what-if/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/connect/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/aeo-geo/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/qbr-plan/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/simulate/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/crm-sync/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/send-sms/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/local-seo/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/digital-pr/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/churn-risk/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/import-sop/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/eval-suite/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/pdf-report/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/sop-library/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/geo-monitor/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/eval-config/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/focus-group/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/launch-plan/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/send-report/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/sync-memory/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/lead-import/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/data-import/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/data-export/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/exec-summary/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/funnel-audit/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/integrations/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/switch-brand/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/martech-audit/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/c2pa-metadata/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/client-report/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/campaign-plan/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/technical-seo/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/region-config/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/context-engine/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/share-of-voice/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/budget-tracker/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/live-dashboard/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/save-knowledge/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/journey-design/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/tech-seo-audit/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/hreflang-check/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/roi-calculator/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/language-audit/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/client-proposal/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/pipeline-update/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/creative-health/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/social-strategy/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/language-config/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/schedule-social/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/crisis-response/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/case-study-plan/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/local-seo-audit/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/validate-output/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/keyword-research/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/autopilot-status/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/paid-advertising/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/segment-audience/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/funnel-architect/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/redirect-manager/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/import-guidelines/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/content-repurpose/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/translate-content/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/credential-switch/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/client-onboarding/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/narrative-tracker/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/attribution-report/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/growth-engineering/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/competitor-monitor/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/influencer-creator/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/narrative-landscape/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/send-email-campaign/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/status/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/growth-plan/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/ad-creative/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/launch-campaign/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/validate-profile/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/localize-campaign/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/performance-check/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/four-core-documents/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/pr-pitch/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/dark-funnel/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/brand-setup/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/team-assign/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/webinar-plan/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/anomaly-scan/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/publish-blog/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/video-script/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/serp-tracker/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/eval-content/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/verify-claims/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/content-brief/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/client-validation-document/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/email-sequence/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/content-engine/SKILL.md"
+    },
+    {
+      "repo": "indranilbanerjee/digital-marketing-pro",
+      "path": "skills/continuous-improvement-loop/SKILL.md"
+    },
+    {
+      "repo": "nowork-studio/NotFair",
+      "path": "seo/local-seo/SKILL.md"
+    },
+    {
+      "repo": "nowork-studio/NotFair",
+      "path": "seo/sxo/SKILL.md"
+    },
+    {
+      "repo": "nowork-studio/NotFair",
+      "path": "seo/image-seo/SKILL.md"
+    },
+    {
+      "repo": "nowork-studio/NotFair",
+      "path": "seo/ecommerce-seo/SKILL.md"
+    },
+    {
+      "repo": "nowork-studio/NotFair",
+      "path": "seo/sitemap-audit/SKILL.md"
+    },
+    {
+      "repo": "nowork-studio/NotFair",
+      "path": "seo/seo-drift/SKILL.md"
+    },
+    {
+      "repo": "nowork-studio/NotFair",
+      "path": "seo/backlink-audit/SKILL.md"
+    },
+    {
+      "repo": "nowork-studio/NotFair",
+      "path": "seo/competitor-pages/SKILL.md"
+    },
+    {
+      "repo": "nowork-studio/NotFair",
+      "path": "seo/programmatic-seo/SKILL.md"
+    },
+    {
+      "repo": "nowork-studio/NotFair",
+      "path": "seo/hreflang-international/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/oban/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/deploy/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/oban/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/testing/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/security/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-perf/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-work/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-plan/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/deploy/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-help/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-full/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/testing/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-brief/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-audit/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-quick/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/lv-assigns/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-review/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-init/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/security/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-perf/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-full/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-plan/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-help/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-triage/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-work/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-verify/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-audit/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-intro/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-triage/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-deps-vet/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-recall/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-watch-pr/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-techdebt/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-verify/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-freeze/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/ecto-patterns/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/ecto-n1-check/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/ash-framework/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/compound-docs/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-pr-review/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-research/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-boundaries/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-deps-audit/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-document/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-watch-pr/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-examples/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-compound/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-deps-vet/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-techdebt/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-brainstorm/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-codex-loop/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-pr-review/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-permissions/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-deps-update/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/compound-docs/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/ecto-n1-check/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-investigate/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/hexdocs-fetcher/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/elixir-idioms/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/ecto-patterns/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/ash-framework/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/intent-detection/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-codex-loop/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phoenix-contexts/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-deps-audit/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-brainstorm/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-boundaries/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/hexdocs-fetcher/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/liveview-patterns/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-permissions/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/phx-learn-from-fix/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/amp/skills/narrow-bare-rescue/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/narrow-bare-rescue/SKILL.md"
+    },
+    {
+      "repo": "oliver-kriska/claude-elixir-phoenix",
+      "path": "targets/codex/skills/phx-learn-from-fix/SKILL.md"
     },
     {
       "repo": "saadshahd/moo.md",
-      "path": "hunch/skills/bro/SKILL.md"
+      "path": "hunch/skills/crew/SKILL.md"
     },
     {
       "repo": "saadshahd/moo.md",
-      "path": "hunch/skills/toy/SKILL.md"
-    },
-    {
-      "repo": "saadshahd/moo.md",
-      "path": "hunch/skills/land/SKILL.md"
-    },
-    {
-      "repo": "saadshahd/moo.md",
-      "path": "sound/skills/prime/SKILL.md"
-    },
-    {
-      "repo": "saadshahd/moo.md",
-      "path": "hunch/skills/grasp/SKILL.md"
-    },
-    {
-      "repo": "saadshahd/moo.md",
-      "path": "hunch/skills/catch/SKILL.md"
-    },
-    {
-      "repo": "saadshahd/moo.md",
-      "path": "hunch/skills/plain/SKILL.md"
-    },
-    {
-      "repo": "saadshahd/moo.md",
-      "path": "sound/skills/review/SKILL.md"
+      "path": "hunch/skills/soloism/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/faf-context/SKILL.md"
+      "path": "skills/posix-shell-pro/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/analyze-project/SKILL.md"
+      "path": "skills/tool-use-guardian/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/concise-planning/SKILL.md"
+      "path": "skills/review-swarm/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/helpdesk-automation/SKILL.md"
+      "path": "skills/advanced-evaluation/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/frontend-observability/SKILL.md"
+      "path": "skills/hig-components-system/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/makepad-dsl/SKILL.md"
+      "path": "skills/zoom-automation/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/itil-expert/SKILL.md"
+      "path": "skills/azure-eventhub-ts/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/pricing-strategy/SKILL.md"
+      "path": "skills/apify-actorization/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/agent-squad/dep/SKILL.md"
+      "path": "skills/project-development/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/pytest-skill/SKILL.md"
+      "path": "skills/setup-matt-pocock-skills/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/local-llm-expert/SKILL.md"
+      "path": "skills/programmatic-seo/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/solidity-security/SKILL.md"
+      "path": "skills/fp-taskeither-ref/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/zapier-make-patterns/SKILL.md"
+      "path": "skills/product-inventor/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/godot-4-migration/SKILL.md"
+      "path": "skills/red-team-tools/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/zendesk-automation/SKILL.md"
+      "path": "skills/woo-guard/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/skill-writer/SKILL.md"
+      "path": "skills/socialclaw/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/seo-dataforseo/SKILL.md"
+      "path": "skills/mock-hunter/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/upgrading-expo/SKILL.md"
+      "path": "skills/trading-ledger/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/beautiful-prose/SKILL.md"
+      "path": "skills/skill-optimizer/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/design-thinking/SKILL.md"
+      "path": "skills/ml-engineer/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/python-patterns/SKILL.md"
+      "path": "skills/the-honoured-one/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/game-development/SKILL.md"
+      "path": "skills/hig-technologies/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/huggingface-best/SKILL.md"
+      "path": "skills/llm-app-patterns/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/os-scripting/SKILL.md"
+      "path": "skills/observability-and-instrumentation/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/lore/SKILL.md"
+      "path": "skills/seo-content-writer/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/sentry-automation/SKILL.md"
+      "path": "skills/analytics-tracking/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/changelog-updates/SKILL.md"
+      "path": "skills/seo-aeo-blog-writer/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/crossframe-debate/SKILL.md"
+      "path": "skills/seo-content-auditor/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/m365-agents-dotnet/SKILL.md"
+      "path": "skills/prompt-engineer/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/aws-serverless-eda/SKILL.md"
+      "path": "skills/agent-memory-systems/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/using-git-worktrees/SKILL.md"
+      "path": "skills/firebase/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/linkedin-automation/SKILL.md"
+      "path": "skills/sendblue/sendblue-cli/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/conductor-implement/SKILL.md"
+      "path": "skills/n8n-workflow-patterns/SKILL.md"
     },
     {
       "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/app-store-changelog/SKILL.md"
-    },
-    {
-      "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/react-native-skills/SKILL.md"
-    },
-    {
-      "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/neon-object-storage/SKILL.md"
-    },
-    {
-      "repo": "sickn33/agentic-awesome-skills",
-      "path": "plugins/agentic-awesome-skills/skills/oss-hunter/SKILL.md"
-    },
-    {
-      "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/nextjs-supabase-auth/SKILL.md"
-    },
-    {
-      "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/writing-great-skills/SKILL.md"
-    },
-    {
-      "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/deterministic-design/SKILL.md"
-    },
-    {
-      "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/n8n-mcp-tools-expert/SKILL.md"
-    },
-    {
-      "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/slack-automation/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "llm-wiki/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "lab/Geek-skills-gaokao-expert/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-deck-studio/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-deep-research/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-ai-sales-champion/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-mineru-pdf-parser/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-pair-programming/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-c-drive-cleaner/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-product-manager/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-security-audit/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "lab/Geek-skills-seedream-imagegen/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "lab/Geek-skills-podcast-generator/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-xuefeng-method/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-keqian-method/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "lab/Geek-skills-a-share-analyst/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "lab/Geek-skills-university-exam-prep/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-solution-architect/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-threejs-performance/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "lab/Geek-skills-weather-forecast-report/SKILL.md"
-    },
-    {
-      "repo": "staruhub/ClaudeSkills",
-      "path": "skills/Geek-skills-wechat-article-writer/SKILL.md"
+      "path": "skills/awareness-stage-mapper/SKILL.md"
     }
   ]
 }
