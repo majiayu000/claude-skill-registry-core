@@ -19,6 +19,57 @@ function requireNonNegativeInteger(value, label) {
     }
 }
 
+function validateCategoryTaxonomy(payload) {
+    requireExactFields(payload, ['schema_version', 'taxonomy_schema_version', 'updated_at',
+        'default_category', 'default_code', 'category_count', 'categories'],
+    'Category taxonomy');
+    requireSchemaOne(payload, 'Category taxonomy');
+    requireNonNegativeInteger(payload.category_count, 'Category taxonomy category_count');
+    if (payload.taxonomy_schema_version !== 2 ||
+        typeof payload.updated_at !== 'string' || !payload.updated_at ||
+        typeof payload.default_category !== 'string' || !payload.default_category ||
+        typeof payload.default_code !== 'string' || !payload.default_code ||
+        !Array.isArray(payload.categories) ||
+        payload.category_count !== 42 ||
+        payload.categories.length !== payload.category_count) {
+        throw new Error('Category taxonomy count or identity mismatch');
+    }
+
+    const bySlug = new Map();
+    const codes = new Set();
+    const canonicalIdentifier = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    payload.categories.forEach((category, index) => {
+        requireExactFields(category, ['slug', 'code', 'display_name', 'parent'],
+            `Category taxonomy entry ${index}`);
+        if (typeof category.slug !== 'string' ||
+            !canonicalIdentifier.test(category.slug) ||
+            typeof category.code !== 'string' ||
+            !canonicalIdentifier.test(category.code) ||
+            typeof category.display_name !== 'string' || !category.display_name ||
+            typeof category.parent !== 'string' ||
+            bySlug.has(category.slug) || codes.has(category.code)) {
+            throw new Error('Category taxonomy entry identity mismatch');
+        }
+        bySlug.set(category.slug, category);
+        codes.add(category.code);
+    });
+
+    const defaultEntry = bySlug.get(payload.default_category);
+    if (!defaultEntry || defaultEntry.code !== payload.default_code) {
+        throw new Error('Category taxonomy default mismatch');
+    }
+    payload.categories.forEach(category => {
+        if (!category.parent) return;
+        const parent = bySlug.get(category.parent);
+        if (!parent || parent.slug === category.slug || parent.parent) {
+            throw new Error('Category taxonomy parent mismatch');
+        }
+    });
+    if (payload.categories.filter(category => !category.parent).length !== 12) {
+        throw new Error('Category taxonomy root count mismatch');
+    }
+}
+
 function isSafeArtifactPath(path, prefix) {
     return typeof path === 'string' && path.startsWith(prefix) &&
         !path.startsWith('/') && !path.includes('\\') && !path.includes('://') &&
