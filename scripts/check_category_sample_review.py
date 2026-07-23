@@ -9,7 +9,11 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from audit_category_quality import canonical_digest, file_sha256
+from audit_category_quality import (
+    build_stratified_sample,
+    canonical_digest,
+    file_sha256,
+)
 from category_taxonomy import get_taxonomy
 
 
@@ -143,6 +147,19 @@ def check_review(
         raise ReviewEvidenceError("sample policy does not match canonical taxonomy")
 
     skills_dir = Path(sample["skills_dir"]).resolve()
+    fresh_sample = build_stratified_sample(
+        skills_dir,
+        content_chars=sample["policy"]["content_chars"],
+        taxonomy=get_taxonomy(),
+    )
+    if fresh_sample["status"] != "complete":
+        raise ReviewEvidenceError("current sample population is incomplete")
+    if (
+        fresh_sample["digest"] != sample["digest"]
+        or fresh_sample["strata"] != sample["strata"]
+    ):
+        raise ReviewEvidenceError("sample no longer matches current population")
+
     for row in rows:
         rel = Path(row["path"])
         if (

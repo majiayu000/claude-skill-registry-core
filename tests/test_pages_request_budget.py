@@ -588,6 +588,13 @@ assert.strictEqual(
 const duplicate = structuredClone(payload);
 duplicate.categories[1].code = duplicate.categories[0].code;
 assert.throws(() => validateCategoryTaxonomy(duplicate), /identity mismatch/);
+const truncated = structuredClone(payload);
+truncated.categories = truncated.categories.slice(0, 1);
+truncated.category_count = 1;
+assert.throws(() => validateCategoryTaxonomy(truncated), /count or identity mismatch/);
+const noncanonical = structuredClone(payload);
+noncanonical.categories[0].slug = `${noncanonical.categories[0].slug} `;
+assert.throws(() => validateCategoryTaxonomy(noncanonical), /identity mismatch/);
 const deep = structuredClone(payload);
 const childIndex = deep.categories.findIndex(category => category.parent);
 const secondChildIndex = deep.categories.findIndex(
@@ -595,6 +602,9 @@ const secondChildIndex = deep.categories.findIndex(
 );
 deep.categories[secondChildIndex].parent = deep.categories[childIndex].slug;
 assert.throws(() => validateCategoryTaxonomy(deep), /parent mismatch/);
+const wrongRootCount = structuredClone(payload);
+wrongRootCount.categories[childIndex].parent = '';
+assert.throws(() => validateCategoryTaxonomy(wrongRootCount), /root count mismatch/);
 const unknownField = structuredClone(payload);
 unknownField.extra = true;
 assert.throws(() => validateCategoryTaxonomy(unknownField), /shape mismatch/);

@@ -129,8 +129,9 @@ def build_stratified_sample(
     skills_dir: Path,
     *,
     content_chars: int = 2048,
+    taxonomy: Any | None = None,
 ) -> dict[str, Any]:
-    taxonomy = get_taxonomy()
+    taxonomy = taxonomy or get_taxonomy()
     policy = taxonomy.audit_sampling
     eligible = set(policy.categories)
     candidates: dict[str, list[dict[str, Any]]] = {

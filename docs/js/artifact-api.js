@@ -25,23 +25,26 @@ function validateCategoryTaxonomy(payload) {
     'Category taxonomy');
     requireSchemaOne(payload, 'Category taxonomy');
     requireNonNegativeInteger(payload.category_count, 'Category taxonomy category_count');
-    if (!Number.isInteger(payload.taxonomy_schema_version) ||
-        payload.taxonomy_schema_version <= 0 ||
+    if (payload.taxonomy_schema_version !== 2 ||
         typeof payload.updated_at !== 'string' || !payload.updated_at ||
         typeof payload.default_category !== 'string' || !payload.default_category ||
         typeof payload.default_code !== 'string' || !payload.default_code ||
         !Array.isArray(payload.categories) ||
+        payload.category_count !== 42 ||
         payload.categories.length !== payload.category_count) {
         throw new Error('Category taxonomy count or identity mismatch');
     }
 
     const bySlug = new Map();
     const codes = new Set();
+    const canonicalIdentifier = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
     payload.categories.forEach((category, index) => {
         requireExactFields(category, ['slug', 'code', 'display_name', 'parent'],
             `Category taxonomy entry ${index}`);
-        if (typeof category.slug !== 'string' || !category.slug ||
-            typeof category.code !== 'string' || !category.code ||
+        if (typeof category.slug !== 'string' ||
+            !canonicalIdentifier.test(category.slug) ||
+            typeof category.code !== 'string' ||
+            !canonicalIdentifier.test(category.code) ||
             typeof category.display_name !== 'string' || !category.display_name ||
             typeof category.parent !== 'string' ||
             bySlug.has(category.slug) || codes.has(category.code)) {
@@ -62,6 +65,9 @@ function validateCategoryTaxonomy(payload) {
             throw new Error('Category taxonomy parent mismatch');
         }
     });
+    if (payload.categories.filter(category => !category.parent).length !== 12) {
+        throw new Error('Category taxonomy root count mismatch');
+    }
 }
 
 function isSafeArtifactPath(path, prefix) {

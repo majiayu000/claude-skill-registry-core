@@ -20,10 +20,23 @@ def _load_modules():
     )
 
 
-def _evidence(tmp_path):
+def _test_taxonomy():
+    policy = SimpleNamespace(
+        schema_version=1,
+        seed="test",
+        per_category=2,
+        categories=("integration",),
+    )
+    return SimpleNamespace(
+        audit_sampling=policy,
+        default_category="other",
+        publishable_categories=lambda: {"integration", "data"},
+    )
+
+
+def _evidence(tmp_path, taxonomy=None):
     audit, _ = _load_modules()
     skills_dir = tmp_path / "skills"
-    rows = []
     for index in range(2):
         skill_dir = skills_dir / "integration" / f"skill-{index}"
         skill_dir.mkdir(parents=True)
@@ -34,50 +47,15 @@ def _evidence(tmp_path):
             f'{{"name":"skill-{index}","category":"integration"}}\n',
             encoding="utf-8",
         )
-        rows.append(
-            {
-                "path": f"integration/skill-{index}/SKILL.md",
-                "name": f"skill-{index}",
-                "current_category": "integration",
-                "description": "integration helper",
-                "content_excerpt": "bounded excerpt",
-                "semantic_sources": {"name": "frontmatter"},
-                "source_sha256": audit.file_sha256(skill_path),
-                "metadata_sha256": audit.file_sha256(metadata_path),
-                "sample_key": str(index + 5) * 64,
-            }
-        )
-    stratum_digest = audit.canonical_digest(rows)
-    sample_digest = audit.canonical_digest(
-        [{"category": "integration", "digest": stratum_digest}]
+    sample = audit.build_stratified_sample(
+        skills_dir,
+        content_chars=128,
+        taxonomy=taxonomy or _test_taxonomy(),
     )
-    sample = {
-        "schema_version": 1,
-        "status": "complete",
-        "skills_dir": str(skills_dir),
-        "policy": {
-            "seed": "test",
-            "per_category": 2,
-            "categories": ["integration"],
-            "content_chars": 128,
-        },
-        "sample_count": 2,
-        "digest": sample_digest,
-        "strata": [
-            {
-                "category": "integration",
-                "population_count": 3,
-                "sample_count": 2,
-                "quota": 2,
-                "digest": stratum_digest,
-                "samples": rows,
-            }
-        ],
-        "errors": [],
-    }
+    rows = sample["strata"][0]["samples"]
     review = {
         "schema_version": 1,
-        "sample_digest": sample_digest,
+        "sample_digest": sample["digest"],
         "reviews": [
             {
                 "path": row["path"],
@@ -92,23 +70,17 @@ def _evidence(tmp_path):
 
 
 def _use_test_policy(checker, monkeypatch):
-    policy = SimpleNamespace(
-        schema_version=1,
-        seed="test",
-        per_category=2,
-        categories=("integration",),
-    )
-    taxonomy = SimpleNamespace(
-        audit_sampling=policy,
-        publishable_categories=lambda: {"integration", "data"},
-    )
+    audit, _ = _load_modules()
+    taxonomy = _test_taxonomy()
+    monkeypatch.setattr(audit, "get_taxonomy", lambda: taxonomy)
     monkeypatch.setattr(checker, "get_taxonomy", lambda: taxonomy)
+    return taxonomy
 
 
 def test_review_gate_accepts_complete_fresh_review(tmp_path, monkeypatch):
     _, checker = _load_modules()
-    _use_test_policy(checker, monkeypatch)
-    sample, review = _evidence(tmp_path)
+    taxonomy = _use_test_policy(checker, monkeypatch)
+    sample, review = _evidence(tmp_path, taxonomy)
     result = checker.check_review(sample, review, min_accuracy=0.8)
     assert result["status"] == "passed"
     assert result["accuracy"] == 1
@@ -156,8 +128,8 @@ def test_review_gate_rejects_incomplete_or_stale_evidence(
     monkeypatch,
 ):
     _, checker = _load_modules()
-    _use_test_policy(checker, monkeypatch)
-    sample, review = _evidence(tmp_path)
+    taxonomy = _use_test_policy(checker, monkeypatch)
+    sample, review = _evidence(tmp_path, taxonomy)
     mutation(sample, review)
     with pytest.raises(checker.ReviewEvidenceError, match=message):
         checker.check_review(sample, review, min_accuracy=0.8)
@@ -165,8 +137,8 @@ def test_review_gate_rejects_incomplete_or_stale_evidence(
 
 def test_review_gate_rejects_low_per_category_accuracy(tmp_path, monkeypatch):
     _, checker = _load_modules()
-    _use_test_policy(checker, monkeypatch)
-    sample, review = _evidence(tmp_path)
+    taxonomy = _use_test_policy(checker, monkeypatch)
+    sample, review = _evidence(tmp_path, taxonomy)
     review["reviews"][0]["expected_category"] = "data"
     with pytest.raises(checker.ReviewEvidenceError, match="accuracy.*below"):
         checker.check_review(sample, review, min_accuracy=0.8)
@@ -174,18 +146,21 @@ def test_review_gate_rejects_low_per_category_accuracy(tmp_path, monkeypatch):
 
 def test_review_gate_rejects_sources_changed_after_sampling(tmp_path, monkeypatch):
     _, checker = _load_modules()
-    _use_test_policy(checker, monkeypatch)
-    sample, review = _evidence(tmp_path)
+    taxonomy = _use_test_policy(checker, monkeypatch)
+    sample, review = _evidence(tmp_path, taxonomy)
     source_path = Path(sample["skills_dir"]) / sample["strata"][0]["samples"][0]["path"]
     source_path.write_text("changed after review\n", encoding="utf-8")
 
-    with pytest.raises(checker.ReviewEvidenceError, match="sample source changed"):
+    with pytest.raises(
+        checker.ReviewEvidenceError,
+        match="sample no longer matches current population",
+    ):
         checker.check_review(sample, review, min_accuracy=0.8)
 
 
 def test_review_gate_rejects_noncanonical_sampling_policy(tmp_path):
     _, checker = _load_modules()
-    sample, review = _evidence(tmp_path)
+    sample, review = _evidence(tmp_path, _test_taxonomy())
     with pytest.raises(
         checker.ReviewEvidenceError,
         match="sample policy does not match canonical taxonomy",
@@ -199,8 +174,8 @@ def test_review_gate_cli_reports_pass_and_failure(
     capsys,
 ):
     _, checker = _load_modules()
-    _use_test_policy(checker, monkeypatch)
-    sample, review = _evidence(tmp_path)
+    taxonomy = _use_test_policy(checker, monkeypatch)
+    sample, review = _evidence(tmp_path, taxonomy)
     sample_path = tmp_path / "sample.json"
     review_path = tmp_path / "review.json"
     sample_path.write_text(json.dumps(sample), encoding="utf-8")
@@ -217,3 +192,25 @@ def test_review_gate_cli_reports_pass_and_failure(
         ["--sample", str(sample_path), "--review", str(review_path)]
     ) == 1
     assert json.loads(capsys.readouterr().out)["status"] == "failed"
+
+
+def test_review_gate_rejects_archive_population_changes(tmp_path, monkeypatch):
+    _, checker = _load_modules()
+    taxonomy = _use_test_policy(checker, monkeypatch)
+    sample, review = _evidence(tmp_path, taxonomy)
+    new_skill = Path(sample["skills_dir"]) / "integration" / "new-skill"
+    new_skill.mkdir(parents=True)
+    (new_skill / "SKILL.md").write_text(
+        "---\nname: new-skill\n---\n",
+        encoding="utf-8",
+    )
+    (new_skill / "metadata.json").write_text(
+        '{"name":"new-skill","category":"integration"}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        checker.ReviewEvidenceError,
+        match="sample no longer matches current population",
+    ):
+        checker.check_review(sample, review, min_accuracy=0.8)
