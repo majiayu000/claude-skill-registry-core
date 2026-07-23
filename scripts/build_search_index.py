@@ -24,9 +24,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from category_taxonomy import get_category_code, resolve_category
+from category_taxonomy import get_category_code, get_taxonomy, resolve_category
 from index_artifacts import write_category_artifacts, write_search_artifacts, write_signal_artifacts
 from plugin_index import build_plugins_index, load_plugins_with_fallback
+from rebuild_registry import safe_write_json
 from search_sources import (
     count_named_files,
     load_from_registry,
@@ -464,6 +465,10 @@ def build_search_index(
     output_dir.mkdir(parents=True, exist_ok=True)
     categories_dir = output_dir / "categories"
     categories_dir.mkdir(exist_ok=True)
+    safe_write_json(
+        output_dir / "category-taxonomy.json",
+        get_taxonomy().public_contract(updated_at=utc_now_isoformat()),
+    )
 
     search_artifacts = write_search_artifacts(
         search_index["s"],

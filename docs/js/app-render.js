@@ -58,7 +58,7 @@ async function showLeaderboard(categoryFilter = '') {
 function createLeaderboardCard(skill, rank) {
     const name = skill.n;
     const description = skill.d;
-    const category = CATEGORY_NAMES[skill.c] || skill.c;
+    const category = categoryDisplayName(skill.c);
     const stars = skill.r;
     const install = skill.i;
     const isFavorite = state.favorites.includes(install);
@@ -153,7 +153,7 @@ function renderCategoryChart() {
         .map(category => [
             category.code,
             Number(category.count || 0),
-            category.name || CATEGORY_NAMES[category.code] || category.code
+            categoryReportingLabel(category.code)
         ])
         .filter(([, count]) => count > 0)
         .sort((a, b) => b[1] - a[1]);
@@ -254,7 +254,7 @@ function createPluginCard(plugin) {
     const commands = plugin.commands || [];
     const hooks = plugin.hooks || [];
     const tags = plugin.tags || [];
-    const category = CATEGORY_NAMES[CATEGORY_CODES_REVERSE[plugin.category]] || plugin.category || 'Other';
+    const category = categoryDisplayName(plugin.category);
 
     const skillsHtml = skills.slice(0, 6).map(s =>
         `<span class="plugin-skill-tag">${escapeHtml(s)}</span>`
@@ -388,7 +388,7 @@ function showRandomSkill() {
 function createSkillCard(skill, isFeatured = false, showFavoriteBtn = true) {
     const name = isFeatured ? skill.name : skill.n;
     const description = isFeatured ? skill.description : skill.d;
-    const category = isFeatured ? skill.category : CATEGORY_NAMES[skill.c] || skill.c;
+    const category = categoryDisplayName(isFeatured ? skill.category : skill.c);
     const categoryCode = isFeatured ? skill.category : skill.c;
     const tags = isFeatured ? (skill.tags || []) : (skill.g || []);
     const stars = isFeatured ? skill.stars : skill.r;
@@ -502,7 +502,7 @@ async function showSkillDetail(card) {
         <p style="margin-bottom: 1rem; color: var(--text-secondary);">${escapeHtml(skill.d)}</p>
 
         <div style="margin-bottom: 1rem;">
-            <strong>Category:</strong> ${CATEGORY_NAMES[skill.c] || skill.c}<br>
+            <strong>Category:</strong> ${escapeHtml(categoryDisplayName(skill.c))}<br>
             <strong>Stars:</strong> ${skill.r > 0 ? '⭐ ' + skill.r.toLocaleString() : 'N/A'}
         </div>
 

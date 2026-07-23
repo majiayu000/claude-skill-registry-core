@@ -9,6 +9,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from build_search_index import build_search_index  # noqa: E402
+from category_taxonomy import get_taxonomy  # noqa: E402
 
 
 def run_node_harness(script: str, *args: str) -> dict:
@@ -77,6 +78,7 @@ const CONFIG = {
 };
 const CATEGORY_NAMES = { dev: 'Development', oth: 'Other' };
 const CATEGORY_CODES_REVERSE = { development: 'dev', other: 'oth' };
+let DEFAULT_CATEGORY_CODE = 'oth';
 let state = {
   index: null, fullIndex: null, categories: [], categoryCache: {}, featured: [],
   leaderboardRequestToken: 0,
@@ -463,7 +465,9 @@ global.fetch = async url => {
   return { ok: true, status: 200, json: async () => JSON.parse(fs.readFileSync(artifactPath)) };
 };
 const CONFIG = { LEGACY_INDEX_URL: 'search-index.json' };
+const CATEGORY_NAMES = { dev: 'Development', oth: 'Other' };
 const CATEGORY_CODES_REVERSE = { development: 'dev', other: 'oth' };
+let DEFAULT_CATEGORY_CODE = 'oth';
 let state = { index: { isLite: true }, fullIndex: null };
 eval(extract(app, 'fetchJson'));
 eval(extract(app, 'normalizeCategoryCode'));
@@ -513,3 +517,94 @@ def test_generated_stable_key_winner_is_order_independent_for_equal_scores(tmp_p
         winners.append((shard["s"][0]["n"], lite["skills"][0]["name"]))
 
     assert winners == [("Beta", "Beta"), ("Beta", "Beta")]
+
+
+def test_pages_taxonomy_contract_drives_all_category_mappings():
+    contract = get_taxonomy().public_contract(updated_at="2026-07-23T00:00:00Z")
+    result = run_node_harness(
+        r"""
+const fs = require('fs');
+const assert = require('assert');
+const app = fs.readFileSync('docs/js/app.js', 'utf8');
+const artifactApi = fs.readFileSync('docs/js/artifact-api.js', 'utf8');
+const payload = JSON.parse(process.argv[1]);
+
+function extract(source, name) {
+  const start = source.indexOf(`function ${name}(`);
+  assert(start >= 0, `missing function ${name}`);
+  const bodyStart = source.indexOf('{', start);
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  for (let i = bodyStart; i < source.length; i += 1) {
+    const char = source[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"' || char === '`') quote = char;
+    else if (char === '{') depth += 1;
+    else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+  }
+  throw new Error(`unterminated function ${name}`);
+}
+
+const CATEGORY_NAMES = {};
+const CATEGORY_CODES_REVERSE = {};
+const CATEGORY_META_BY_CODE = {};
+const CATEGORY_META_BY_SLUG = {};
+let DEFAULT_CATEGORY_CODE = 'oth';
+eval(extract(artifactApi, 'requireExactFields'));
+eval(extract(artifactApi, 'requireSchemaOne'));
+eval(extract(artifactApi, 'requireNonNegativeInteger'));
+eval(extract(artifactApi, 'validateCategoryTaxonomy'));
+eval(extract(app, 'normalizeCategoryCode'));
+eval(extract(app, 'configureCategoryTaxonomy'));
+eval(extract(app, 'categoryDisplayName'));
+eval(extract(app, 'categoryReportingLabel'));
+
+validateCategoryTaxonomy(payload);
+configureCategoryTaxonomy(payload);
+for (const category of payload.categories) {
+  assert.strictEqual(normalizeCategoryCode(category.slug), category.code);
+  assert.strictEqual(normalizeCategoryCode(category.code), category.code);
+  assert.strictEqual(categoryDisplayName(category.slug), category.display_name);
+}
+assert.strictEqual(normalizeCategoryCode('future-category'), 'future-category');
+assert.strictEqual(categoryDisplayName('future-category'), 'future-category');
+assert.strictEqual(normalizeCategoryCode(''), payload.default_code);
+const child = payload.categories.find(category => category.parent);
+const parent = payload.categories.find(category => category.slug === child.parent);
+assert.strictEqual(
+  categoryReportingLabel(child.code),
+  `${parent.display_name} › ${child.display_name}`
+);
+
+const duplicate = structuredClone(payload);
+duplicate.categories[1].code = duplicate.categories[0].code;
+assert.throws(() => validateCategoryTaxonomy(duplicate), /identity mismatch/);
+const deep = structuredClone(payload);
+const childIndex = deep.categories.findIndex(category => category.parent);
+const secondChildIndex = deep.categories.findIndex(
+  (category, index) => category.parent && index !== childIndex
+);
+deep.categories[secondChildIndex].parent = deep.categories[childIndex].slug;
+assert.throws(() => validateCategoryTaxonomy(deep), /parent mismatch/);
+const unknownField = structuredClone(payload);
+unknownField.extra = true;
+assert.throws(() => validateCategoryTaxonomy(unknownField), /shape mismatch/);
+
+process.stdout.write(JSON.stringify({
+  count: payload.category_count,
+  roots: payload.categories.filter(category => !category.parent).length,
+  unknown: normalizeCategoryCode('future-category')
+}));
+""",
+        json.dumps(contract),
+    )
+    assert result == {"count": 42, "roots": 12, "unknown": "future-category"}

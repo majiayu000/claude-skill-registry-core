@@ -7,6 +7,7 @@
 const CONFIG = {
     INDEX_URL: 'search-index-lite.json',
     LEGACY_INDEX_URL: 'search-index.json',
+    TAXONOMY_URL: 'category-taxonomy.json',
     FEATURED_URL: 'featured.json',
     CATEGORIES_URL: 'categories/index.json',
     STATS_URL: 'stats.json',
@@ -28,24 +29,11 @@ const CONFIG = {
     }
 };
 
-const CATEGORY_NAMES = {
-    'dev': 'Development',
-    'ops': 'DevOps',
-    'sec': 'Security',
-    'doc': 'Documents',
-    'des': 'Design',
-    'tst': 'Testing',
-    'prd': 'Product',
-    'mkt': 'Marketing',
-    'pro': 'Productivity',
-    'dat': 'Data',
-    'off': 'Official',
-    'oth': 'Other'
-};
-
-const CATEGORY_CODES_REVERSE = Object.fromEntries(
-    Object.entries(CATEGORY_NAMES).map(([code, name]) => [name.toLowerCase(), code])
-);
+const CATEGORY_NAMES = {};
+const CATEGORY_CODES_REVERSE = {};
+const CATEGORY_META_BY_CODE = {};
+const CATEGORY_META_BY_SLUG = {};
+let DEFAULT_CATEGORY_CODE = 'oth';
 
 const CATEGORY_COLORS = {
     'dev': '#00fff2',
@@ -81,6 +69,7 @@ let state = {
     currentSourceFilter: '',
     currentTagFilters: [],
     categoryCache: {},
+    taxonomy: null,
     favorites: JSON.parse(localStorage.getItem('skillFavorites') || '[]'),
     theme: localStorage.getItem('theme') || 'dark',
     isLoading: true
@@ -143,14 +132,49 @@ async function fetchJson(url) {
 
 function normalizeCategoryCode(category) {
     if (!category) {
-        return 'oth';
+        return DEFAULT_CATEGORY_CODE;
     }
 
     const normalized = String(category).trim().toLowerCase();
+    if (!normalized) {
+        return DEFAULT_CATEGORY_CODE;
+    }
     if (CATEGORY_NAMES[normalized]) {
         return normalized;
     }
-    return CATEGORY_CODES_REVERSE[normalized] || 'oth';
+    return CATEGORY_CODES_REVERSE[normalized] || normalized;
+}
+
+function configureCategoryTaxonomy(payload) {
+    Object.keys(CATEGORY_NAMES).forEach(key => delete CATEGORY_NAMES[key]);
+    Object.keys(CATEGORY_CODES_REVERSE).forEach(key => delete CATEGORY_CODES_REVERSE[key]);
+    Object.keys(CATEGORY_META_BY_CODE).forEach(key => delete CATEGORY_META_BY_CODE[key]);
+    Object.keys(CATEGORY_META_BY_SLUG).forEach(key => delete CATEGORY_META_BY_SLUG[key]);
+
+    payload.categories.forEach(category => {
+        CATEGORY_NAMES[category.code] = category.display_name;
+        CATEGORY_CODES_REVERSE[category.slug] = category.code;
+        CATEGORY_META_BY_CODE[category.code] = category;
+        CATEGORY_META_BY_SLUG[category.slug] = category;
+    });
+    DEFAULT_CATEGORY_CODE = payload.default_code;
+}
+
+function categoryDisplayName(category) {
+    const code = normalizeCategoryCode(category);
+    return CATEGORY_NAMES[code] || String(category || CATEGORY_NAMES[DEFAULT_CATEGORY_CODE] || 'Other');
+}
+
+function categoryReportingLabel(category) {
+    const code = normalizeCategoryCode(category);
+    const metadata = CATEGORY_META_BY_CODE[code];
+    if (!metadata?.parent) {
+        return categoryDisplayName(category);
+    }
+    const parent = CATEGORY_META_BY_SLUG[metadata.parent];
+    return parent
+        ? `${parent.display_name} › ${metadata.display_name}`
+        : metadata.display_name;
 }
 
 function normalizeSkillRecord(skill) {
@@ -244,15 +268,19 @@ function updateSearchScopeDisplay() {
 
 async function init() {
     try {
-        const [indexData, featuredData, categoriesData, statsData, pluginsData] = await Promise.all([
-            loadSearchIndex(),
+        const [rawIndex, taxonomyData, featuredData, categoriesData, statsData, pluginsData] = await Promise.all([
+            fetchJson(CONFIG.INDEX_URL),
+            fetchJson(CONFIG.TAXONOMY_URL),
             fetch(CONFIG.FEATURED_URL).then(r => r.json()).catch(() => ({ skills: [] })),
             fetch(CONFIG.CATEGORIES_URL).then(r => r.json()).catch(() => ({ categories: [] })),
             fetch(CONFIG.STATS_URL).then(r => r.json()).catch(() => ({})),
             fetch(CONFIG.PLUGINS_URL).then(r => r.json()).catch(() => ({ plugins: [] }))
         ]);
 
-        state.index = indexData;
+        validateCategoryTaxonomy(taxonomyData);
+        configureCategoryTaxonomy(taxonomyData);
+        state.index = normalizeSearchIndex(rawIndex);
+        state.taxonomy = taxonomyData;
         state.featured = featuredData.skills || [];
         state.plugins = pluginsData.plugins || [];
         state.categories = categoriesData.categories || [];
@@ -285,7 +313,7 @@ function populateCategoryFilter() {
     state.categories.forEach(cat => {
         const option = document.createElement('option');
         option.value = cat.code;
-        option.textContent = `${cat.name} (${cat.count.toLocaleString()})`;
+        option.textContent = `${categoryReportingLabel(cat.code)} (${cat.count.toLocaleString()})`;
         elements.categoryFilter.appendChild(option);
     });
 }
@@ -294,7 +322,7 @@ function populateLeaderboardCategoryFilter() {
     state.categories.forEach(cat => {
         const option = document.createElement('option');
         option.value = cat.code;
-        option.textContent = `${cat.name}`;
+        option.textContent = categoryReportingLabel(cat.code);
         elements.leaderboardCategory.appendChild(option);
     });
 }
