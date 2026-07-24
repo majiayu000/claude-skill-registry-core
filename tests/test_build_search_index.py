@@ -367,9 +367,9 @@ def test_build_emits_complete_category_taxonomy_sidecar(tmp_path):
     sidecar = json.loads((output_dir / "category-taxonomy.json").read_text())
     assert sidecar["schema_version"] == 1
     assert sidecar["taxonomy_schema_version"] == 2
-    assert sidecar["category_count"] == 42
+    assert sidecar["category_count"] == 40
     assert sidecar["default_category"] == "other"
     assert sidecar["default_code"] == "oth"
-    assert len({item["slug"] for item in sidecar["categories"]}) == 42
-    assert len({item["code"] for item in sidecar["categories"]}) == 42
+    assert len({item["slug"] for item in sidecar["categories"]}) == 40
+    assert len({item["code"] for item in sidecar["categories"]}) == 40
     assert len([item for item in sidecar["categories"] if not item["parent"]]) == 12

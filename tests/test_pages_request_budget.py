@@ -617,4 +617,4 @@ process.stdout.write(JSON.stringify({
 """,
         json.dumps(contract),
     )
-    assert result == {"count": 42, "roots": 12, "unknown": "future-category"}
+    assert result == {"count": 40, "roots": 12, "unknown": "future-category"}
