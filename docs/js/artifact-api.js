@@ -30,7 +30,7 @@ function validateCategoryTaxonomy(payload) {
         typeof payload.default_category !== 'string' || !payload.default_category ||
         typeof payload.default_code !== 'string' || !payload.default_code ||
         !Array.isArray(payload.categories) ||
-        payload.category_count !== 42 ||
+        payload.category_count !== 40 ||
         payload.categories.length !== payload.category_count) {
         throw new Error('Category taxonomy count or identity mismatch');
     }

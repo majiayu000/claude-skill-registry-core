@@ -149,6 +149,12 @@ legacy_migrations:
   - slug: utility
     review_required: true
     reason: "Broad utility bucket; reclassify as Productivity, Workflow, or another concrete capability."
+  - slug: travel
+    target: domains
+    reason: "Demoted micro-category (48 skills); folded into its parent Domains."
+  - slug: war-room
+    target: devops
+    reason: "Demoted micro-category (27 skills); folded into its parent DevOps."
 categories:
   - slug: agent
     code: agent
@@ -447,20 +453,6 @@ categories:
     examples: ["pytest", "Playwright", "test harness"]
     description: "Testing, QA, TDD, unit/integration/e2e testing, browser automation, and test tooling."
     keywords: [test, qa, tdd, jest, pytest, unittest, integration, e2e, playwright, cypress]
-  - slug: travel
-    code: travel
-    parent: domains
-    display_name: Travel
-    inclusion_rule: "Trip planning, itineraries, logistics, bookings, and destination research."
-    exclusion_rule: "General planning without travel belongs in `planning`."
-    examples: ["itinerary", "flight plan"]
-  - slug: war-room
-    code: war-room
-    parent: devops
-    display_name: War Room
-    inclusion_rule: "Incident response rooms, crisis coordination, launch rooms, and high-urgency operations."
-    exclusion_rule: "Normal project planning belongs in `planning`; security incidents can use `security` if security dominates."
-    examples: ["incident room", "launch room"]
   - slug: workflow
     code: workflow
     parent: productivity

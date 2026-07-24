@@ -24,12 +24,12 @@ def test_taxonomy_loads_current_category_set():
     assert loaded.categories["development"].inclusion_rule
     assert loaded.categories["development"].exclusion_rule
     assert loaded.categories["development"].examples
-    assert len(loaded.categories) >= 42
+    assert len(loaded.categories) >= 40
     assert "docs" not in loaded.categories
     assert loaded.migration_target("docs") == "documents"
     assert loaded.legacy_migration("docs").target == "documents"
     assert loaded.legacy_migration("applied").review_required is True
-    assert len(loaded.categories) == 42
+    assert len(loaded.categories) == 40
     assert len([item for item in loaded.categories.values() if not item.parent]) == 12
     assert loaded.audit_sampling.per_category == 50
     assert loaded.audit_sampling.categories == (
@@ -44,10 +44,10 @@ def test_taxonomy_loads_current_category_set():
         assert loaded.slug_for_code(definition.code) == slug
 
     contract = loaded.public_contract(updated_at="2026-07-23T00:00:00Z")
-    assert contract["category_count"] == 42
+    assert contract["category_count"] == 40
     assert contract["default_code"] == "oth"
-    assert len({item["slug"] for item in contract["categories"]}) == 42
-    assert len({item["code"] for item in contract["categories"]}) == 42
+    assert len({item["slug"] for item in contract["categories"]}) == 40
+    assert len({item["code"] for item in contract["categories"]}) == 40
 
 
 def test_taxonomy_rejects_aliases_by_default_and_codes():
