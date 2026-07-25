@@ -1,7 +1,7 @@
 {
-  "discovered_at": "2026-07-24T03:13:57.328934Z",
+  "discovered_at": "2026-07-25T03:11:37.875285Z",
   "total_repos": 300,
-  "total_skills": 23,
+  "total_skills": 113,
   "scanned_repos": 300,
   "limits": {
     "max_repos": 300,
@@ -28,6 +28,7 @@
     "BayramAnnakov/claude-reflect",
     "Bhanunamikaze/Agentic-SEO-Skill",
     "BrianRWagner/ai-marketing-claude-code-skills",
+    "Cassette-Editor/oh-my-cassette",
     "CesiumGS/cesiumjs-skills",
     "ChaosRealmsAI/NextFrame",
     "CodelyTV/agentic_programming-course",
@@ -71,7 +72,6 @@
     "OthmanAdi/planning-with-files",
     "Othmane-Khadri/gtm-engineer-playbook",
     "OutlineDriven/odin-claude-plugin",
-    "Panmax/awesome-nuwa",
     "Prat011/awesome-llm-skills",
     "REMvisual/claude-handoff",
     "SamJHudson01/Carmack-Council",
@@ -96,7 +96,6 @@
     "a5c-ai/babysitter",
     "aaron-he-zhu/aaron-marketing-skills",
     "aaronjmars/agent-credit",
-    "abullard1/claude-bionify",
     "activeloopai/hivemind",
     "addyosmani/web-quality-skills",
     "adityaarsharma/youtube-marketing-skills",
@@ -113,6 +112,7 @@
     "antonbabenko/terraform-skill",
     "aofp/yume",
     "appleboy/skills",
+    "arbiterForge/codeArbiter",
     "artokun/comfyui-mcp",
     "arvindrk/extract-design-system",
     "atlassian/forge-skills",
@@ -132,7 +132,6 @@
     "bovinphang/frontend-craft",
     "browser-act/skills",
     "cgallic/kai-cmo-harness",
-    "chanjing-ai/chan-skills",
     "chengzhongwei/Prompt-sensei",
     "chiruu12/OSS-Skills",
     "chrisallenlane/claude-swe-workflows",
@@ -242,6 +241,7 @@
     "noluyorAbi/claude-code-recap",
     "nostrband/ServiceGraph",
     "nowork-studio/NotFair",
+    "nuwa-skills/awesome-nuwa",
     "oliver-kriska/claude-elixir-phoenix",
     "ombulabs/claude-code_rails-upgrade-skill",
     "omergocmen/vibe-coder-kit",
@@ -314,96 +314,456 @@
   ],
   "skills": [
     {
-      "repo": "boshu2/agentops",
-      "path": "images/gemini/skills/product/SKILL.md"
+      "repo": "Cassette-Editor/oh-my-cassette",
+      "path": "skills/cassette-video-edit/SKILL.md"
     },
     {
-      "repo": "boshu2/agentops",
-      "path": "skills-codex/craft-goal/SKILL.md"
+      "repo": "Cassette-Editor/oh-my-cassette",
+      "path": "hermes/skills/cassette-video-edit/SKILL.md"
     },
     {
-      "repo": "boshu2/agentops",
-      "path": "skills/craft-goal/SKILL.md"
+      "repo": "Cassette-Editor/oh-my-cassette",
+      "path": ".agents/skills/cassette-video-edit/SKILL.md"
     },
     {
-      "repo": "davepoon/buildwithclaude",
-      "path": "plugins/all-skills/skills/theboardroom/SKILL.md"
+      "repo": "OutlineDriven/odin-claude-plugin",
+      "path": "skills/clarify/SKILL.md"
     },
     {
-      "repo": "davepoon/buildwithclaude",
-      "path": "plugins/all-skills/skills/routerbase-model-gateway/SKILL.md"
+      "repo": "OutlineDriven/odin-claude-plugin",
+      "path": "skills/exhaustive/SKILL.md"
     },
     {
-      "repo": "nexscope-ai/eCommerce-Skills",
-      "path": "price-optimization-tool/SKILL.md"
+      "repo": "XiaoMaColtAI/math-modeling-skill",
+      "path": "tools/latex/SKILL.md"
     },
     {
-      "repo": "nexscope-ai/eCommerce-Skills",
-      "path": "competitive-pricing-strategy/SKILL.md"
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/tdd/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/refactor/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/tribunal/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/release/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-fix/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-dev/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-adr/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/decompose/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/refactor/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/tribunal/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-init/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-debug/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/commit-gate/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-audit/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-chore/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-watch/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/skill-author/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-status/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-fix/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-adr/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-commit/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-dev/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-doctor/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/routines/tribunal/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/brainstorming/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-init/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/writing-plans/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/routines/refactor/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/context-check/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-arbiter/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/skill-author/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-conflict/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-refactor/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-commands/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-audit/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/routines/decompose/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-spike/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/executing-plans/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-sprint/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-new-skill/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/release/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-status/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/brainstorming/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-decompose/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-metrics/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/context-creation/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/refactor/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-release/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-add-dep/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-checkpoint/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-standup/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-preview/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-adr-status/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/decompose/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-commands/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/executing-plans/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-refactor/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/decision-variance/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/crypto-compliance/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/routines/context-check/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/context-creation/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-decompose/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/routines/brainstorming/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/routines/writing-plans/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-adr-status/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/decision-variance/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-checkpoint/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/skill-author/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/routines/secret-handling/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/decision-lifecycle/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/skills/ca-create-context/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/routines/context-creation/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/context-check/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/brainstorming/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-threat-model/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/using-git-worktrees/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/security-architecture/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/skills/ca-context-check/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/routines/decision-variance/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/secret-handling/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/security-architecture/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/executing-plans/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/context-creation/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-pi/routines/using-git-worktrees/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/decision-variance/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/decision-lifecycle/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/subagent-driven-development/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/using-git-worktrees/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-codex/routines/security-architecture/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "core/surface/skills/subagent-driven-development/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca-sandbox/skills/sandbox-claude-inside/SKILL.md"
+    },
+    {
+      "repo": "arbiterForge/codeArbiter",
+      "path": "plugins/ca/skills/finishing-a-development-branch/SKILL.md"
+    },
+    {
+      "repo": "fcakyon/claude-codex-settings",
+      "path": "plugins/codex-advisor/skills/codex-advisor/SKILL.md"
+    },
+    {
+      "repo": "microsoft/power-platform-skills",
+      "path": "plugins/code-apps/skills/add-workiq/SKILL.md"
+    },
+    {
+      "repo": "mohitagw15856/pm-claude-skills",
+      "path": "skills/story-pitch/SKILL.md"
     },
     {
       "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/pi/skills/phx-perf/SKILL.md"
+      "path": "plugins/lv/skills/assigns/SKILL.md"
     },
     {
       "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/pi/skills/phx-plan/SKILL.md"
+      "path": "targets/pi/skills/phx-recall/SKILL.md"
     },
     {
       "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/pi/skills/phx-triage/SKILL.md"
+      "path": "plugins/ecto/skills/n1-check/SKILL.md"
     },
     {
       "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/amp/skills/phx-trace/SKILL.md"
+      "path": "targets/pi/skills/phx-techdebt/SKILL.md"
     },
     {
       "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/pi/skills/phx-watch-pr/SKILL.md"
+      "path": "targets/pi/skills/phx-research/SKILL.md"
     },
     {
       "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/codex/skills/phx-trace/SKILL.md"
+      "path": "targets/codex/skills/phx-review/SKILL.md"
     },
     {
       "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/codex/skills/phx-quick/SKILL.md"
+      "path": "targets/amp/skills/phx-research/SKILL.md"
     },
     {
       "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/opencode/skills/deploy/SKILL.md"
+      "path": "targets/pi/skills/phx-permissions/SKILL.md"
     },
     {
-      "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/amp/skills/phx-document/SKILL.md"
+      "repo": "rse/ase",
+      "path": "plugin/skills/ase-meta-intent/SKILL.md"
     },
     {
-      "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/pi/skills/phx-challenge/SKILL.md"
+      "repo": "rse/ase",
+      "path": "plugin/skills/ase-meta-eli5/SKILL.md"
     },
     {
-      "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/opencode/skills/security/SKILL.md"
-    },
-    {
-      "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/opencode/skills/phx-full/SKILL.md"
-    },
-    {
-      "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/opencode/skills/phx-audit/SKILL.md"
+      "repo": "rse/ase",
+      "path": "plugin/skills/ase-meta-proximity/SKILL.md"
     },
     {
       "repo": "saadshahd/moo.md",
-      "path": "hunch/skills/roster/SKILL.md"
-    },
-    {
-      "repo": "y49/tlive",
-      "path": "plugins/codex/plugins/tlive/skills/tlive/SKILL.md"
-    },
-    {
-      "repo": "y49/tlive",
-      "path": "plugins/claude/plugins/tlive/skills/tlive/SKILL.md"
+      "path": ".claude/skills/moo-authoring/SKILL.md"
     }
   ]
 }
