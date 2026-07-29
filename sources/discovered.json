@@ -1,7 +1,7 @@
 {
-  "discovered_at": "2026-07-28T03:07:06.983687Z",
+  "discovered_at": "2026-07-29T03:10:50.358288Z",
   "total_repos": 300,
-  "total_skills": 52,
+  "total_skills": 60,
   "scanned_repos": 300,
   "limits": {
     "max_repos": 300,
@@ -13,6 +13,7 @@
   "repos": [
     "0xGhostCAT/claude-ai-cyber-security-skills",
     "0xwilliamortiz/agents-council",
+    "0xwilliamortiz/ponytail-improved",
     "2389-research/claude-plugins",
     "23blocks-OS/ai-maestro",
     "24kchengYe/human-skill-tree",
@@ -58,6 +59,7 @@
     "KarmaDevplacer/Mythos-Claude-Orchestrator",
     "KhazP/vibe-coding-prompt-template",
     "Klotzkette/claude-fuer-deutsches-recht",
+    "Leehyunbin0131/claude-ros2-skills",
     "LukasNiessen/terrashark",
     "MIKOTOKAWAII25/local-ai-code-assistant",
     "Mann1988/awesome-claude-skills",
@@ -100,7 +102,6 @@
     "addyosmani/web-quality-skills",
     "adityaarsharma/youtube-marketing-skills",
     "aeonfun/soul.md",
-    "agents-inc/skills",
     "ahacker-1/cre-agent-skills",
     "alec-c4/claude-rails-dev",
     "alirezarezvani/claude-code-skill-factory",
@@ -131,7 +132,6 @@
     "bovinphang/frontend-craft",
     "browser-act/skills",
     "cgallic/kai-cmo-harness",
-    "chanjing-ai/chan-skills",
     "chengzhongwei/Prompt-sensei",
     "chiruu12/OSS-Skills",
     "ciembor/agent-rules-books",
@@ -248,7 +248,6 @@
     "oprogramadorreal/optimus-claude",
     "oribarilan/97",
     "parcadei/Continuous-Claude-v3",
-    "pcliangx/AppGenesisForge",
     "pedrohcgs/claude-code-my-workflow",
     "plugin87/ux-ui-agent-skills",
     "posit-dev/skills",
@@ -301,6 +300,7 @@
     "wells1137/media-skills",
     "wesammustafa/Claude-Code-Everything-You-Need-to-Know",
     "wondelai/skills",
+    "worldwonderer/novel-to-game",
     "worldwonderer/oh-story-claudecode",
     "wrsmith108/linear-claude-skill",
     "wrsmith108/varlock-claude-skill",
@@ -314,212 +314,244 @@
   ],
   "skills": [
     {
-      "repo": "Kanevry/session-orchestrator",
-      "path": "skills/contract-version-bump/SKILL.md"
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/paperclip/SKILL.md"
     },
     {
-      "repo": "Tibsfox/gsd-skill-creator",
-      "path": "project-claude/skills/skill-forge/SKILL.md"
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/pkpd-modeling/SKILL.md"
     },
     {
-      "repo": "agents-inc/skills",
-      "path": "src/skills/infra-platform-netlify/SKILL.md"
+      "repo": "Leehyunbin0131/claude-ros2-skills",
+      "path": "skills/ros2-dev/SKILL.md"
     },
     {
-      "repo": "agents-inc/skills",
-      "path": "src/skills/ai-provider-cohere-sdk/SKILL.md"
+      "repo": "Leehyunbin0131/claude-ros2-skills",
+      "path": "skills/ros2-core/SKILL.md"
     },
     {
-      "repo": "agents-inc/skills",
-      "path": "src/skills/api-messaging-webhooks/SKILL.md"
+      "repo": "Leehyunbin0131/claude-ros2-skills",
+      "path": "skills/gazebo-sim/SKILL.md"
     },
     {
-      "repo": "agents-inc/skills",
-      "path": "src/skills/desktop-security-tauri/SKILL.md"
+      "repo": "Leehyunbin0131/claude-ros2-skills",
+      "path": "skills/ros2-moveit/SKILL.md"
     },
     {
-      "repo": "arbiterForge/codeArbiter",
-      "path": "core/surface/skills/tdd/SKILL.md"
+      "repo": "Leehyunbin0131/claude-ros2-skills",
+      "path": "skills/ros2-package/SKILL.md"
     },
     {
-      "repo": "arbiterForge/codeArbiter",
-      "path": "plugins/ca-pi/routines/tdd/SKILL.md"
+      "repo": "Leehyunbin0131/claude-ros2-skills",
+      "path": "skills/ros2-testing/SKILL.md"
     },
     {
-      "repo": "arbiterForge/codeArbiter",
-      "path": "plugins/ca-pi/skills/ca-btw/SKILL.md"
+      "repo": "Leehyunbin0131/claude-ros2-skills",
+      "path": "skills/ros2-control/SKILL.md"
     },
     {
-      "repo": "arbiterForge/codeArbiter",
-      "path": "plugins/ca-codex/routines/tdd/SKILL.md"
+      "repo": "Leehyunbin0131/claude-ros2-skills",
+      "path": "skills/ros2-microros/SKILL.md"
     },
     {
-      "repo": "arbiterForge/codeArbiter",
-      "path": "core/surface/skills/commit-gate/SKILL.md"
+      "repo": "Leehyunbin0131/claude-ros2-skills",
+      "path": "skills/ros2-perception/SKILL.md"
     },
     {
-      "repo": "arbiterForge/codeArbiter",
-      "path": "plugins/ca-pi/skills/ca-cleanup/SKILL.md"
+      "repo": "Leehyunbin0131/claude-ros2-skills",
+      "path": "skills/ros2-troubleshooting/SKILL.md"
     },
     {
-      "repo": "arbiterForge/codeArbiter",
-      "path": "plugins/ca-pi/skills/ca-tribunal/SKILL.md"
-    },
-    {
-      "repo": "arbiterForge/codeArbiter",
-      "path": "plugins/ca-codex/skills/ca-chore/SKILL.md"
-    },
-    {
-      "repo": "arbiterForge/codeArbiter",
-      "path": "plugins/ca-pi/skills/ca-override/SKILL.md"
+      "repo": "anbeime/skill",
+      "path": "skills/_template/SKILL.md"
     },
     {
       "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills/kai-client-dashboard/SKILL.md"
+      "path": "harness/skills-v2/kai/SKILL.md"
     },
     {
-      "repo": "fvadicamo/dev-agent-skills",
-      "path": "plugins/privacy-guard/skills/privacy-guard/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills/kai-goal/SKILL.md"
     },
     {
-      "repo": "getaero-io/gtm-eng-skills",
-      "path": "skills/deepline-plays-review/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-abm/SKILL.md"
     },
     {
-      "repo": "gooseworks-ai/goose-skills",
-      "path": "skills/ads/capabilities/render-podcast-skit/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-cro/SKILL.md"
     },
     {
-      "repo": "gooseworks-ai/goose-skills",
-      "path": "skills/ads/capabilities/render-glassy-matte-grwm/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-gate/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/seo-plan/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-goal/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/seo-audit/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-audit/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/aeo-audit/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-brand/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/seo-drift/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-retro/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/media-plan/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-video/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/loop-detect/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-taste/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/entity-audit/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-write/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/cowork-setup/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-brief/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/rank-monitor/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-start/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/backlink-gap/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-launch/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/seo-implement/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-social/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/yearly-planner/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-budget/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/market-weather/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-podcast/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/quality-report/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-webinar/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/campaign-audit/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-retarget/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/campaign-status/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-analytics/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/keyword-cluster/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-repurpose/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/review-response/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-retention/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/cohort-analysis/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-seo-audit/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/add-integration/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-newsletter/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/sitemap-manager/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-hook-bench/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/import-template/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-influencer/SKILL.md"
     },
     {
-      "repo": "indranilbanerjee/digital-marketing-pro",
-      "path": "skills/image-seo-audit/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-case-study/SKILL.md"
     },
     {
-      "repo": "microsoft/power-platform-skills",
-      "path": "plugins/model-apps/skills/telemetry/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-ad-campaign/SKILL.md"
     },
     {
-      "repo": "mohitagw15856/pm-claude-skills",
-      "path": "skills/sports-scores/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-topical-map/SKILL.md"
     },
     {
-      "repo": "nexscope-ai/eCommerce-Skills",
-      "path": "dynamic-pricing-ecommerce/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-growth-plan/SKILL.md"
     },
     {
-      "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/pi/skills/deploy/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-competitors/SKILL.md"
     },
     {
-      "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/amp/skills/phx-intro/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kaicalls-design/SKILL.md"
     },
     {
-      "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/pi/skills/phx-verify/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-brand-pulse/SKILL.md"
     },
     {
-      "repo": "oliver-kriska/claude-elixir-phoenix",
-      "path": "targets/amp/skills/phx-compound/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/kai-partnership/SKILL.md"
     },
     {
-      "repo": "respira-press/agent-skills-wordpress",
-      "path": "skills/build-oxygen6-page/SKILL.md"
+      "repo": "haabe/mycelium",
+      "path": "plugins/mycelium/skills/adopt/SKILL.md"
     },
     {
-      "repo": "respira-press/agent-skills-wordpress",
-      "path": "skills/figma-to-elementor/SKILL.md"
+      "repo": "joaquimscosta/arkhe-claude-plugins",
+      "path": "plugins/lang/skills/scripting-bash/SKILL.md"
+    },
+    {
+      "repo": "michtio/craftcms-claude-skills",
+      "path": "skills/craft-pest/SKILL.md"
+    },
+    {
+      "repo": "posit-dev/skills",
+      "path": "connect/deploy-to-connect/SKILL.md"
+    },
+    {
+      "repo": "wesammustafa/Claude-Code-Everything-You-Need-to-Know",
+      "path": ".claude/skills/claude-md-review/SKILL.md"
+    },
+    {
+      "repo": "worldwonderer/novel-to-game",
+      "path": "skills/game-qa/SKILL.md"
+    },
+    {
+      "repo": "worldwonderer/novel-to-game",
+      "path": "skills/game-build/SKILL.md"
+    },
+    {
+      "repo": "worldwonderer/novel-to-game",
+      "path": "skills/game-concept/SKILL.md"
+    },
+    {
+      "repo": "worldwonderer/novel-to-game",
+      "path": "skills/novel-to-game/SKILL.md"
+    },
+    {
+      "repo": "worldwonderer/novel-to-game",
+      "path": "skills/game-world-design/SKILL.md"
+    },
+    {
+      "repo": "worldwonderer/novel-to-game",
+      "path": "skills/novel-game-analyze/SKILL.md"
+    },
+    {
+      "repo": "worldwonderer/novel-to-game",
+      "path": "skills/game-art-direction/SKILL.md"
     }
   ]
 }
