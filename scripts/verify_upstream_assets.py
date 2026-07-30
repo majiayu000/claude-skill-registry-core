@@ -35,7 +35,7 @@ def resolve_skill_dir(target: dict, skill_dirs: list[str]) -> str | None:
 def verify_repo(repo: str, targets: list[dict]) -> list[dict]:
     try:
         paths = fetch_repo_tree(repo)
-    except (RuntimeError, Exception) as exc:  # noqa: BLE001 — recorded per row
+    except Exception as exc:  # noqa: BLE001 — recorded per row
         return [{**t, "status": "repo_error", "error": str(exc)[:200]} for t in targets]
     skill_dirs = [os.path.dirname(p) for p in paths if os.path.basename(p) == "SKILL.md"]
     rows = []
