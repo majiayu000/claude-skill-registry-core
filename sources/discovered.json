@@ -1,7 +1,7 @@
 {
-  "discovered_at": "2026-07-29T03:10:50.358288Z",
+  "discovered_at": "2026-07-30T02:58:15.855509Z",
   "total_repos": 300,
-  "total_skills": 60,
+  "total_skills": 162,
   "scanned_repos": 300,
   "limits": {
     "max_repos": 300,
@@ -107,6 +107,7 @@
     "alirezarezvani/claude-code-skill-factory",
     "alirezarezvani/claude-skills",
     "alookai/alook",
+    "amElnagdy/delegate-skills",
     "ammawla/encode-toolkit",
     "anbeime/skill",
     "anombyte93/prd-taskmaster",
@@ -114,9 +115,7 @@
     "aofp/yume",
     "appleboy/skills",
     "arbiterForge/codeArbiter",
-    "artokun/comfyui-mcp",
     "arvindrk/extract-design-system",
-    "atlassian/forge-skills",
     "avelikiy/great_cto",
     "avibebuilder/claude-prime",
     "avidevelops/claude-architect-exam-prep",
@@ -129,6 +128,7 @@
     "bitjaru/styleseed",
     "bitwize-music-studio/claude-ai-music-skills",
     "bjwanneng/veriflow-cc",
+    "borghei/Claude-Skills",
     "bovinphang/frontend-craft",
     "browser-act/skills",
     "cgallic/kai-cmo-harness",
@@ -153,6 +153,7 @@
     "dream-num/skills",
     "echoVic/spec-flow",
     "elementalsouls/Claude-BugHunter",
+    "evanca/flutter-ai-rules",
     "existential-birds/beagle",
     "fcakyon/claude-codex-settings",
     "fcavalcantirj/claude-code-eyes",
@@ -182,7 +183,6 @@
     "hypnguyen1209/offensive-claude",
     "ikaijua/Awesome-AITools",
     "ilang-ai/autocode",
-    "imarvinle/Claude-Pro",
     "indranilbanerjee/digital-marketing-pro",
     "inngest/inngest-skills",
     "instavm/coderunner",
@@ -314,244 +314,652 @@
   ],
   "skills": [
     {
-      "repo": "K-Dense-AI/scientific-agent-skills",
-      "path": "skills/paperclip/SKILL.md"
+      "repo": "amElnagdy/delegate-skills",
+      "path": "skills/pi-delegate/SKILL.md"
     },
     {
-      "repo": "K-Dense-AI/scientific-agent-skills",
-      "path": "skills/pkpd-modeling/SKILL.md"
+      "repo": "amElnagdy/delegate-skills",
+      "path": "skills/agy-delegate/SKILL.md"
     },
     {
-      "repo": "Leehyunbin0131/claude-ros2-skills",
-      "path": "skills/ros2-dev/SKILL.md"
+      "repo": "amElnagdy/delegate-skills",
+      "path": "skills/grok-delegate/SKILL.md"
     },
     {
-      "repo": "Leehyunbin0131/claude-ros2-skills",
-      "path": "skills/ros2-core/SKILL.md"
+      "repo": "amElnagdy/delegate-skills",
+      "path": "skills/vibe-delegate/SKILL.md"
     },
     {
-      "repo": "Leehyunbin0131/claude-ros2-skills",
-      "path": "skills/gazebo-sim/SKILL.md"
+      "repo": "amElnagdy/delegate-skills",
+      "path": "skills/kimi-delegate/SKILL.md"
     },
     {
-      "repo": "Leehyunbin0131/claude-ros2-skills",
-      "path": "skills/ros2-moveit/SKILL.md"
+      "repo": "amElnagdy/delegate-skills",
+      "path": "skills/qoder-delegate/SKILL.md"
     },
     {
-      "repo": "Leehyunbin0131/claude-ros2-skills",
-      "path": "skills/ros2-package/SKILL.md"
+      "repo": "amElnagdy/delegate-skills",
+      "path": "skills/codex-delegate/SKILL.md"
     },
     {
-      "repo": "Leehyunbin0131/claude-ros2-skills",
-      "path": "skills/ros2-testing/SKILL.md"
+      "repo": "amElnagdy/delegate-skills",
+      "path": "skills/claude-delegate/SKILL.md"
     },
     {
-      "repo": "Leehyunbin0131/claude-ros2-skills",
-      "path": "skills/ros2-control/SKILL.md"
+      "repo": "amElnagdy/delegate-skills",
+      "path": "skills/cursor-delegate/SKILL.md"
     },
     {
-      "repo": "Leehyunbin0131/claude-ros2-skills",
-      "path": "skills/ros2-microros/SKILL.md"
-    },
-    {
-      "repo": "Leehyunbin0131/claude-ros2-skills",
-      "path": "skills/ros2-perception/SKILL.md"
-    },
-    {
-      "repo": "Leehyunbin0131/claude-ros2-skills",
-      "path": "skills/ros2-troubleshooting/SKILL.md"
+      "repo": "amElnagdy/delegate-skills",
+      "path": "skills/opencode-delegate/SKILL.md"
     },
     {
       "repo": "anbeime/skill",
-      "path": "skills/_template/SKILL.md"
+      "path": "skills/ecommerce-full-pipeline/ecommerce-full-pipeline/SKILL.md"
+    },
+    {
+      "repo": "avelikiy/great_cto",
+      "path": "skills/crystallize/SKILL.md"
+    },
+    {
+      "repo": "avelikiy/great_cto",
+      "path": "skills/vertical-restaurants/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/aeo/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "research/patent/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "research/grants/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/ai-seo/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "legal/nda-review/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "research/dossier/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "workflow/handoff/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "legal/nda-triage/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/paid-ads/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "research/litreview/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/seo-audit/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/agenthub/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/cold-email/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "legal/legal-red-team/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/red-team/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/copywriting/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/ad-creative/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "legal/dpia-assessment/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "documents/pdf-toolkit/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/tdd-guide/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/code-tour/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "workflow/skill-router/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/senior-qa/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "legal/contract-review/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "documents/pptx-toolkit/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "documents/xlsx-toolkit/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "legal/statute-analysis/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/a11y-audit/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/copy-editing/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "documents/docx-toolkit/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "markdown-html/md-slides/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/ai-security/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "markdown-html/md-review/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "ra-qm-team/capa-officer/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/schema-markup/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/marketing-ops/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/focused-fix/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/social-content/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "legal/privacy-compliance/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/seo-specialist/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "business-growth/page-cro/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/email-sequence/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "business-growth/form-cro/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "legal/mediation-analysis/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/skill-tester/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/agent-harness/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "business-growth/popup-cro/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "markdown-html/md-document/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "finance/financial-analyst/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/launch-strategy/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/senior-mobile/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/write-a-skill/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/code-reviewer/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "product-team/spec-to-repo/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/senior-devops/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/content-creator/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/rag-architect/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/senior-secops/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/growth-marketer/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/marketing-ideas/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "business-growth/deal-desk/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/context-engine/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/programmatic-seo/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/agent-protocol/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "c-level-advisor/company-os/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/agent-designer/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "legal/vendor-due-diligence/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/cloud-security/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "c-level-advisor/cs-onboard/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/senior-backend/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "legal/data-breach-response/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/brand-strategist/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/x-twitter-growth/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/brand-guidelines/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/content-strategy/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "finance/saas-metrics-coach/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/design-auditor/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/playwright-pro/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/site-architecture/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "c-level-advisor/ma-playbook/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "c-level-advisor/cpo-advisor/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "c-level-advisor/cmo-advisor/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "c-level-advisor/cro-advisor/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/saas-scaffolder/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/marketing-context/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "legal/legal-risk-assessment/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/senior-frontend/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "c-level-advisor/ceo-advisor/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "c-level-advisor/cto-advisor/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/content-humanizer/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "c-level-advisor/vpe-advisor/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "c-level-advisor/coo-advisor/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/release-manager/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "markdown-html/design-system/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "data-analytics/data-analyst/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "engineering/senior-security/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/marketing-analyst/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "ra-qm-team/qms-audit-expert/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "c-level-advisor/cfo-advisor/SKILL.md"
+    },
+    {
+      "repo": "borghei/Claude-Skills",
+      "path": "marketing/content-production/SKILL.md"
     },
     {
       "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai/SKILL.md"
+      "path": "harness/skills/kai-gtm-pack/SKILL.md"
     },
     {
       "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills/kai-goal/SKILL.md"
+      "path": "harness/skills-v2/kai-gtm-pack/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-abm/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/bloc/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-cro/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/mockito/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-gate/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/testing/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-goal/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/riverpod/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-audit/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/provider/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-brand/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/mocktail/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-retro/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-ai/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-video/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/code-review/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-taste/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-auth/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-write/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/accessibility/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-brief/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/flutter-errors/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-start/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/effective-dart/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-launch/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/dart-3-updates/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-social/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/inclusive-design/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-budget/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-storage/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-podcast/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-database/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-webinar/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/revenuecat-testing/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-retarget/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-analytics/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-analytics/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-messaging/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-repurpose/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/patrol-e2e-testing/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-retention/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-app-check/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-seo-audit/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/flutter-pre-caching/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-newsletter/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/store-listing-assets/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-hook-bench/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-crashlytics/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-influencer/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-data-connect/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-case-study/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/flutterfire-configure/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-ad-campaign/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/developing-genkit-dart/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-topical-map/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/flutter-best-practices/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-growth-plan/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-remote-config/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-competitors/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/flutter-change-notifier/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kaicalls-design/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-cloud-functions/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-brand-pulse/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-cloud-firestore/SKILL.md"
     },
     {
-      "repo": "cgallic/kai-cmo-harness",
-      "path": "harness/skills-v2/kai-partnership/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/flutter-app-architecture/SKILL.md"
     },
     {
-      "repo": "haabe/mycelium",
-      "path": "plugins/mycelium/skills/adopt/SKILL.md"
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/firebase-in-app-messaging/SKILL.md"
+    },
+    {
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/architecture-feature-first/SKILL.md"
+    },
+    {
+      "repo": "evanca/flutter-ai-rules",
+      "path": "skills/flutter-use-column-row-first/SKILL.md"
     },
     {
       "repo": "joaquimscosta/arkhe-claude-plugins",
-      "path": "plugins/lang/skills/scripting-bash/SKILL.md"
+      "path": "plugins/core/skills/using-arkhe-skills/SKILL.md"
     },
     {
-      "repo": "michtio/craftcms-claude-skills",
-      "path": "skills/craft-pest/SKILL.md"
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "plugins/architecture-suite/skills/ln-75-architecture-diagram-builder/SKILL.md"
     },
     {
-      "repo": "posit-dev/skills",
-      "path": "connect/deploy-to-connect/SKILL.md"
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "plugins/architecture-suite/skills/ln-71-system-design-baseline-builder/SKILL.md"
     },
     {
-      "repo": "wesammustafa/Claude-Code-Everything-You-Need-to-Know",
-      "path": ".claude/skills/claude-md-review/SKILL.md"
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "plugins/architecture-suite/skills/ln-74-architecture-decision-recorder/SKILL.md"
     },
     {
-      "repo": "worldwonderer/novel-to-game",
-      "path": "skills/game-qa/SKILL.md"
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "plugins/architecture-suite/skills/ln-73-system-design-proposal-builder/SKILL.md"
     },
     {
-      "repo": "worldwonderer/novel-to-game",
-      "path": "skills/game-build/SKILL.md"
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "plugins/architecture-suite/skills/ln-76-architecture-migration-planner/SKILL.md"
     },
     {
-      "repo": "worldwonderer/novel-to-game",
-      "path": "skills/game-concept/SKILL.md"
+      "repo": "levnikolaevich/claude-code-skills",
+      "path": "plugins/architecture-suite/skills/ln-72-current-architecture-documenter/SKILL.md"
     },
     {
-      "repo": "worldwonderer/novel-to-game",
-      "path": "skills/novel-to-game/SKILL.md"
+      "repo": "microsoft/power-platform-skills",
+      "path": "plugins/mobile-apps/skills/add-sample-data/SKILL.md"
     },
     {
-      "repo": "worldwonderer/novel-to-game",
-      "path": "skills/game-world-design/SKILL.md"
+      "repo": "oprogramadorreal/optimus-claude",
+      "path": "skills/deep/SKILL.md"
     },
     {
-      "repo": "worldwonderer/novel-to-game",
-      "path": "skills/novel-game-analyze/SKILL.md"
+      "repo": "oprogramadorreal/optimus-claude",
+      "path": "skills/gauntlet/SKILL.md"
     },
     {
-      "repo": "worldwonderer/novel-to-game",
-      "path": "skills/game-art-direction/SKILL.md"
+      "repo": "tripleyak/SkillForge",
+      "path": "scripts/tests/fixtures/sample-skill/SKILL.md"
     }
   ]
 }
