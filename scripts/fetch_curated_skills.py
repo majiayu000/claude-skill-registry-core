@@ -77,7 +77,7 @@ def main() -> None:
     for i, (repo, repo_targets) in enumerate(sorted(by_repo.items()), 1):
         try:
             tree = fetch_repo_tree(repo)
-        except (RuntimeError, Exception) as exc:  # noqa: BLE001 — recorded per row
+        except Exception as exc:  # noqa: BLE001 — recorded per row
             report.extend({**t, "fetch": "repo_error", "error": str(exc)[:200]}
                           for t in repo_targets)
             continue
