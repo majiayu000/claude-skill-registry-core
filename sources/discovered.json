@@ -1,7 +1,7 @@
 {
-  "discovered_at": "2026-07-31T03:23:10.894350Z",
+  "discovered_at": "2026-08-01T03:21:34.798993Z",
   "total_repos": 300,
-  "total_skills": 8,
+  "total_skills": 5,
   "scanned_repos": 300,
   "limits": {
     "max_repos": 300,
@@ -17,7 +17,6 @@
     "2389-research/claude-plugins",
     "23blocks-OS/ai-maestro",
     "24kchengYe/human-skill-tree",
-    "2dubu/liquid-glass",
     "AIScientists-Dev/Flowtrace",
     "Agents365-ai/drawio-skill",
     "AlpacaLabsLLC/skills-for-architects",
@@ -101,6 +100,7 @@
     "addyosmani/web-quality-skills",
     "adityaarsharma/youtube-marketing-skills",
     "aeonfun/soul.md",
+    "agents-inc/skills",
     "ahacker-1/cre-agent-skills",
     "alec-c4/claude-rails-dev",
     "alirezarezvani/claude-code-skill-factory",
@@ -223,7 +223,6 @@
     "mhattingpete/claude-skills-marketplace",
     "michtio/craftcms-claude-skills",
     "microsoft/power-platform-skills",
-    "mikedemarais/grok-skill",
     "mikesheehan54/Claude-Code-Design-AI",
     "minsight-ai-info/AI-Search-Hub",
     "mliu98/awesome-human-distillation",
@@ -306,6 +305,7 @@
     "wrsmith108/varlock-claude-skill",
     "xiaobei930/cc-best",
     "y49/tlive",
+    "yussufs/export-md",
     "yusufkaraaslan/Skill_Seekers",
     "zanwei/design-dna",
     "zebbern/claude-code-guide",
@@ -314,36 +314,24 @@
   ],
   "skills": [
     {
-      "repo": "ComPDFKit/compdf-skills",
-      "path": "compdf-skills/SKILL.md"
-    },
-    {
       "repo": "OutlineDriven/odin-claude-plugin",
-      "path": "skills/update-todos/SKILL.md"
+      "path": "skills/wayfinder/SKILL.md"
     },
     {
-      "repo": "OutlineDriven/odin-claude-plugin",
-      "path": "skills/propose-issue/SKILL.md"
+      "repo": "bitjaru/styleseed",
+      "path": "engine/.claude/skills/ss-resolve/SKILL.md"
     },
     {
-      "repo": "OutlineDriven/odin-claude-plugin",
-      "path": "skills/sophisticate-todos/SKILL.md"
+      "repo": "motherduckdb/agent-skills",
+      "path": "skills/motherduck-design-dive/SKILL.md"
     },
     {
-      "repo": "dream-num/skills",
-      "path": "skills/univer-workspace-cli/SKILL.md"
+      "repo": "motherduckdb/agent-skills",
+      "path": "plugins/motherduck-skills/skills/motherduck-design-dive/SKILL.md"
     },
     {
-      "repo": "mohitagw15856/pm-claude-skills",
-      "path": "skills/clone-brief/SKILL.md"
-    },
-    {
-      "repo": "mohitagw15856/pm-claude-skills",
-      "path": "skills/rules-lawyer/SKILL.md"
-    },
-    {
-      "repo": "mxyhi/ok-skills",
-      "path": "ax/SKILL.md"
+      "repo": "motherduckdb/agent-skills",
+      "path": "plugins/motherduck-skills-claude/skills/motherduck-design-dive/SKILL.md"
     }
   ]
 }
