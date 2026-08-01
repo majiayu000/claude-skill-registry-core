@@ -611,7 +611,10 @@ def build_search_index(
         except Exception:
             pass
 
-    indexed_skill_count_scan_shape = len(skills)
+    # The scan-shaped public set is the stable-key winner set published by the
+    # search and category artifacts. Keep the pre-dedup scan size in the
+    # explicit raw archive counters and search-index-lite.json.raw_count.
+    indexed_skill_count_scan_shape = len(search_index["s"])
     stats = {
         "schema_version": 1,
         "updated_at": utc_now_isoformat(),

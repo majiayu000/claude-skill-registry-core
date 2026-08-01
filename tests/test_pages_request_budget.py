@@ -406,7 +406,8 @@ def test_generated_full_index_uses_lite_stable_key_winners(tmp_path):
         key: category_index["categories"][0][key] for key in ("name", "code", "count")
     } == {"name": "development", "code": "dev", "count": 1}
     assert category_manifest["count"] == 1
-    assert stats["indexed_skill_count_scan_shape"] == 2
+    assert stats["indexed_skill_count_scan_shape"] == manifest["total_count"] == 1
+    assert lite["raw_count"] == len(duplicate_skills) == 2
     assert stats["lite_index_count"] == manifest["total_count"]
     assert sum(item["count"] for item in stats["category_counts"]) == manifest["total_count"]
 
