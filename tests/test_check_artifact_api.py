@@ -130,6 +130,66 @@ def test_production_writers_generate_valid_v1_fixture(tmp_path):
     }
 
 
+def test_production_writers_keep_raw_duplicate_count_out_of_same_set_totals(tmp_path):
+    docs = build_generated_fixture(tmp_path)
+    duplicate_skills = [
+        {
+            "name": "Lower-ranked duplicate",
+            "description": "short",
+            "repo": "owner/alpha",
+            "path": "skills/alpha/SKILL.md",
+            "branch": "main",
+            "category": "other",
+            "tags": ["duplicate"],
+            "stars": 1,
+            "install": "owner/alpha/skills/alpha/SKILL.md",
+            "source": "test",
+        },
+        {
+            "name": "alpha",
+            "description": "Alpha skill",
+            "repo": "owner/alpha",
+            "path": "skills/alpha/SKILL.md",
+            "branch": "main",
+            "category": "development",
+            "tags": ["demo"],
+            "stars": 2,
+            "install": "owner/alpha/skills/alpha/SKILL.md",
+            "source": "test",
+        },
+        {
+            "name": "beta",
+            "description": "Beta skill",
+            "repo": "owner/beta",
+            "path": "skills/beta/SKILL.md",
+            "branch": "main",
+            "category": "testing",
+            "tags": ["demo"],
+            "stars": 1,
+            "install": "owner/beta/skills/beta/SKILL.md",
+            "source": "test",
+        },
+    ]
+    build_search_index.build_search_index(
+        duplicate_skills,
+        docs,
+        source_name="fixture with duplicate stable key",
+        archive_skill_md_count_raw=len(duplicate_skills),
+        archive_metadata_count_raw=len(duplicate_skills),
+        registry_skill_count_dedup=2,
+    )
+
+    report = check_artifact_api.validate_artifact_api(tmp_path, docs)
+    stats = _read(docs / "stats.json")
+    lite = _read(docs / "search-index-lite.json")
+
+    assert report.errors == []
+    assert report.totals["scan"] == [2, 2, 2]
+    assert stats["indexed_skill_count_scan_shape"] == 2
+    assert stats["archive_skill_md_count_raw"] == 3
+    assert lite["raw_count"] == 3
+
+
 @pytest.mark.parametrize(
     ("path", "mutate", "expected"),
     [
