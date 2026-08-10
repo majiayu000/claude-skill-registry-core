@@ -29,7 +29,11 @@ from index_artifacts import write_category_artifacts, write_search_artifacts, wr
 from plugin_index import build_plugins_index, load_plugins_with_fallback
 from rebuild_registry import safe_write_json
 from search_sources import (
+    asset_ranking_penalty,
     count_named_files,
+    has_install_location,
+    infer_compatible_agents,
+    infer_install_status,
     load_from_registry,
     load_registry_count,
     scan_skills_v2,
@@ -65,32 +69,6 @@ def get_stable_id(install: str, branch: str) -> str:
     key = f"{install}|{branch or 'main'}".encode("utf-8")
     digest = hashlib.sha256(key).digest()
     return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=").lower()
-
-
-def is_root_mounted_path(path: str) -> bool:
-    """Empty or '.' path means SKILL.md lives at the repo root."""
-    if path is None:
-        return True
-    stripped = str(path).strip()
-    return stripped == "" or stripped == "."
-
-
-def has_install_location(path: str) -> bool:
-    """True when path identifies a real install location (subdir or repo root)."""
-    return bool(path) or is_root_mounted_path(path)
-
-
-def infer_install_status(repo: str, path: str, install: str) -> str:
-    """Classify whether the install path is clearly usable from registry metadata."""
-    if not install:
-        return "broken"
-    if install.startswith("local/"):
-        return "unknown"
-    if repo and has_install_location(path):
-        return "known_good"
-    if repo:
-        return "unknown"
-    return "risky"
 
 
 def infer_security_status(skill: Dict[str, Any]) -> str:
@@ -163,31 +141,6 @@ def load_security_report_decisions(
         )
 
     return decisions, payload
-
-
-def infer_compatible_agents(skill: Dict[str, Any]) -> List[str]:
-    """Infer a conservative compatible-agent hint from metadata and path."""
-    haystack = " ".join(
-        str(part)
-        for part in [
-            skill.get("name", ""),
-            skill.get("description", ""),
-            skill.get("repo", ""),
-            skill.get("path", ""),
-            " ".join(skill.get("tags", []) or []),
-        ]
-        if part
-    ).lower()
-    agents = []
-    if ".claude/" in haystack or "/skills/" in haystack or "claude" in haystack:
-        agents.append("Claude Code")
-    if "codex" in haystack:
-        agents.append("Codex CLI")
-    if "gemini" in haystack:
-        agents.append("Gemini CLI")
-    if "cursor" in haystack:
-        agents.append("Cursor")
-    return agents[:5]
 
 
 def score_skill_quality(
@@ -305,6 +258,16 @@ def build_search_index(
         quality_score = quality["quality_score"]
         quality_grade = quality["quality_grade"]
         trust_score = score_skill_trust(repo, path, install_status, security_status, stars)
+        asset_penalty = asset_ranking_penalty(skill)
+        asset_fields = {
+            key: skill[key]
+            for key in (
+                "asset_state", "asset_liveness", "bundled_file_count",
+                "github_commit_sha", "assets_verified_at",
+                "assets_liveness_checked_at", "assets_liveness_sha",
+            )
+            if key in skill
+        }
 
         # Minimal record
         mini_record = {
@@ -315,6 +278,8 @@ def build_search_index(
             "r": stars,
             "i": install,
             "b": branch,  # branch for GitHub URL
+            **({"a": skill["asset_state"]} if "asset_state" in skill else {}),
+            **({"l": skill["asset_liveness"]} if "asset_liveness" in skill else {}),
         }
         # Full record
         full_record = {
@@ -336,6 +301,7 @@ def build_search_index(
             "install_status": install_status,
             "trust_score": trust_score,
             "compatible_agents": compatible_agents,
+            **asset_fields,
         }
 
         lite_record = {
@@ -357,6 +323,8 @@ def build_search_index(
             "quality_score": quality_score,
             "trust_score": trust_score,
             "compatible_agents": compatible_agents,
+            **asset_fields,
+            "_asset_ranking_penalty": asset_penalty,
             "_description_length": len(description),
         }
         dedupe_key = f"{install}|{branch}"
@@ -365,6 +333,7 @@ def build_search_index(
         candidate_rank = (
             stars,
             quality_score,
+            -asset_penalty,
             len(description),
             json.dumps(
                 full_record,
@@ -376,6 +345,7 @@ def build_search_index(
         existing_rank = (
             int(existing.get("stars", 0) or 0),
             int(existing.get("quality_score", 0) or 0),
+            -float(existing.get("_asset_ranking_penalty", 0.1)),
             int(existing.get("_description_length", 0) or 0),
             json.dumps(
                 existing_records["full"],
@@ -417,10 +387,14 @@ def build_search_index(
                 "stars": stars,
                 "quality_score": quality_score,
                 "trust_score": trust_score,
-                "recommended_score": round(
-                    quality_score * 0.45 + trust_score * 0.30 + min(100, stars**0.5) * 0.25,
+                "asset_ranking_penalty": asset_penalty,
+                "recommended_score": max(0, round(
+                    quality_score * 0.45
+                    + trust_score * 0.30
+                    + min(100, stars**0.5) * 0.25
+                    - asset_penalty,
                     2,
-                ),
+                )),
             }
 
     # Every published search/category view must use the same stable-key winners
@@ -437,14 +411,24 @@ def build_search_index(
         search_index["s"].append(records["mini"])
     search_index["t"] = len(search_index["s"])
 
-    # Sort by stars
-    search_index["s"].sort(key=lambda x: x.get("r", 0), reverse=True)
-    featured_skills.sort(key=lambda x: x.get("stars", 0), reverse=True)
+    # Preserve popularity ordering while breaking otherwise equal ranks by live assets.
+    search_index["s"].sort(key=lambda x: (
+        -x.get("r", 0), asset_ranking_penalty({
+            "asset_state": x.get("a"), "asset_liveness": x.get("l"),
+        }), x.get("i", ""), x.get("n", ""),
+    ))
+    featured_skills.sort(
+        key=lambda x: (
+            -x.get("stars", 0), asset_ranking_penalty(x),
+            x.get("install", ""), x.get("name", ""),
+        )
+    )
     featured_skills = featured_skills[:100]
     all_lite_skills = sorted(
         (records["lite"] for records in records_by_key.values()),
         key=lambda x: (
             x.get("quality_score", 0),
+            -x.get("_asset_ranking_penalty", 0.1),
             x.get("trust_score", 0),
             x.get("stars", 0),
         ),
@@ -601,6 +585,16 @@ def build_search_index(
     official_skill_count = sum(
         category["count"] for category in category_counts if category["code"] == "off"
     )
+    asset_state_counts = Counter(
+        record["asset_state"]
+        for records in records_by_key.values()
+        if "asset_state" in (record := records["full"])
+    )
+    asset_liveness_counts = Counter(
+        record["asset_liveness"]
+        for records in records_by_key.values()
+        if "asset_liveness" in (record := records["full"])
+    )
 
     plugins_count_path = output_dir / "plugins.json"
     plugin_count = 0
@@ -631,6 +625,8 @@ def build_search_index(
             {"repo": repo, "count": count} for repo, count in repo_counts.most_common(10)
         ],
         "featured_count": len(featured_skills),
+        "asset_state_counts": dict(sorted(asset_state_counts.items())),
+        "asset_liveness_counts": dict(sorted(asset_liveness_counts.items())),
         "index_size_bytes": search_artifacts.index_size_bytes,
         "index_size_gzip_bytes": search_artifacts.index_size_gzip_bytes,
         "search_shard_count": search_artifacts.shard_count,

@@ -25,9 +25,16 @@ from build_search_index import (  # noqa: E402
     build_search_index,
     has_install_location,
     infer_install_status,
-    is_root_mounted_path,
     score_skill_quality,
     score_skill_trust,
+)
+from rebuild_registry import scan_skills as scan_registry_skills  # noqa: E402
+from search_sources import (  # noqa: E402
+    asset_ranking_penalty,
+    is_root_mounted_path,
+    load_from_registry,
+    scan_skills_v2,
+    verified_asset_fields,
 )
 
 
@@ -373,3 +380,219 @@ def test_build_emits_complete_category_taxonomy_sidecar(tmp_path):
     assert len({item["slug"] for item in sidecar["categories"]}) == 40
     assert len({item["code"] for item in sidecar["categories"]}) == 40
     assert len([item for item in sidecar["categories"] if not item["parent"]]) == 12
+
+
+def test_registry_and_search_publish_only_locally_validated_asset_facets(tmp_path):
+    skills_dir = tmp_path / "skills"
+    skill_dir = skills_dir / "development" / "asset-demo"
+    (skill_dir / "scripts").mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Asset demo", encoding="utf-8")
+    support_file = skill_dir / "scripts" / "run.py"
+    support_file.write_text("print('ok')", encoding="utf-8")
+    metadata = {
+        "name": "asset-demo",
+        "repo": "acme/assets",
+        "path": "skills/asset-demo/SKILL.md",
+        "github_branch": "main",
+        "category": "development",
+        "archive_mode": "directory",
+        "bundled_files": ["scripts/run.py"],
+        "github_commit_sha": "a" * 40,
+        "assets_verified_at": "2026-08-01T00:00:00Z",
+        "asset_liveness": "live",
+        "assets_liveness_checked_at": "2026-08-11T00:00:00Z",
+        "assets_liveness_sha": "b" * 40,
+    }
+    (skill_dir / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+
+    [search_record] = scan_skills_v2(skills_dir)
+    [registry_record] = scan_registry_skills(skills_dir)
+    expected = {
+        "asset_state": "verified",
+        "asset_liveness": "live",
+        "bundled_file_count": 1,
+        "github_commit_sha": "a" * 40,
+        "assets_verified_at": "2026-08-01T00:00:00Z",
+        "assets_liveness_checked_at": "2026-08-11T00:00:00Z",
+        "assets_liveness_sha": "b" * 40,
+    }
+    assert {key: search_record[key] for key in expected} == expected
+    assert {key: registry_record[key] for key in expected} == expected
+
+    support_file.unlink()
+    [search_record] = scan_skills_v2(skills_dir)
+    [registry_record] = scan_registry_skills(skills_dir)
+    for record in (search_record, registry_record):
+        assert "asset_state" not in record
+        assert "asset_liveness" not in record
+
+
+def test_live_asset_facets_win_equal_search_ranks_by_downranking_only(tmp_path):
+    plain = _skill(
+        name="plain",
+        repo="acme/plain",
+        path="skills/demo/SKILL.md",
+        install="acme/plain/skills/demo/SKILL.md",
+        branch="main",
+        stars=10,
+    )
+    verified_live = _skill(
+        name="verified-live",
+        repo="acme/live",
+        path="skills/demo/SKILL.md",
+        install="acme/live/skills/demo/SKILL.md",
+        branch="main",
+        stars=10,
+        asset_state="verified",
+        asset_liveness="live",
+        bundled_file_count=1,
+        github_commit_sha="a" * 40,
+        assets_verified_at="2026-08-01T00:00:00Z",
+        assets_liveness_checked_at="2026-08-11T00:00:00Z",
+        assets_liveness_sha="b" * 40,
+    )
+    output_dir = tmp_path / "docs"
+    stats = build_search_index([plain, verified_live], output_dir)
+
+    lite = json.loads((output_dir / "search-index-lite.json").read_text())
+    assert [skill["name"] for skill in lite["skills"]] == ["verified-live", "plain"]
+    assert lite["skills"][0]["asset_state"] == "verified"
+    assert lite["skills"][0]["asset_liveness"] == "live"
+    assert "asset_state" not in lite["skills"][1]
+
+    search_manifest = json.loads((output_dir / "search-index-manifest.json").read_text())
+    search_shard = json.loads((output_dir / search_manifest["shards"][0]["path"]).read_text())
+    assert search_shard["s"][0]["a"] == "verified"
+    assert search_shard["s"][0]["l"] == "live"
+    assert "a" not in search_shard["s"][1]
+
+    ranking_manifest = json.loads((output_dir / "ranking-index-manifest.json").read_text())
+    ranking_shard = json.loads((output_dir / ranking_manifest["shards"][0]["path"]).read_text())
+    by_install = {record["install"]: record for record in ranking_shard["records"]}
+    live_rank = by_install[verified_live["install"]]
+    plain_rank = by_install[plain["install"]]
+    assert live_rank["asset_ranking_penalty"] == 0
+    assert plain_rank["asset_ranking_penalty"] == 0.1
+    assert live_rank["recommended_score"] > plain_rank["recommended_score"]
+    assert stats["asset_state_counts"] == {"verified": 1}
+    assert stats["asset_liveness_counts"] == {"live": 1}
+    featured = json.loads((output_dir / "featured.json").read_text())
+    assert [skill["name"] for skill in featured["skills"]] == ["verified-live", "plain"]
+
+
+def test_asset_ranking_penalties_are_downrank_only():
+    assert asset_ranking_penalty({"asset_state": "verified", "asset_liveness": "live"}) == 0
+    assert asset_ranking_penalty({"asset_state": "verified"}) == 0.1
+    assert asset_ranking_penalty({"asset_state": "verified", "asset_liveness": "partial"}) == 0.25
+    assert asset_ranking_penalty({"asset_state": "verified", "asset_liveness": "moved"}) == 0.5
+    assert asset_ranking_penalty({"asset_state": "verified", "asset_liveness": "gone"}) == 0.75
+    assert asset_ranking_penalty({}) == 0.1
+
+
+def test_verified_asset_fields_omit_malformed_claims_and_incomplete_liveness(tmp_path):
+    skill_dir = tmp_path / "skill"
+    (skill_dir / "scripts").mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("body", encoding="utf-8")
+    (skill_dir / "scripts/run.py").write_text("asset", encoding="utf-8")
+    base = {
+        "archive_mode": "directory",
+        "bundled_files": ["scripts/run.py"],
+        "github_commit_sha": "a" * 40,
+        "assets_verified_at": "2026-08-01T00:00:00Z",
+    }
+    invalid_changes = [
+        {"archive_mode": "skill-md"},
+        {"bundled_files": []},
+        {"bundled_files": [" scripts/run.py"]},
+        {"bundled_files": ["scripts\\run.py"]},
+        {"bundled_files": ["../run.py"]},
+        {"bundled_files": ["/run.py"]},
+        {"bundled_files": ["SKILL.md"]},
+        {"bundled_files": ["scripts/run.py", "scripts/run.py"]},
+        {"github_commit_sha": "bad"},
+        {"assets_verified_at": ""},
+    ]
+    for change in invalid_changes:
+        assert verified_asset_fields({**base, **change}, skill_dir, tmp_path) == {}
+
+    verified = verified_asset_fields({**base, "asset_liveness": "live"}, skill_dir, tmp_path)
+    assert verified["asset_state"] == "verified"
+    assert "asset_liveness" not in verified
+    verified = verified_asset_fields(
+        {
+            **base,
+            "asset_liveness": "gone",
+            "assets_liveness_checked_at": "2026-08-11T00:00:00Z",
+        },
+        skill_dir,
+        tmp_path,
+    )
+    assert verified["asset_liveness"] == "gone"
+    assert "assets_liveness_sha" not in verified
+    verified = verified_asset_fields(
+        {
+            **base,
+            "asset_liveness": "live",
+            "assets_liveness_checked_at": "2026-08-11T00:00:00Z",
+            "assets_liveness_sha": "bad",
+        },
+        skill_dir,
+        tmp_path,
+    )
+    assert "asset_liveness" not in verified
+
+
+def test_verified_asset_fields_reject_symlinks(tmp_path):
+    skill_dir = tmp_path / "skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text("body", encoding="utf-8")
+    external = tmp_path / "external.py"
+    external.write_text("asset", encoding="utf-8")
+    (skill_dir / "run.py").symlink_to(external)
+    metadata = {
+        "archive_mode": "directory",
+        "bundled_files": ["run.py"],
+        "github_commit_sha": "a" * 40,
+        "assets_verified_at": "2026-08-01T00:00:00Z",
+    }
+    assert verified_asset_fields(metadata, skill_dir, tmp_path) == {}
+
+    external_skill = tmp_path / "external-skill"
+    external_skill.mkdir()
+    (external_skill / "SKILL.md").write_text("body", encoding="utf-8")
+    (external_skill / "run.py").write_text("asset", encoding="utf-8")
+    linked_skill = tmp_path / "linked-skill"
+    linked_skill.symlink_to(external_skill, target_is_directory=True)
+    assert verified_asset_fields(metadata, linked_skill, tmp_path) == {}
+    linked_root = tmp_path / "linked-root"
+    linked_root.symlink_to(tmp_path, target_is_directory=True)
+    assert verified_asset_fields(metadata, linked_root / "skill", linked_root) == {}
+
+
+def test_registry_fallback_preserves_validated_asset_fields(tmp_path):
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text(json.dumps({"skills": [{
+        "name": "verified-live",
+        "repo": "acme/live",
+        "path": "skills/demo/SKILL.md",
+        "branch": "main",
+        "category": "development",
+        "asset_state": "verified",
+        "asset_liveness": "live",
+        "bundled_file_count": 1,
+        "github_commit_sha": "a" * 40,
+        "assets_verified_at": "2026-08-01T00:00:00Z",
+        "assets_liveness_checked_at": "2026-08-11T00:00:00Z",
+        "assets_liveness_sha": "b" * 40,
+    }]}), encoding="utf-8")
+    [loaded] = load_from_registry(registry_path)
+    assert loaded["asset_state"] == "verified"
+    assert loaded["asset_liveness"] == "live"
+
+    output_dir = tmp_path / "docs"
+    build_search_index([loaded], output_dir)
+    lite = json.loads((output_dir / "search-index-lite.json").read_text())
+    assert lite["skills"][0]["asset_state"] == "verified"
+    manifest = json.loads((output_dir / "search-index-manifest.json").read_text())
+    shard = json.loads((output_dir / manifest["shards"][0]["path"]).read_text())
+    assert shard["s"][0]["a"] == "verified"

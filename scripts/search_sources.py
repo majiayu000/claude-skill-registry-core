@@ -3,8 +3,9 @@
 
 import json
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional
+import re
+from pathlib import Path, PurePosixPath
+from typing import Any, Dict, List, Optional
 
 from category_taxonomy import resolve_category
 from utils import (
@@ -15,6 +16,150 @@ from utils import (
 )
 
 logger = logging.getLogger(__name__)
+SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
+
+
+def is_root_mounted_path(path: str) -> bool:
+    """Empty or '.' path means SKILL.md lives at the repo root."""
+    if path is None:
+        return True
+    stripped = str(path).strip()
+    return stripped == "" or stripped == "."
+
+
+def has_install_location(path: str) -> bool:
+    """True when path identifies a real install location (subdir or repo root)."""
+    return bool(path) or is_root_mounted_path(path)
+
+
+def infer_install_status(repo: str, path: str, install: str) -> str:
+    """Classify whether the registry metadata provides a usable install path."""
+    if not install:
+        return "broken"
+    if install.startswith("local/"):
+        return "unknown"
+    if repo and has_install_location(path):
+        return "known_good"
+    if repo:
+        return "unknown"
+    return "risky"
+
+
+def infer_compatible_agents(skill: Dict[str, Any]) -> List[str]:
+    """Infer a conservative compatible-agent hint from metadata and path."""
+    haystack = " ".join(
+        str(part)
+        for part in [
+            skill.get("name", ""),
+            skill.get("description", ""),
+            skill.get("repo", ""),
+            skill.get("path", ""),
+            " ".join(skill.get("tags", []) or []),
+        ]
+        if part
+    ).lower()
+    agents = []
+    if ".claude/" in haystack or "/skills/" in haystack or "claude" in haystack:
+        agents.append("Claude Code")
+    if "codex" in haystack:
+        agents.append("Codex CLI")
+    if "gemini" in haystack:
+        agents.append("Gemini CLI")
+    if "cursor" in haystack:
+        agents.append("Cursor")
+    return agents[:5]
+
+
+def asset_ranking_penalty(skill: Dict[str, Any]) -> float:
+    """Return a small down-rank only penalty for non-live asset evidence."""
+    if skill.get("asset_state") == "verified":
+        return {"live": 0.0, "partial": 0.25, "moved": 0.5, "gone": 0.75}.get(
+            skill.get("asset_liveness"), 0.1
+        )
+    return 0.1
+
+
+def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -> dict:
+    """Return publishable asset facets only when canonical local evidence validates."""
+    root = archive_root.absolute()
+    candidate = skill_dir.absolute()
+    if root.is_symlink():
+        return {}
+    try:
+        relative = candidate.relative_to(root)
+        candidate.resolve().relative_to(root.resolve())
+    except ValueError:
+        return {}
+    current = root
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            return {}
+    if any((skill_dir / filename).is_symlink() for filename in ("SKILL.md", "metadata.json")):
+        return {}
+    declared = metadata.get("bundled_files")
+    pinned_sha = metadata.get("github_commit_sha")
+    verified_at = metadata.get("assets_verified_at")
+    if (
+        metadata.get("archive_mode") != "directory"
+        or not isinstance(declared, list)
+        or not declared
+        or not isinstance(pinned_sha, str)
+        or not SHA_PATTERN.fullmatch(pinned_sha)
+        or not isinstance(verified_at, str)
+        or not verified_at.strip()
+    ):
+        return {}
+
+    normalized = []
+    for value in declared:
+        if not isinstance(value, str) or not value or value != value.strip() or "\\" in value:
+            return {}
+        path = PurePosixPath(value)
+        if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+            return {}
+        if value in {"SKILL.md", "metadata.json"} or value in normalized:
+            return {}
+        normalized.append(value)
+    try:
+        actual = []
+        for path in skill_dir.rglob("*"):
+            relative = path.relative_to(skill_dir).as_posix()
+            if path.is_symlink():
+                return {}
+            if path.is_file() and relative not in {"SKILL.md", "metadata.json"}:
+                actual.append(relative)
+    except OSError:
+        return {}
+    if sorted(normalized) != sorted(actual):
+        return {}
+
+    fields = {
+        "asset_state": "verified",
+        "bundled_file_count": len(normalized),
+        "github_commit_sha": pinned_sha.lower(),
+        "assets_verified_at": verified_at,
+    }
+    liveness = metadata.get("asset_liveness")
+    checked_at = metadata.get("assets_liveness_checked_at")
+    liveness_sha = metadata.get("assets_liveness_sha")
+    if liveness not in {"live", "partial", "moved", "gone"}:
+        return fields
+    if not isinstance(checked_at, str) or not checked_at.strip():
+        return fields
+    if liveness_sha is not None and (
+        not isinstance(liveness_sha, str) or not SHA_PATTERN.fullmatch(liveness_sha)
+    ):
+        return fields
+    if liveness in {"live", "partial"} and liveness_sha is None:
+        return fields
+    fields.update({
+        "asset_liveness": liveness,
+        "assets_liveness_checked_at": checked_at,
+    })
+    if liveness_sha is not None:
+        fields["assets_liveness_sha"] = liveness_sha.lower()
+    return fields
 
 
 def scan_skills_v2(skills_dir: Path) -> List[Dict]:
@@ -88,6 +233,7 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
             "stars": stars,
             "source": metadata.get("source", "downloaded"),
             "install": install,
+            **verified_asset_fields(metadata, skill_dir, skills_dir),
         }
 
         skills.append(skill_entry)

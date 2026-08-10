@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from plugin_index import load_plugins_from_source
+from search_sources import verified_asset_fields
 from utils import (
     extract_description,
     is_declared_bundled_skill_file,
@@ -313,6 +314,7 @@ def scan_skills(skills_dir: Path) -> list:
             "tags": metadata.get("tags", []),
             "stars": metadata.get("stars", 0),
             "source": metadata.get("source", "local"),
+            **verified_asset_fields(metadata, skill_dir, skills_dir),
         }
 
         for key in ("author", "source_url", "license", "distribution", "permission_note"):
