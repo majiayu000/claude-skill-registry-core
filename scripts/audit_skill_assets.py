@@ -4,20 +4,36 @@
 Usage:
   python scripts/audit_skill_assets.py census <data_repo_root>
   python scripts/audit_skill_assets.py targets <data_repo_root> [min_stars]
+  python scripts/audit_skill_assets.py current-state <data_repo_root> [min_stars]
+  python scripts/audit_skill_assets.py backfill-targets <data_repo_root> [min_stars]
 
 `census` prints bucket statistics (EXEC / REF / BARE) as JSON.
 `targets` prints JSONL of deduped EXEC candidates at or above min_stars
 (default 100) for upstream verification by verify_upstream_assets.py.
+`current-state` reports what is actually archived and how it compares with
+metadata. `backfill-targets` emits only deterministic, exact-path candidates
+that claim support files but currently archive none.
 """
 from __future__ import annotations
 
 import collections
 import json
 import os
+import re
+import stat
 import sys
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from skill_asset_audit import classify_skill_text, iter_archived_skills
+from skill_asset_audit import (
+    classify_files,
+    classify_skill_text,
+    iter_archived_skills,
+    verdict_from_counts,
+)
+from utils import build_skill_key, is_declared_bundled_skill_file
+
+REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
 def _read_skill(dirpath: str) -> str:
@@ -73,14 +89,203 @@ def run_targets(root: str, min_stars: int) -> None:
         }))
 
 
+def _canonical_source(repo_value: object, path_value: object) -> tuple[str, str, str]:
+    repo = repo_value.strip() if isinstance(repo_value, str) else ""
+    if not REPO_PATTERN.fullmatch(repo):
+        return repo, "", "invalid_repo"
+    if not isinstance(path_value, str) or not path_value.strip():
+        return repo, "", "missing_source_path"
+
+    source_path = path_value.strip().replace("\\", "/")
+    if source_path.startswith("/") or re.match(r"^[A-Za-z]:/", source_path):
+        return repo, source_path, "absolute_source_path"
+    parts = source_path.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        return repo, source_path, "invalid_source_path"
+    if parts[-1] != "SKILL.md":
+        return repo, source_path, "source_path_not_skill_md"
+    return repo, "/".join(parts), ""
+
+
+def _source_dir(source_path: str) -> str:
+    parent = PurePosixPath(source_path).parent.as_posix()
+    return "" if parent == "." else parent
+
+
+def _actual_bundled_files(dirpath: str) -> list[str]:
+    root = Path(dirpath)
+    files = []
+    for path in root.rglob("*"):
+        relative = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            raise ValueError(f"symbolic link is not allowed in archive skill: {relative}")
+        try:
+            mode = path.lstat().st_mode
+        except OSError as exc:
+            raise ValueError(f"unable to inspect archive support path {relative}: {exc}") from exc
+        if not stat.S_ISREG(mode):
+            continue
+        if relative in {"SKILL.md", "metadata.json"}:
+            continue
+        files.append(relative)
+    return sorted(files)
+
+
+def _local_verdict(paths: list[str]) -> str:
+    counts = classify_files(paths)
+    counts["doc"] += sum(1 for path in paths if path.lower().endswith("/skill.md"))
+    return verdict_from_counts(counts)
+
+
+def _parse_stars(value: object, metadata_path: Path) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"invalid stars in {metadata_path}: {value!r}")
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"invalid stars in {metadata_path}: {value!r}") from exc
+
+
+def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
+    archive_root = Path(root).resolve()
+    claim_counts: collections.Counter = collections.Counter()
+    local_verdict_counts: collections.Counter = collections.Counter()
+    asset_state_counts: collections.Counter = collections.Counter()
+    archive_mode_counts: collections.Counter = collections.Counter()
+    key_counts: collections.Counter = collections.Counter()
+    candidates = []
+    total_skills = 0
+    actual_bundled_file_count = 0
+    metadata_mismatch_count = 0
+
+    for dirpath, raw_meta in iter_archived_skills(root):
+        skill_dir = Path(dirpath).resolve()
+        skill_md = skill_dir / "SKILL.md"
+        if is_declared_bundled_skill_file(skill_md, archive_root):
+            continue
+
+        metadata_path = skill_dir / "metadata.json"
+        if metadata_path.exists() and not isinstance(raw_meta, dict):
+            raise ValueError(f"invalid metadata object: {metadata_path}")
+        metadata = raw_meta if isinstance(raw_meta, dict) else {}
+        relative_dir = skill_dir.relative_to(archive_root).as_posix()
+        path_parts = PurePosixPath(relative_dir).parts
+        category = str(metadata.get("category") or (path_parts[0] if path_parts else "other"))
+        name = str(metadata.get("name") or (path_parts[-1] if path_parts else skill_dir.name))
+        raw_source_path = metadata.get("path") or metadata.get("github_path") or ""
+        repo, source_path, source_error = _canonical_source(
+            metadata.get("repo"), raw_source_path
+        )
+        stable_key = (
+            f"{repo}:{source_path}"
+            if not source_error
+            else build_skill_key(
+                repo,
+                str(raw_source_path),
+                name=name,
+                category=category,
+            )
+        )
+        if stable_key:
+            key_counts[stable_key] += 1
+
+        actual_files = _actual_bundled_files(dirpath)
+        declared_raw = metadata.get("bundled_files")
+        declared_files = (
+            sorted(
+                str(path).strip().replace("\\", "/").strip("/")
+                for path in declared_raw
+                if isinstance(path, str) and path.strip()
+            )
+            if isinstance(declared_raw, list)
+            else []
+        )
+        actual_archive_mode = "directory" if actual_files else "skill-md"
+        declared_archive_mode = str(metadata.get("archive_mode") or "")
+        claim = classify_skill_text(_read_skill(dirpath))
+        local_verdict = _local_verdict(actual_files)
+        if actual_files:
+            asset_state = "archived"
+        elif claim != "BARE":
+            asset_state = "missing_claimed_assets"
+        else:
+            asset_state = "no_assets_claimed"
+
+        total_skills += 1
+        actual_bundled_file_count += len(actual_files)
+        claim_counts[claim] += 1
+        local_verdict_counts[local_verdict] += 1
+        asset_state_counts[asset_state] += 1
+        archive_mode_counts[actual_archive_mode] += 1
+        if declared_archive_mode != actual_archive_mode or declared_files != actual_files:
+            metadata_mismatch_count += 1
+
+        stars = _parse_stars(metadata.get("stars"), metadata_path)
+        if (
+            asset_state == "missing_claimed_assets"
+            and stars >= min_stars
+            and not source_error
+        ):
+            candidates.append({
+                "stable_key": stable_key,
+                "archive_path": relative_dir,
+                "repo": repo,
+                "source_path": source_path,
+                "dir": _source_dir(source_path),
+                "name": name,
+                "category": category,
+                "stars": stars,
+                "claim": claim,
+            })
+
+    if not total_skills:
+        raise SystemExit(f"no SKILL.md found under {root}")
+
+    ambiguous_keys = {key for key, count in key_counts.items() if count > 1}
+    targets = sorted(
+        (row for row in candidates if row["stable_key"] not in ambiguous_keys),
+        key=lambda row: (row["stable_key"], row["archive_path"]),
+    )
+    report = {
+        "schema_version": 1,
+        "total_skills": total_skills,
+        "claim_counts": dict(claim_counts),
+        "local_verdict_counts": dict(local_verdict_counts),
+        "asset_state_counts": dict(asset_state_counts),
+        "archive_mode_counts": dict(archive_mode_counts),
+        "actual_bundled_file_count": actual_bundled_file_count,
+        "metadata_mismatch_count": metadata_mismatch_count,
+        "ambiguous_stable_key_count": len(ambiguous_keys),
+        "backfill_candidate_count": len(targets),
+    }
+    return report, targets
+
+
+def build_backfill_targets(root: str, min_stars: int = 100) -> list[dict]:
+    _report, targets = _scan_inventory(root, min_stars)
+    return targets
+
+
+def run_current_state(root: str, min_stars: int = 100) -> dict:
+    report, _targets = _scan_inventory(root, min_stars)
+    return report
+
+
 def main() -> None:
-    if len(sys.argv) < 3 or sys.argv[1] not in ("census", "targets"):
+    modes = {"census", "targets", "current-state", "backfill-targets"}
+    if len(sys.argv) < 3 or sys.argv[1] not in modes:
         raise SystemExit(__doc__)
     mode, root = sys.argv[1], sys.argv[2]
+    min_stars = int(sys.argv[3]) if len(sys.argv) > 3 else 100
     if mode == "census":
         print(json.dumps(run_census(root), indent=2))
+    elif mode == "targets":
+        run_targets(root, min_stars)
+    elif mode == "current-state":
+        sys.stdout.write(json.dumps(run_current_state(root, min_stars), indent=2) + "\n")
     else:
-        run_targets(root, int(sys.argv[3]) if len(sys.argv) > 3 else 100)
+        for target in build_backfill_targets(root, min_stars):
+            sys.stdout.write(json.dumps(target) + "\n")
 
 
 if __name__ == "__main__":

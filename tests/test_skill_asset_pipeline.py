@@ -122,6 +122,220 @@ class TestTargets:
         assert capsys.readouterr().out == ""
 
 
+class TestCurrentStateInventory:
+    def test_reports_real_archive_state_and_metadata_drift(self, tmp_path):
+        root = tmp_path / "data"
+        archived = make_skill(
+            root,
+            "dev",
+            "archived",
+            "Run scripts/setup.py first.",
+            {
+                "stars": 500,
+                "repo": "acme/tools",
+                "path": "skills/archived/SKILL.md",
+                "name": "archived",
+                "category": "dev",
+                "archive_mode": "directory",
+                "bundled_files": ["scripts/setup.py"],
+            },
+        )
+        (archived / "scripts").mkdir()
+        (archived / "scripts" / "setup.py").write_text("print('ok')")
+        make_skill(
+            root,
+            "dev",
+            "missing",
+            "See references/guide.md.",
+            {
+                "stars": 300,
+                "repo": "acme/docs",
+                "path": "skills/missing/SKILL.md",
+                "name": "missing",
+                "category": "dev",
+                "archive_mode": "directory",
+                "bundled_files": ["references/guide.md"],
+            },
+        )
+        make_skill(
+            root,
+            "dev",
+            "plain",
+            "No local files are required.",
+            {
+                "stars": 1,
+                "repo": "acme/plain",
+                "path": "SKILL.md",
+                "name": "plain",
+                "category": "dev",
+                "archive_mode": "skill-md",
+                "bundled_files": [],
+            },
+        )
+
+        report = audit_skill_assets.run_current_state(str(root))
+
+        assert report == {
+            "schema_version": 1,
+            "total_skills": 3,
+            "claim_counts": {"EXEC": 1, "REF": 1, "BARE": 1},
+            "local_verdict_counts": {"EXEC": 1, "BARE": 2},
+            "asset_state_counts": {
+                "archived": 1,
+                "missing_claimed_assets": 1,
+                "no_assets_claimed": 1,
+            },
+            "archive_mode_counts": {"directory": 1, "skill-md": 2},
+            "actual_bundled_file_count": 1,
+            "metadata_mismatch_count": 1,
+            "ambiguous_stable_key_count": 0,
+            "backfill_candidate_count": 1,
+        }
+
+    def test_backfill_targets_are_exact_deterministic_and_fail_closed(self, tmp_path):
+        root = tmp_path / "data"
+        base_meta = {
+            "stars": 200,
+            "repo": "acme/tools",
+            "path": "skills/duplicate/SKILL.md",
+            "name": "duplicate",
+            "category": "dev",
+        }
+        make_skill(root, "a", "duplicate", "Run scripts/setup.py.", base_meta)
+        make_skill(root, "b", "duplicate", "Run scripts/setup.py.", base_meta)
+        make_skill(
+            root,
+            "dev",
+            "ready",
+            "Run scripts/build.py.",
+            {
+                "stars": 500,
+                "repo": "acme/ready",
+                "path": "skills/ready/SKILL.md",
+                "name": "ready",
+                "category": "dev",
+            },
+        )
+        make_skill(
+            root,
+            "dev",
+            "missing-path",
+            "Run scripts/build.py.",
+            {"stars": 900, "repo": "acme/no-path", "name": "missing-path"},
+        )
+
+        rows = audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
+
+        assert rows == [
+            {
+                "stable_key": "acme/ready:skills/ready/SKILL.md",
+                "archive_path": "dev/ready",
+                "repo": "acme/ready",
+                "source_path": "skills/ready/SKILL.md",
+                "dir": "skills/ready",
+                "name": "ready",
+                "category": "dev",
+                "stars": 500,
+                "claim": "EXEC",
+            }
+        ]
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=100)
+        assert report["ambiguous_stable_key_count"] == 1
+        assert report["backfill_candidate_count"] == 1
+
+    @pytest.mark.parametrize(
+        ("repo", "source_path", "error"),
+        [
+            ("not-a-repo", "skills/a/SKILL.md", "invalid_repo"),
+            ("acme/tools", "../outside/SKILL.md", "invalid_source_path"),
+            ("acme/tools", "/skills/a/SKILL.md", "absolute_source_path"),
+            ("acme/tools", "C:\\skills\\a\\SKILL.md", "absolute_source_path"),
+            ("acme/tools", "skills/a", "source_path_not_skill_md"),
+        ],
+    )
+    def test_rejects_non_exact_source_identity(self, repo, source_path, error):
+        assert audit_skill_assets._canonical_source(repo, source_path)[2] == error
+
+    def test_canonicalizes_backslashes_and_preserves_root_identity(self):
+        assert audit_skill_assets._canonical_source(
+            "acme/tools", "skills\\a\\SKILL.md"
+        ) == ("acme/tools", "skills/a/SKILL.md", "")
+        assert audit_skill_assets._canonical_source("acme/tools", "SKILL.md") == (
+            "acme/tools",
+            "SKILL.md",
+            "",
+        )
+
+    def test_nested_declared_skill_is_counted_only_as_support_file(self, tmp_path):
+        root = tmp_path / "data"
+        parent = make_skill(
+            root,
+            "dev",
+            "parent",
+            "See references/helper/SKILL.md.",
+            {
+                "repo": "acme/tools",
+                "path": "skills/parent/SKILL.md",
+                "name": "parent",
+                "category": "dev",
+                "archive_mode": "directory",
+                "bundled_files": ["references/helper/SKILL.md"],
+            },
+        )
+        helper = parent / "references" / "helper"
+        helper.mkdir(parents=True)
+        (helper / "SKILL.md").write_text("helper")
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=0)
+
+        assert report["total_skills"] == 1
+        assert report["actual_bundled_file_count"] == 1
+        assert report["local_verdict_counts"] == {"REF_ASSET": 1}
+
+    def test_rejects_symbolic_links(self, tmp_path):
+        root = tmp_path / "data"
+        skill = make_skill(
+            root,
+            "dev",
+            "linked",
+            "Run scripts/setup.py.",
+            {"repo": "acme/tools", "path": "skills/linked/SKILL.md"},
+        )
+        outside = tmp_path / "outside.py"
+        outside.write_text("print('outside')")
+        (skill / "linked.py").symlink_to(outside)
+
+        with pytest.raises(ValueError, match="symbolic link"):
+            audit_skill_assets.run_current_state(str(root))
+
+    @pytest.mark.parametrize("metadata_text", ["{broken", "[]"])
+    def test_rejects_invalid_metadata(self, tmp_path, metadata_text):
+        root = tmp_path / "data"
+        skill = make_skill(root, "dev", "broken", "body")
+        (skill / "metadata.json").write_text(metadata_text)
+
+        with pytest.raises(ValueError, match="invalid metadata object"):
+            audit_skill_assets.run_current_state(str(root))
+
+    def test_rejects_invalid_stars(self, tmp_path):
+        root = tmp_path / "data"
+        make_skill(
+            root,
+            "dev",
+            "broken",
+            "Run scripts/setup.py.",
+            {
+                "repo": "acme/tools",
+                "path": "skills/broken/SKILL.md",
+                "stars": "many",
+            },
+        )
+
+        with pytest.raises(ValueError, match="invalid stars"):
+            audit_skill_assets.run_current_state(str(root))
+
+
 class TestAuditMain:
     def test_census_mode(self, archive, monkeypatch, capsys):
         monkeypatch.setattr(sys, "argv", ["audit", "census", str(archive)])
@@ -132,6 +346,22 @@ class TestAuditMain:
         monkeypatch.setattr(sys, "argv", ["audit", "targets", str(archive), "1"])
         audit_skill_assets.main()
         assert len(capsys.readouterr().out.splitlines()) == 2
+
+    def test_current_state_mode(self, archive, monkeypatch, capsys):
+        monkeypatch.setattr(sys, "argv", ["audit", "current-state", str(archive), "100"])
+        audit_skill_assets.main()
+        report = json.loads(capsys.readouterr().out)
+        assert report["total_skills"] == 4
+        assert report["backfill_candidate_count"] == 2
+
+    def test_backfill_targets_mode(self, archive, monkeypatch, capsys):
+        monkeypatch.setattr(sys, "argv", ["audit", "backfill-targets", str(archive), "100"])
+        audit_skill_assets.main()
+        rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert [row["stable_key"] for row in rows] == [
+            "acme/docs:skills/with-docs/SKILL.md",
+            "acme/tools:skills/with-script/SKILL.md",
+        ]
 
     def test_bad_mode_exits(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["audit", "bogus", "/tmp"])
