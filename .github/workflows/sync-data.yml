@@ -587,6 +587,27 @@ jobs:
             --security-report security-report.json \
             --require-security-report
 
+      - name: Verify bundled asset liveness
+        if: steps.discovery.outputs.profile == 'full'
+        env:
+          GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/verify_upstream_assets.py \
+            --skills-dir skills \
+            --report asset-liveness-report.json \
+            --apply \
+            --max-decayed-percent 35 \
+            --max-error-percent 10 \
+            --min-targets 1
+
+      - name: Upload bundled asset liveness report
+        if: always() && steps.discovery.outputs.profile == 'full'
+        uses: actions/upload-artifact@v7
+        with:
+          name: asset-liveness-report
+          path: asset-liveness-report.json
+          if-no-files-found: error
+
       - name: Copy security report to docs
         run: |
           if [ -f security-report.json ]; then

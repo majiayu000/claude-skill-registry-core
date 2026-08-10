@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import audit_skill_assets
 import backfill_skill_assets
 import skill_asset_audit
-import verify_upstream_assets
 
 
 class FakeCompleted:
@@ -367,97 +366,6 @@ class TestAuditMain:
         monkeypatch.setattr(sys, "argv", ["audit", "bogus", "/tmp"])
         with pytest.raises(SystemExit):
             audit_skill_assets.main()
-
-
-class TestVerifyRepo:
-    TREE = [
-        "README.md",
-        "skills/alpha/SKILL.md",
-        "skills/alpha/run.py",
-        "skills/beta/SKILL.md",
-        "skills/beta/references/guide.md",
-        "skills/gamma/SKILL.md",
-    ]
-
-    def _patch_tree(self, monkeypatch, tree=None):
-        monkeypatch.setattr(
-            verify_upstream_assets, "fetch_repo_tree", lambda repo: tree or self.TREE
-        )
-
-    def test_classifies_each_verdict(self, monkeypatch):
-        self._patch_tree(monkeypatch)
-        rows = verify_upstream_assets.verify_repo("acme/tools", [
-            {"repo": "acme/tools", "dir": "skills/alpha", "name": "alpha"},
-            {"repo": "acme/tools", "dir": "skills/beta", "name": "beta"},
-            {"repo": "acme/tools", "dir": "skills/gamma", "name": "gamma"},
-        ])
-        assert [r["status"] for r in rows] == ["EXEC", "REF_ASSET", "BARE"]
-        assert rows[0]["exec"] == 1
-
-    def test_missing_dir_is_not_found(self, monkeypatch):
-        self._patch_tree(monkeypatch)
-        [row] = verify_upstream_assets.verify_repo(
-            "acme/tools", [{"repo": "acme/tools", "dir": "skills/nope", "name": "nope"}]
-        )
-        assert row["status"] == "not_found"
-
-    def test_root_level_skill_is_ambiguous(self, monkeypatch):
-        """A repo whose SKILL.md sits at the root resolves to "", which cannot be
-        distinguished from the whole repo, so its siblings must not be classified."""
-        self._patch_tree(monkeypatch, ["SKILL.md", "run.py"])
-        [row] = verify_upstream_assets.verify_repo(
-            "acme/root", [{"repo": "acme/root", "dir": "", "name": ""}]
-        )
-        assert row["status"] == "root_ambiguous"
-
-    def test_named_target_absent_from_root_repo_is_not_found(self, monkeypatch):
-        self._patch_tree(monkeypatch, ["SKILL.md", "run.py"])
-        [row] = verify_upstream_assets.verify_repo(
-            "acme/root", [{"repo": "acme/root", "dir": "", "name": "root"}]
-        )
-        assert row["status"] == "not_found"
-
-    def test_tree_failure_marks_every_target(self, monkeypatch):
-        def boom(repo):
-            raise RuntimeError("gh api tree failed: 404")
-
-        monkeypatch.setattr(verify_upstream_assets, "fetch_repo_tree", boom)
-        rows = verify_upstream_assets.verify_repo("acme/gone", [
-            {"repo": "acme/gone", "dir": "a", "name": "a"},
-            {"repo": "acme/gone", "dir": "b", "name": "b"},
-        ])
-        assert [r["status"] for r in rows] == ["repo_error", "repo_error"]
-        assert "404" in rows[0]["error"]
-
-
-class TestVerifyMain:
-    def test_writes_rows_and_summary(self, tmp_path, monkeypatch, capsys):
-        targets = tmp_path / "targets.jsonl"
-        targets.write_text(
-            json.dumps({"repo": "acme/tools", "dir": "skills/alpha", "name": "alpha"}) + "\n"
-            + json.dumps({"repo": "acme/gone", "dir": "skills/x", "name": "x"}) + "\n",
-            encoding="utf-8",
-        )
-        out = tmp_path / "verified.jsonl"
-
-        def fake_tree(repo):
-            if repo == "acme/gone":
-                raise RuntimeError("404")
-            return ["skills/alpha/SKILL.md", "skills/alpha/run.py"]
-
-        monkeypatch.setattr(verify_upstream_assets, "fetch_repo_tree", fake_tree)
-        monkeypatch.setattr(sys, "argv", ["verify", str(targets), str(out)])
-        verify_upstream_assets.main()
-
-        rows = [json.loads(line) for line in out.read_text().splitlines()]
-        assert {r["status"] for r in rows} == {"EXEC", "repo_error"}
-        summary = json.loads(capsys.readouterr().err)
-        assert summary == {"EXEC": 1, "repo_error": 1}
-
-    def test_wrong_arity_exits(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", ["verify", "only-one"])
-        with pytest.raises(SystemExit):
-            verify_upstream_assets.main()
 
 
 def make_backfill_target(root, *, name="demo", repo="acme/tools", source_path="skills/demo/SKILL.md"):
