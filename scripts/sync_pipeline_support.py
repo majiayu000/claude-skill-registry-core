@@ -203,6 +203,72 @@ def skill_source_dir(relative_path: str) -> str:
     return "" if parent == "." else parent
 
 
+def normalize_download_repo(repo: str) -> str:
+    """Normalize source repo values used by the downloader."""
+    repo = (repo or "").strip()
+    if repo.startswith("https://github.com/"):
+        repo = repo[len("https://github.com/"):]
+    repo = repo.split("/tree/")[0]
+    repo = repo.split("/blob/")[0]
+    return repo.rstrip("/")
+
+
+def normalize_repo_path(path: str, repo: str) -> str:
+    """Normalize a source path or GitHub blob/tree URL to a repo-relative path."""
+    path = (path or "").strip().replace("\\", "/").strip("/")
+    if not path:
+        return ""
+
+    if path.startswith("https://github.com/") and repo:
+        prefix = f"https://github.com/{repo}/"
+        if path.startswith(prefix):
+            rest = path[len(prefix):]
+            parts = rest.split("/", 2)
+            if len(parts) >= 3 and parts[0] in {"blob", "tree"}:
+                return parts[2].strip("/")
+
+    parts = path.split("/", 2)
+    if len(parts) >= 3 and parts[0] in {"blob", "tree"}:
+        return parts[2].strip("/")
+    return path
+
+
+def build_relative_candidates(path: str, name: str, normalized_name: str) -> list[str]:
+    """Build the ordered source path probes for ordinary acquisition."""
+    ordered = []
+    seen = set()
+
+    def add(candidate: str) -> None:
+        candidate = (candidate or "").strip().strip("/")
+        if not candidate or candidate in seen:
+            return
+        seen.add(candidate)
+        ordered.append(candidate)
+
+    if path:
+        if path.lower().endswith("skill.md"):
+            add(path)
+        else:
+            add(f"{path}/SKILL.md")
+            add(path)
+
+    name_variants = []
+    for raw_name in (name, normalized_name):
+        candidate = (raw_name or "").strip().strip("/")
+        if candidate and candidate not in name_variants:
+            name_variants.append(candidate)
+
+    for variant in name_variants:
+        add(f".claude/skills/{variant}/SKILL.md")
+        add(f".claude/{variant}/SKILL.md")
+        add(f"skills/{variant}/SKILL.md")
+        add(f"{variant}/SKILL.md")
+
+    add("SKILL.md")
+    add(".claude/SKILL.md")
+    return ordered
+
+
 def bundled_relative_path(source_dir: str, repo_path: str) -> str:
     """Return repo_path relative to source_dir using POSIX separators."""
     source_dir = (source_dir or "").strip().strip("/")

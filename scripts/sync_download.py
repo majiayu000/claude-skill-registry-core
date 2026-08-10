@@ -18,16 +18,21 @@ sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from security_blocklist import blocked_metadata_source, load_security_blocklist
+from sync_download_support import (
+    build_archived_skill_metadata,
+    classify_download_result,
+    exact_source_branch,
+    select_bundled_file_entries,
+)
 from sync_pipeline_support import (
     DEFAULT_LEARNING_PRIORS_PATH,
     DEFAULT_MANIFEST_PATH,
     GITHUB_API_BASE,
-    MAX_BUNDLED_FILES_PER_SKILL,
-    MAX_BUNDLED_TOTAL_BYTES,
     ROOT_DIR,
     BundledListingError,
     build_branch_probe_order,
     build_manifest_key,
+    build_relative_candidates,
     build_relative_probe_order,
     bundled_relative_path,
     filter_pending_skills,
@@ -36,6 +41,8 @@ from sync_pipeline_support import (
     load_acquisition_manifest,
     load_learning_priors,
     logger,
+    normalize_download_repo,
+    normalize_repo_path,
     normalize_skill_frontmatter_description,
     not_found_cooldown_hours,
     prune_negative_cache,
@@ -53,7 +60,6 @@ from sync_pipeline_support import (
     validate_existing_archive_sources,
 )
 from utils import (
-    build_legal_metadata,
     build_skill_key,
     ensure_unique_dir,
     normalize_name,
@@ -72,6 +78,8 @@ async def download_skills(
     observations_output_path: Path | None = None,
     learning_priors_path: Path | None = None,
     cleanup_ci_untracked: bool = True,
+    exact_paths_only: bool = False,
+    pin_commit_sha: bool = False,
 ) -> dict:
     """Download skills using optimized downloader."""
     logger.info("=" * 60)
@@ -247,69 +255,6 @@ async def download_skills(
     connector = aiohttp.TCPConnector(limit=MAX_CONCURRENT * 2, ttl_dns_cache=300)
     request_timeout = aiohttp.ClientTimeout(total=TIMEOUT)
 
-    def normalize_repo(repo: str) -> str:
-        repo = (repo or "").strip()
-        if repo.startswith("https://github.com/"):
-            repo = repo[len("https://github.com/"):]
-        repo = repo.split("/tree/")[0]
-        repo = repo.split("/blob/")[0]
-        return repo.rstrip("/")
-
-    def normalize_repo_path(path: str, repo: str) -> str:
-        path = (path or "").strip().replace("\\", "/").strip("/")
-        if not path:
-            return ""
-
-        # Convert full GitHub blob/tree URLs to repo-relative paths when possible.
-        if path.startswith("https://github.com/") and repo:
-            prefix = f"https://github.com/{repo}/"
-            if path.startswith(prefix):
-                rest = path[len(prefix):]
-                parts = rest.split("/", 2)
-                if len(parts) >= 3 and parts[0] in {"blob", "tree"}:
-                    return parts[2].strip("/")
-
-        parts = path.split("/", 2)
-        if len(parts) >= 3 and parts[0] in {"blob", "tree"}:
-            return parts[2].strip("/")
-
-        return path
-
-    def build_relative_candidates(path: str, name: str, normalized_name: str) -> list[str]:
-        ordered = []
-        seen = set()
-
-        def add(candidate: str):
-            candidate = (candidate or "").strip().strip("/")
-            if not candidate or candidate in seen:
-                return
-            seen.add(candidate)
-            ordered.append(candidate)
-
-        if path:
-            # Most source entries have path; try these first to avoid broad probing.
-            if path.lower().endswith("skill.md"):
-                add(path)
-            else:
-                add(f"{path}/SKILL.md")
-                add(path)
-
-        name_variants = []
-        for raw_name in (name, normalized_name):
-            candidate = (raw_name or "").strip().strip("/")
-            if candidate and candidate not in name_variants:
-                name_variants.append(candidate)
-
-        for variant in name_variants:
-            add(f".claude/skills/{variant}/SKILL.md")
-            add(f".claude/{variant}/SKILL.md")
-            add(f"skills/{variant}/SKILL.md")
-            add(f"{variant}/SKILL.md")
-
-        add("SKILL.md")
-        add(".claude/SKILL.md")
-        return ordered
-
     def add_observation(
         skill: dict,
         *,
@@ -320,6 +265,7 @@ async def download_skills(
         branch: str = "",
         relative_path: str = "",
         bundled_file_count: int = 0,
+        commit_sha: str = "",
     ) -> None:
         observations.append(
             {
@@ -337,12 +283,38 @@ async def download_skills(
                 "manifest_hit": manifest_hit,
                 "resolved_branch": branch,
                 "resolved_relative_path": relative_path,
+                "resolved_commit_sha": commit_sha,
                 "bundled_file_count": bundled_file_count,
             }
         )
 
     for skipped_skill, skipped_reason in pending_skipped_rows:
         add_observation(skipped_skill, outcome="skipped", failure_reason=skipped_reason)
+
+    commit_sha_cache: dict[tuple[str, str], str] = {}
+
+    async def resolve_commit_sha(
+        session: aiohttp.ClientSession,
+        repo: str,
+        branch: str,
+    ) -> str:
+        cache_key = (repo, branch)
+        if cache_key in commit_sha_cache:
+            return commit_sha_cache[cache_key]
+        url = f"{GITHUB_API_BASE}/repos/{repo}/commits/{quote(branch, safe='')}"
+        async with session.get(url, timeout=request_timeout) as resp:
+            if resp.status != 200:
+                raise RuntimeError(f"commit resolution failed with status {resp.status}")
+            payload = await resp.json()
+        commit_sha = payload.get("sha") if isinstance(payload, dict) else ""
+        if (
+            not isinstance(commit_sha, str)
+            or len(commit_sha) != 40
+            or any(character not in "0123456789abcdefABCDEF" for character in commit_sha)
+        ):
+            raise RuntimeError("commit resolution returned an invalid SHA")
+        commit_sha_cache[cache_key] = commit_sha
+        return commit_sha
 
     async def fetch_contents_listing(
         session: aiohttp.ClientSession,
@@ -373,7 +345,7 @@ async def download_skills(
         repo: str,
         branch: str,
         resolved_skill_path: str,
-    ) -> list[dict]:
+    ) -> tuple[list[dict], bool]:
         source_dir = skill_source_dir(resolved_skill_path)
         queue = [source_dir]
         seen_dirs = set()
@@ -417,16 +389,7 @@ async def download_skills(
                         }
                     )
 
-        selected: list[dict] = []
-        total_size = 0
-        for entry in sorted(candidates, key=lambda item: item["relative_path"]):
-            if len(selected) >= MAX_BUNDLED_FILES_PER_SKILL:
-                break
-            if total_size + entry["size"] > MAX_BUNDLED_TOTAL_BYTES:
-                continue
-            selected.append(entry)
-            total_size += entry["size"]
-        return selected
+        return select_bundled_file_entries(candidates)
 
     async def download_bundled_files(
         session: aiohttp.ClientSession,
@@ -439,11 +402,16 @@ async def download_skills(
         archived: list[str] = []
         failed: list[str] = []
         try:
-            entries = await collect_bundled_file_entries(session, repo, branch, resolved_skill_path)
+            entries, truncated = await collect_bundled_file_entries(
+                session, repo, branch, resolved_skill_path
+            )
         except BundledListingError as exc:
             if not require_complete_archive:
                 return archived, failed, ""
             return archived, [str(exc)], "bundled_listing_failed"
+        if truncated and require_complete_archive:
+            message = "eligible bundled files exceed per-skill count or byte limits"
+            return archived, [message], "bundled_limits_exceeded"
         if not entries:
             return archived, failed, ""
 
@@ -457,9 +425,8 @@ async def download_skills(
                 failed.append(rel_path)
                 continue
 
-            url = entry["download_url"] or (
-                f"{GITHUB_RAW_BASE}/{repo}/{branch}/{quote(entry['repo_path'], safe='/')}"
-            )
+            pinned_url = f"{GITHUB_RAW_BASE}/{repo}/{branch}/{quote(entry['repo_path'], safe='/')}"
+            url = pinned_url if pin_commit_sha else entry["download_url"] or pinned_url
             try:
                 async with session.get(url, timeout=request_timeout) as resp:
                     if resp.status != 200:
@@ -493,9 +460,8 @@ async def download_skills(
 
     async def try_download(session: aiohttp.ClientSession, skill: dict) -> bool:
         name = (skill.get("name") or "").strip() or "unknown"
-        # Normalize name to prevent case conflicts on macOS/Windows
         normalized_name = normalize_name(name)
-        repo = normalize_repo(skill.get("repo", ""))
+        repo = normalize_download_repo(skill.get("repo", ""))
         path = normalize_repo_path(skill.get("path", ""), repo)
         category = sanitize_category(skill.get("category", "other"))
         candidate_key = skill_key(skill)
@@ -538,24 +504,53 @@ async def download_skills(
             else:
                 stats["manifest_misses"] += 1
 
-        relative_candidates = build_relative_candidates(path, name, normalized_name)
-        relative_candidates = build_relative_probe_order(relative_candidates, manifest_entry)
+        if exact_paths_only:
+            if not path or not path.endswith("SKILL.md"):
+                failures["invalid_exact_path"].append(name)
+                add_observation(skill, outcome="failed", failure_reason="invalid_exact_path")
+                return False
+            relative_candidates = [path]
+        else:
+            relative_candidates = build_relative_candidates(path, name, normalized_name)
+            relative_candidates = build_relative_probe_order(relative_candidates, manifest_entry)
         attempts = 0
+        commit_resolution_failed = False
 
         async with semaphore:
-            for branch in build_branch_probe_order(
-                repo, preferred_branch_by_repo, manifest_entry, BRANCHES
-            ):
+            if exact_paths_only and pin_commit_sha:
+                recorded_branch = exact_source_branch(skill)
+                if not recorded_branch:
+                    failures["missing_exact_branch"].append(name)
+                    add_observation(skill, outcome="failed", failure_reason="missing_exact_branch")
+                    return False
+                branch_order = [recorded_branch]
+            else:
+                branch_order = build_branch_probe_order(
+                    repo, preferred_branch_by_repo, manifest_entry, BRANCHES
+                )
+            for branch in branch_order:
+                download_ref = branch
+                if pin_commit_sha:
+                    try:
+                        download_ref = await resolve_commit_sha(session, repo, branch)
+                    except Exception as exc:  # noqa: BLE001 — recorded as a failed branch
+                        commit_resolution_failed = True
+                        logger.warning("Unable to pin %s@%s: %s", repo, branch, exc)
+                        continue
                 for relative_path in relative_candidates:
-                    url = f"{GITHUB_RAW_BASE}/{repo}/{branch}/{relative_path}"
+                    encoded_path = quote(relative_path, safe="/")
+                    url = f"{GITHUB_RAW_BASE}/{repo}/{download_ref}/{encoded_path}"
                     attempts += 1
+                    skill_dir = None
                     try:
                         async with session.get(url, timeout=request_timeout) as resp:
                             if resp.status == 200:
                                 content = normalize_skill_frontmatter_description(await resp.text(), skill)
                                 if content and len(content) > 50 and ("---" in content[:50] or "#" in content[:100]):
-                                    require_complete_archive = requires_complete_bundled_archive(content)
-                                    # Valid content - save under category with normalized name
+                                    require_complete_archive = (
+                                        requires_complete_bundled_archive(content)
+                                        or (exact_paths_only and pin_commit_sha)
+                                    )
                                     category_dir = output_dir / category
                                     category_dir.mkdir(parents=True, exist_ok=True)
                                     key = build_skill_key(repo, path, name=name, category=category)
@@ -570,7 +565,7 @@ async def download_skills(
                                     ) = await download_bundled_files(
                                         session,
                                         repo,
-                                        branch,
+                                        download_ref,
                                         relative_path,
                                         skill_dir,
                                         require_complete_archive,
@@ -593,36 +588,27 @@ async def download_skills(
                                             branch=branch,
                                             relative_path=relative_path,
                                             bundled_file_count=len(bundled_files),
+                                            commit_sha=download_ref if pin_commit_sha else "",
                                         )
                                         return False
-                                    stats["bundled_files"] += len(bundled_files)
-                                    legal_meta = build_legal_metadata(
-                                        repo=repo,
-                                        path=resolved_path,
-                                        branch=branch,
-                                        source_url=skill.get("source_url", ""),
-                                        author=skill.get("author", ""),
-                                        license_name=skill.get("license", ""),
-                                        copyright_text=skill.get("copyright", ""),
-                                        permission_note=skill.get("permission_note", ""),
-                                        distribution=skill.get("distribution", ""),
-                                    )
                                     (skill_dir / "metadata.json").write_text(
-                                        json.dumps({
-                                            "name": name,
-                                            "description": skill.get("description", ""),
-                                            "repo": repo,
-                                            "path": resolved_path,
-                                            "github_branch": branch,
-                                            "category": skill.get("category", ""),
-                                            "tags": skill.get("tags", []),
-                                            "stars": skill.get("stars", 0),
-                                            "source": skill.get("source", ""),
-                                            "dir_name": skill_dir.name,
-                                            "archive_mode": "directory" if bundled_files else "skill-md",
-                                            "bundled_files": bundled_files,
-                                            **legal_meta,
-                                        }, indent=2, ensure_ascii=False),
+                                        json.dumps(
+                                            build_archived_skill_metadata(
+                                                skill,
+                                                name=name,
+                                                repo=repo,
+                                                resolved_path=resolved_path,
+                                                branch=branch,
+                                                dir_name=skill_dir.name,
+                                                bundled_files=bundled_files,
+                                                commit_sha=download_ref if pin_commit_sha else "",
+                                                assets_verified_at=(
+                                                    to_utc_iso(utc_now()) if pin_commit_sha else ""
+                                                ),
+                                            ),
+                                            indent=2,
+                                            ensure_ascii=False,
+                                        ),
                                         encoding="utf-8"
                                     )
                                     is_safe, security_issues = security_scanner.scan_file(
@@ -649,6 +635,7 @@ async def download_skills(
                                             branch=branch,
                                             relative_path=relative_path,
                                             bundled_file_count=len(bundled_files),
+                                            commit_sha=download_ref if pin_commit_sha else "",
                                         )
                                         logger.warning(
                                             "Rejected downloaded skill after security scan: %s/%s (%s)",
@@ -657,12 +644,14 @@ async def download_skills(
                                             ", ".join(issue_types[:8]),
                                         )
                                         return False
+                                    stats["bundled_files"] += len(bundled_files)
                                     preferred_branch_by_repo[repo] = branch
                                     if manifest_file is not None:
                                         manifest_entries[manifest_key] = {
                                             "repo": repo,
                                             "branch": branch,
                                             "relative_path": relative_path,
+                                            **({"commit_sha": download_ref} if pin_commit_sha else {}),
                                             "updated_at": datetime.utcnow().isoformat() + "Z",
                                         }
                                         manifest_state["dirty"] = True
@@ -678,6 +667,7 @@ async def download_skills(
                                         branch=branch,
                                         relative_path=relative_path,
                                         bundled_file_count=len(bundled_files),
+                                        commit_sha=download_ref if pin_commit_sha else "",
                                     )
                                     return True
                             elif resp.status == 403:
@@ -691,12 +681,15 @@ async def download_skills(
                                     manifest_hit=manifest_entry is not None,
                                 )
                                 return False
-                    except asyncio.TimeoutError:
+                    except (asyncio.TimeoutError, aiohttp.ClientError):
                         continue
                     except Exception:
-                        continue
+                        if skill_dir is not None:
+                            shutil.rmtree(skill_dir, ignore_errors=True)
+                        raise
 
-            failures["not_found"].append(name)
+            failure_reason = "commit_resolution_failed" if commit_resolution_failed else "not_found"
+            failures[failure_reason].append(name)
             stats["url_attempts"] += attempts
             now_utc = utc_now()
             entry = negative_cache.get(candidate_key)
@@ -715,7 +708,7 @@ async def download_skills(
             add_observation(
                 skill,
                 outcome="failed",
-                failure_reason="not_found",
+                failure_reason=failure_reason,
                 attempts=attempts,
                 manifest_hit=manifest_entry is not None,
             )
@@ -732,11 +725,17 @@ async def download_skills(
             tasks = [try_download(session, s) for s in batch]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            for r in results:
-                if r is True:
+            for skill, result in zip(batch, results, strict=True):
+                succeeded, internal_error = classify_download_result(skill, result)
+                if succeeded:
                     stats["downloaded"] += 1
                 else:
                     stats["failed"] += 1
+                    if internal_error:
+                        failures["internal_error"].append(internal_error)
+                        add_observation(
+                            skill, outcome="failed", failure_reason="internal_error"
+                        )
 
             elapsed = time.time() - start_time
             rate = stats["downloaded"] / elapsed if elapsed > 0 else 0

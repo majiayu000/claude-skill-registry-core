@@ -89,7 +89,7 @@ def run_targets(root: str, min_stars: int) -> None:
         }))
 
 
-def _canonical_source(repo_value: object, path_value: object) -> tuple[str, str, str]:
+def canonical_source_identity(repo_value: object, path_value: object) -> tuple[str, str, str]:
     repo = repo_value.strip() if isinstance(repo_value, str) else ""
     if not REPO_PATTERN.fullmatch(repo):
         return repo, "", "invalid_repo"
@@ -173,7 +173,7 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
         category = str(metadata.get("category") or (path_parts[0] if path_parts else "other"))
         name = str(metadata.get("name") or (path_parts[-1] if path_parts else skill_dir.name))
         raw_source_path = metadata.get("path") or metadata.get("github_path") or ""
-        repo, source_path, source_error = _canonical_source(
+        repo, source_path, source_error = canonical_source_identity(
             metadata.get("repo"), raw_source_path
         )
         stable_key = (
