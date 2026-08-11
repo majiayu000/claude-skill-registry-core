@@ -182,8 +182,6 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
             continue
         skill_dir = skill_md.parent
         rel_parts = skill_dir.relative_to(skills_dir).parts
-        if len(rel_parts) != 2:
-            continue
         category_name = rel_parts[0] if rel_parts else "other"
         metadata = load_metadata(skill_dir)
         dir_name = skill_dir.name
