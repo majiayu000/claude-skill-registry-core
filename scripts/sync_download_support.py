@@ -76,7 +76,7 @@ async def resolve_exact_commit_sha(
     repo_cache: dict[str, str],
     commit_cache: dict[tuple[str, str], str],
 ) -> str:
-    """Resolve an exact branch after proving the canonical repository identity."""
+    """Resolve an exact branch or pinned commit after proving repository identity."""
     cache_key = (repo, branch)
     if cache_key in commit_cache:
         return commit_cache[cache_key]
@@ -93,6 +93,18 @@ async def resolve_exact_commit_sha(
         if blocked_metadata_source({"repo": canonical_repo}, security_blocklist):
             raise RuntimeError("repository resolution returned a blocked canonical identity")
         repo_cache[repo] = canonical_repo
+
+    if SHA_PATTERN.fullmatch(branch):
+        commit_url = f"{GITHUB_API_BASE}/repos/{canonical_repo}/commits/{branch.lower()}"
+        async with session.get(commit_url, timeout=timeout) as response:
+            if response.status != 200:
+                raise RuntimeError(f"commit ref resolution failed with status {response.status}")
+            payload = await response.json()
+        resolved_sha = payload.get("sha") if isinstance(payload, dict) else ""
+        if not isinstance(resolved_sha, str) or resolved_sha.casefold() != branch.casefold():
+            raise RuntimeError("commit ref resolution returned a different commit identity")
+        commit_cache[cache_key] = branch.lower()
+        return branch.lower()
 
     branch_url = f"{GITHUB_API_BASE}/repos/{canonical_repo}/branches/{quote(branch, safe='')}"
     async with session.get(branch_url, timeout=timeout) as response:

@@ -108,11 +108,21 @@ def git_blob_entry(path: str, content: bytes) -> dict:
 
 def exact_repo_routes(repo: str, branch: str, sha: str, tree: list[dict]) -> dict:
     encoded_branch = branch.replace("/", "%2F")
+    if len(branch) == 40 and set(branch) <= set("0123456789abcdefABCDEF"):
+        ref_route = {
+            f"https://api.github.com/repos/{repo}/commits/{branch.lower()}": FakeResponse(
+                200, json_payload={"sha": sha}
+            )
+        }
+    else:
+        ref_route = {
+            f"https://api.github.com/repos/{repo}/branches/{encoded_branch}": FakeResponse(
+                200, json_payload={"name": branch, "commit": {"sha": sha}}
+            )
+        }
     return {
         f"https://api.github.com/repos/{repo}": FakeResponse(200, json_payload={"full_name": repo}),
-        f"https://api.github.com/repos/{repo}/branches/{encoded_branch}": FakeResponse(
-            200, json_payload={"name": branch, "commit": {"sha": sha}}
-        ),
+        **ref_route,
         f"https://api.github.com/repos/{repo}/git/trees/{sha}?recursive=1": FakeResponse(
             200, json_payload={"truncated": False, "tree": tree}
         ),
@@ -453,7 +463,10 @@ def test_download_removes_skill_that_fails_security_scan(tmp_path, monkeypatch):
     assert failure_report["failure_reasons"]["security_scan_failed"] == 1
 
 
-def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(tmp_path, monkeypatch):
+@pytest.mark.parametrize("source_ref", ["release/v1", "a" * 40])
+def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(
+    tmp_path, monkeypatch, source_ref
+):
     module = load_module()
     registry_path = tmp_path / "registry.json"
     output_dir = tmp_path / "skills"
@@ -466,7 +479,7 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(tmp_path, mon
                         "repo": "acme/demo",
                         "path": "skills/demo folder/skill.md",
                         "category": "development",
-                        "github_branch": "release/v1",
+                        "github_branch": source_ref,
                     }
                 ]
             }
@@ -483,7 +496,7 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(tmp_path, mon
         {
             **exact_repo_routes(
                 "acme/demo",
-                "release/v1",
+                source_ref,
                 sha,
                 [
                     git_blob_entry("skills/demo folder/skill.md", skill_body),
@@ -523,10 +536,48 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(tmp_path, mon
     skill_dir = next(output_dir.glob("development/*"))
     assert (skill_dir / "scripts" / "setup.py").read_text() == "print('ok')\n"
     metadata = json.loads((skill_dir / "metadata.json").read_text())
-    assert metadata["github_branch"] == "release/v1"
+    assert metadata["github_branch"] == source_ref
     assert metadata["github_commit_sha"] == sha
     assert metadata["assets_verified_at"].endswith("Z")
     assert metadata["bundled_file_blobs"] == {"scripts/setup.py": git_blob_sha(script_body)}
+
+
+@pytest.mark.parametrize(
+    ("commit_response", "error"),
+    [
+        (FakeResponse(404), "status 404"),
+        (FakeResponse(200, json_payload={"sha": "b" * 40}), "different commit identity"),
+    ],
+)
+def test_commit_pinned_source_ref_fails_closed(monkeypatch, commit_response, error):
+    scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
+    monkeypatch.syspath_prepend(str(scripts_dir))
+    from sync_download_support import resolve_exact_commit_sha
+
+    pinned_ref = "a" * 40
+    routes = {
+        "https://api.github.com/repos/acme/demo": FakeResponse(
+            200, json_payload={"full_name": "acme/demo"}
+        ),
+        f"https://api.github.com/repos/acme/demo/commits/{pinned_ref}": commit_response,
+    }
+
+    class FakeSession:
+        def get(self, url, timeout=None):
+            return routes[url]
+
+    with pytest.raises(RuntimeError, match=error):
+        asyncio.run(
+            resolve_exact_commit_sha(
+                FakeSession(),
+                "acme/demo",
+                pinned_ref,
+                timeout=object(),
+                security_blocklist={},
+                repo_cache={},
+                commit_cache={},
+            )
+        )
 
 
 def test_exact_download_fails_closed_when_commit_cannot_be_resolved(tmp_path, monkeypatch):
@@ -608,17 +659,6 @@ def test_exact_download_rejects_redirected_repository_identity(tmp_path, monkeyp
 
     assert stats["downloaded"] == 0
     assert stats["failed"] == 1
-
-
-def test_exact_download_accepts_raw_sha_source_ref():
-    scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
-    if str(scripts_dir) not in sys.path:
-        sys.path.insert(0, str(scripts_dir))
-    from sync_download_support import exact_source_branch
-
-    pinned_ref = "a" * 40
-
-    assert exact_source_branch({"github_branch": pinned_ref}) == pinned_ref
 
 
 def test_exact_download_does_not_probe_name_fallbacks(tmp_path, monkeypatch):
