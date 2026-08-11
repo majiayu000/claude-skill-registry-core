@@ -402,6 +402,8 @@ def apply_staged_archives(
             _replace_in_verified_directory(
                 destination.parent, parent_identity, candidate.name, destination.name
             )
+            if _archive_snapshot(destination) != scanned_snapshots[target["stable_key"]]:
+                raise ValueError(f"installed backfill differs from ClamAV scan: {destination}")
     except Exception as exc:
         rollback_errors = _rollback_applied_archives(applied)
         cleanup_errors = _cleanup_directories(created_candidates)
