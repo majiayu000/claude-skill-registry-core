@@ -182,7 +182,7 @@ def is_valid_git_source_ref(ref: str) -> bool:
     """Validate a Git branch-like ref while explicitly allowing commit SHAs."""
     if COMMIT_SHA_PATTERN.fullmatch(ref):
         return True
-    if not ref or len(ref) > 255 or ref == "@" or ref.startswith(("/", "-")):
+    if not ref or len(ref) > 255 or ref.startswith(("/", "-")):
         return False
     if ref.endswith(("/", ".")) or "//" in ref or ".." in ref or "@{" in ref:
         return False
