@@ -161,6 +161,8 @@ MAX_BUNDLED_FILE_BYTES = 1_000_000
 MAX_BUNDLED_BIN_FILE_BYTES = 3_000_000
 MAX_BUNDLED_TOTAL_BYTES = 8_000_000
 MAX_BUNDLED_FILES_PER_SKILL = 100
+GIT_COMMIT_SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
+INVALID_GIT_REF_CHARACTERS = frozenset("~^:?*[\\")
 
 
 class BundledListingError(Exception):
@@ -303,6 +305,24 @@ def has_case_conflicting_paths(paths: list[str]) -> bool:
                 return True
             seen[folded] = prefix
     return False
+
+
+def is_valid_git_source_ref(ref: str) -> bool:
+    """Validate a Git branch-like ref while explicitly allowing commit SHAs."""
+    if GIT_COMMIT_SHA_PATTERN.fullmatch(ref):
+        return True
+    if not ref or len(ref) > 255 or ref == "@" or ref.startswith(("/", "-")):
+        return False
+    if ref.endswith(("/", ".")) or "//" in ref or ".." in ref or "@{" in ref:
+        return False
+    if any(ord(character) < 33 or ord(character) == 127 for character in ref):
+        return False
+    if any(character in INVALID_GIT_REF_CHARACTERS for character in ref):
+        return False
+    return all(
+        component and not component.startswith(".") and not component.endswith(".lock")
+        for component in ref.split("/")
+    )
 
 
 def should_recurse_bundled_dir(relative_path: str) -> bool:

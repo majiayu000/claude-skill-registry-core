@@ -74,6 +74,30 @@ class TestStrictBackfillInventory:
             "github_branch": pinned_ref,
         }) == (pinned_ref, "")
 
+    @pytest.mark.parametrize(
+        "source_ref",
+        ["main..evil", "main@{x}", "main.lock", ".hidden", "main/", "-main", "main?"],
+    )
+    def test_rejects_invalid_git_source_refs(self, source_ref):
+        assert audit_skill_assets.canonical_source_branch_from_metadata({
+            "github_branch": source_ref,
+        }) == ("", "invalid_source_branch")
+
+    def test_rejects_case_colliding_archive_roots(self, tmp_path, monkeypatch):
+        root = tmp_path / "data"
+        root.mkdir()
+        monkeypatch.setattr(
+            audit_skill_assets,
+            "iter_archived_skills",
+            lambda _root: iter([
+                (str(root / "dev" / "Demo"), {}),
+                (str(root / "dev" / "demo"), {}),
+            ]),
+        )
+
+        with pytest.raises(ValueError, match="case-conflicting skill roots"):
+            audit_skill_assets._canonical_archive_rows(root)
+
     def test_conflicting_aliases_contribute_every_normalized_identity_key(self):
         keys = audit_skill_assets._identity_keys(
             {
