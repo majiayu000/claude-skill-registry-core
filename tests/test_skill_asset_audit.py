@@ -73,6 +73,9 @@ class TestStrictBackfillInventory:
         assert audit_skill_assets.canonical_source_branch_from_metadata({
             "github_branch": pinned_ref,
         }) == (pinned_ref, "")
+        assert audit_skill_assets.canonical_source_branch_from_metadata({
+            "github_branch": "@",
+        }) == ("@", "")
 
     @pytest.mark.parametrize(
         "source_ref",
