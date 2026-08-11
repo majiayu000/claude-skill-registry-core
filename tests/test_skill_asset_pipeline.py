@@ -53,6 +53,7 @@ def archive(tmp_path):
             "stars": 500,
             "repo": "acme/tools",
             "path": "skills/with-script/SKILL.md",
+            "github_branch": "main",
             "name": "with-script",
         },
     )
@@ -65,6 +66,7 @@ def archive(tmp_path):
             "stars": 300,
             "repo": "acme/docs",
             "path": "skills/with-docs/SKILL.md",
+            "github_branch": "main",
             "name": "with-docs",
         },
     )
@@ -73,7 +75,8 @@ def archive(tmp_path):
         "dev",
         "plain",
         "Just prose, no local files.",
-        {"stars": 900, "repo": "acme/plain", "path": "skills/plain/SKILL.md", "name": "plain"},
+        {"stars": 900, "repo": "acme/plain", "path": "skills/plain/SKILL.md",
+         "github_branch": "main", "name": "plain"},
     )
     make_skill(
         root,
@@ -84,6 +87,7 @@ def archive(tmp_path):
             "stars": 3,
             "repo": "acme/small",
             "path": "skills/low-stars/SKILL.md",
+            "github_branch": "main",
             "name": "low-stars",
         },
     )
@@ -167,6 +171,7 @@ class TestCurrentStateInventory:
                 "stars": 500,
                 "repo": "acme/tools",
                 "path": "skills/archived/SKILL.md",
+                "github_branch": "main",
                 "name": "archived",
                 "category": "dev",
                 "archive_mode": "directory",
@@ -185,6 +190,7 @@ class TestCurrentStateInventory:
                 "stars": 300,
                 "repo": "acme/docs",
                 "path": "skills/missing/SKILL.md",
+                "github_branch": "release/v1",
                 "name": "missing",
                 "category": "dev",
                 "archive_mode": "directory",
@@ -200,6 +206,7 @@ class TestCurrentStateInventory:
                 "stars": 1,
                 "repo": "acme/plain",
                 "path": "SKILL.md",
+                "github_branch": "main",
                 "name": "plain",
                 "category": "dev",
                 "archive_mode": "skill-md",
@@ -234,6 +241,7 @@ class TestCurrentStateInventory:
             "stars": 200,
             "repo": "acme/tools",
             "path": "skills/duplicate/SKILL.md",
+            "github_branch": "main",
             "name": "duplicate",
             "category": "dev",
         }
@@ -248,6 +256,7 @@ class TestCurrentStateInventory:
                 "stars": 500,
                 "repo": "acme/ready",
                 "path": "skills/ready/SKILL.md",
+                "github_branch": "release/v2",
                 "name": "ready",
                 "category": "dev",
             },
@@ -260,6 +269,7 @@ class TestCurrentStateInventory:
                 "archive_path": "dev/ready",
                 "repo": "acme/ready",
                 "source_path": "skills/ready/SKILL.md",
+                "github_branch": "release/v2",
                 "dir": "skills/ready",
                 "name": "ready",
                 "category": "dev",
