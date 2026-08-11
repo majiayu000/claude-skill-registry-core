@@ -16,6 +16,7 @@ from sync_pipeline_support import (
     bundled_relative_path,
     has_case_conflicting_paths,
     is_safe_bundled_file,
+    is_valid_git_source_ref,
     should_recurse_bundled_dir,
     skill_source_dir,
 )
@@ -56,9 +57,7 @@ def exact_source_branch(skill: dict) -> str:
         if not isinstance(raw_branch, str):
             return ""
         branch = raw_branch.strip()
-        if not branch or len(branch) > 255:
-            return ""
-        if any(ord(character) < 33 or ord(character) == 127 for character in branch):
+        if not is_valid_git_source_ref(branch):
             return ""
         branches.append(branch)
     if not branches or any(branch != branches[0] for branch in branches[1:]):

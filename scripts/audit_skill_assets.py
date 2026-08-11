@@ -31,12 +31,10 @@ from skill_asset_audit import (
     iter_archived_skills,
     verdict_from_counts,
 )
-from sync_pipeline_support import has_case_conflicting_paths
+from sync_pipeline_support import has_case_conflicting_paths, is_valid_git_source_ref
 from utils import build_skill_key
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-COMMIT_SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
-INVALID_GIT_REF_CHARACTERS = frozenset("~^:?*[\\")
 
 
 def _read_skill(dirpath: str) -> str:
@@ -112,7 +110,7 @@ def _canonical_archive_rows(root: str | Path) -> list[tuple[str, dict | None]]:
         Path(dirpath).resolve().relative_to(archive_root).as_posix()
         for dirpath, _metadata in rows
     ]
-    if _has_case_conflict(relative_dirs):
+    if has_case_conflicting_paths(relative_dirs):
         raise ValueError(f"archive contains case-conflicting skill roots: {root}")
     return rows
 
@@ -177,24 +175,6 @@ def canonical_source_branch_from_metadata(metadata: dict) -> tuple[str, str]:
     if any(branch != branches[0] for branch in branches[1:]):
         return "", "conflicting_source_branch_aliases"
     return branches[0], ""
-
-
-def is_valid_git_source_ref(ref: str) -> bool:
-    """Validate a Git branch-like ref while explicitly allowing commit SHAs."""
-    if COMMIT_SHA_PATTERN.fullmatch(ref):
-        return True
-    if not ref or len(ref) > 255 or ref == "@" or ref.startswith(("/", "-")):
-        return False
-    if ref.endswith(("/", ".")) or "//" in ref or ".." in ref or "@{" in ref:
-        return False
-    if any(ord(character) < 33 or ord(character) == 127 for character in ref):
-        return False
-    if any(character in INVALID_GIT_REF_CHARACTERS for character in ref):
-        return False
-    return all(
-        component and not component.startswith(".") and not component.endswith(".lock")
-        for component in ref.split("/")
-    )
 
 
 # Preserve the private helper used by existing callers while the strict public
