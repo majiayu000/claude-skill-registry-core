@@ -215,6 +215,7 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
     total_skills = 0
     actual_bundled_file_count = 0
     metadata_mismatch_count = 0
+    source_identity_errors = []
 
     for dirpath, raw_meta in iter_archived_skills(root):
         skill_dir = Path(dirpath).resolve()
@@ -273,6 +274,16 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
             metadata_mismatch_count += 1
 
         stars = _parse_stars(metadata.get("stars"), metadata_path)
+        if source_error:
+            source_identity_errors.append({
+                "archive_path": relative_dir,
+                "error": source_error,
+                "eligible_for_backfill": (
+                    asset_state == "missing_claimed_assets"
+                    and stars >= min_stars
+                    and declared_files_valid
+                ),
+            })
         if (
             asset_state == "missing_claimed_assets"
             and stars >= min_stars
@@ -308,6 +319,11 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
         "archive_mode_counts": dict(archive_mode_counts),
         "actual_bundled_file_count": actual_bundled_file_count,
         "metadata_mismatch_count": metadata_mismatch_count,
+        "source_identity_error_count": len(source_identity_errors),
+        "source_identity_errors": sorted(
+            source_identity_errors,
+            key=lambda row: (row["archive_path"], row["error"]),
+        ),
         "ambiguous_stable_key_count": len(ambiguous_keys),
         "backfill_candidate_count": len(targets),
     }
@@ -315,7 +331,17 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
 
 
 def build_backfill_targets(root: str, min_stars: int = 100) -> list[dict]:
-    _report, targets = _scan_inventory(root, min_stars)
+    report, targets = _scan_inventory(root, min_stars)
+    blocking_errors = [
+        row
+        for row in report["source_identity_errors"]
+        if row["eligible_for_backfill"]
+    ]
+    if blocking_errors:
+        details = ", ".join(
+            f"{row['archive_path']} ({row['error']})" for row in blocking_errors
+        )
+        raise ValueError(f"invalid source identity for backfill candidates: {details}")
     return targets
 
 
