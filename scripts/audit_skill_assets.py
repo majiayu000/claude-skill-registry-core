@@ -31,7 +31,7 @@ from skill_asset_audit import (
     iter_archived_skills,
     verdict_from_counts,
 )
-from utils import build_skill_key, is_declared_bundled_skill_file
+from utils import build_skill_key
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
@@ -45,6 +45,8 @@ def run_census(root: str) -> dict:
     buckets: collections.Counter = collections.Counter()
     sizes: dict[str, list[int]] = collections.defaultdict(list)
     for dirpath, _meta in iter_archived_skills(root):
+        if not _is_canonical_archive_skill(dirpath, root):
+            continue
         text = _read_skill(dirpath)
         bucket = classify_skill_text(text)
         buckets[bucket] += 1
@@ -68,6 +70,8 @@ def run_census(root: str) -> dict:
 def run_targets(root: str, min_stars: int) -> None:
     seen: set[tuple[str, str]] = set()
     for dirpath, meta in iter_archived_skills(root):
+        if not _is_canonical_archive_skill(dirpath, root):
+            continue
         if not meta:
             continue
         stars = meta.get("stars") or 0
@@ -89,7 +93,18 @@ def run_targets(root: str, min_stars: int) -> None:
         }))
 
 
-def canonical_source_identity(repo_value: object, path_value: object) -> tuple[str, str, str]:
+def _is_canonical_archive_skill(dirpath: str, root: str | Path) -> bool:
+    try:
+        relative = Path(dirpath).resolve().relative_to(Path(root).resolve())
+    except ValueError:
+        return False
+    return len(relative.parts) == 2
+
+
+def canonical_source_identity(
+    repo_value: object,
+    path_value: object,
+) -> tuple[str, str, str]:
     repo = repo_value.strip() if isinstance(repo_value, str) else ""
     if not REPO_PATTERN.fullmatch(repo):
         return repo, "", "invalid_repo"
@@ -102,9 +117,33 @@ def canonical_source_identity(repo_value: object, path_value: object) -> tuple[s
     parts = source_path.split("/")
     if any(part in {"", ".", ".."} for part in parts):
         return repo, source_path, "invalid_source_path"
-    if parts[-1] != "SKILL.md":
+    if parts[-1].casefold() != "skill.md":
         return repo, source_path, "source_path_not_skill_md"
     return repo, "/".join(parts), ""
+
+
+def canonical_source_identity_from_metadata(metadata: dict) -> tuple[str, str, str]:
+    """Return one exact source identity, rejecting conflicting path aliases."""
+    aliases = []
+    for field in ("path", "github_path"):
+        if field not in metadata:
+            continue
+        repo, source_path, error = canonical_source_identity(
+            metadata.get("repo"), metadata[field]
+        )
+        if error:
+            return repo, source_path, error
+        aliases.append((repo, source_path))
+    if not aliases:
+        return canonical_source_identity(metadata.get("repo"), None)
+    if any(identity != aliases[0] for identity in aliases[1:]):
+        return aliases[0][0], aliases[0][1], "conflicting_source_path_aliases"
+    return aliases[0][0], aliases[0][1], ""
+
+
+# Preserve the private helper used by existing callers while the strict public
+# parser is shared by later pipeline phases.
+_canonical_source = canonical_source_identity
 
 
 def _source_dir(source_path: str) -> str:
@@ -138,12 +177,31 @@ def _local_verdict(paths: list[str]) -> str:
 
 
 def _parse_stars(value: object, metadata_path: Path) -> int:
-    if isinstance(value, bool):
+    if value is None:
+        return 0
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f"invalid stars in {metadata_path}: {value!r}")
-    try:
-        return int(value or 0)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"invalid stars in {metadata_path}: {value!r}") from exc
+    return value
+
+
+def _declared_bundled_files(metadata: dict) -> tuple[list[str], bool]:
+    if "bundled_files" not in metadata:
+        return [], True
+    declared = metadata["bundled_files"]
+    if not isinstance(declared, list):
+        return [], False
+    normalized = []
+    for value in declared:
+        if not isinstance(value, str) or not value or value != value.strip() or "\\" in value:
+            return [], False
+        path = PurePosixPath(value)
+        if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+            return [], False
+        normalized_path = path.as_posix()
+        if normalized_path in {"SKILL.md", "metadata.json"} or normalized_path in normalized:
+            return [], False
+        normalized.append(normalized_path)
+    return sorted(normalized), True
 
 
 def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
@@ -160,8 +218,7 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
 
     for dirpath, raw_meta in iter_archived_skills(root):
         skill_dir = Path(dirpath).resolve()
-        skill_md = skill_dir / "SKILL.md"
-        if is_declared_bundled_skill_file(skill_md, archive_root):
+        if not _is_canonical_archive_skill(dirpath, archive_root):
             continue
 
         metadata_path = skill_dir / "metadata.json"
@@ -172,12 +229,12 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
         path_parts = PurePosixPath(relative_dir).parts
         category = str(metadata.get("category") or (path_parts[0] if path_parts else "other"))
         name = str(metadata.get("name") or (path_parts[-1] if path_parts else skill_dir.name))
-        raw_source_path = metadata.get("path") or metadata.get("github_path") or ""
-        repo, source_path, source_error = canonical_source_identity(
-            metadata.get("repo"), raw_source_path
+        raw_source_path = (
+            metadata.get("path") if "path" in metadata else metadata.get("github_path", "")
         )
+        repo, source_path, source_error = canonical_source_identity_from_metadata(metadata)
         stable_key = (
-            f"{repo}:{source_path}"
+            f"{repo.casefold()}:{source_path}"
             if not source_error
             else build_skill_key(
                 repo,
@@ -190,16 +247,7 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
             key_counts[stable_key] += 1
 
         actual_files = _actual_bundled_files(dirpath)
-        declared_raw = metadata.get("bundled_files")
-        declared_files = (
-            sorted(
-                str(path).strip().replace("\\", "/").strip("/")
-                for path in declared_raw
-                if isinstance(path, str) and path.strip()
-            )
-            if isinstance(declared_raw, list)
-            else []
-        )
+        declared_files, declared_files_valid = _declared_bundled_files(metadata)
         actual_archive_mode = "directory" if actual_files else "skill-md"
         declared_archive_mode = str(metadata.get("archive_mode") or "")
         claim = classify_skill_text(_read_skill(dirpath))
@@ -217,7 +265,11 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
         local_verdict_counts[local_verdict] += 1
         asset_state_counts[asset_state] += 1
         archive_mode_counts[actual_archive_mode] += 1
-        if declared_archive_mode != actual_archive_mode or declared_files != actual_files:
+        if (
+            declared_archive_mode != actual_archive_mode
+            or not declared_files_valid
+            or declared_files != actual_files
+        ):
             metadata_mismatch_count += 1
 
         stars = _parse_stars(metadata.get("stars"), metadata_path)
@@ -225,6 +277,7 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
             asset_state == "missing_claimed_assets"
             and stars >= min_stars
             and not source_error
+            and declared_files_valid
         ):
             candidates.append({
                 "stable_key": stable_key,
