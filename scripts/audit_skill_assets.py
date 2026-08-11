@@ -34,6 +34,7 @@ from skill_asset_audit import (
 from utils import build_skill_key
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+COMMIT_SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
 
 
 def _read_skill(dirpath: str) -> str:
@@ -108,6 +109,8 @@ def canonical_source_identity(
     repo = repo_value.strip() if isinstance(repo_value, str) else ""
     if not REPO_PATTERN.fullmatch(repo):
         return repo, "", "invalid_repo"
+    if any(component in {".", ".."} for component in repo.split("/")):
+        return repo, "", "invalid_repo"
     if not isinstance(path_value, str) or not path_value.strip():
         return repo, "", "missing_source_path"
 
@@ -141,6 +144,31 @@ def canonical_source_identity_from_metadata(metadata: dict) -> tuple[str, str, s
     return aliases[0][0], aliases[0][1], ""
 
 
+def canonical_source_branch_from_metadata(metadata: dict) -> tuple[str, str]:
+    """Return one exact source branch, rejecting missing or conflicting aliases."""
+    branches = []
+    for field in ("github_branch", "branch"):
+        if field not in metadata:
+            continue
+        raw_branch = metadata[field]
+        if not isinstance(raw_branch, str):
+            return "", "invalid_source_branch"
+        branch = raw_branch.strip()
+        if (
+            not branch
+            or len(branch) > 255
+            or any(ord(character) < 33 or ord(character) == 127 for character in branch)
+            or COMMIT_SHA_PATTERN.fullmatch(branch)
+        ):
+            return "", "invalid_source_branch"
+        branches.append(branch)
+    if not branches:
+        return "", "missing_source_branch"
+    if any(branch != branches[0] for branch in branches[1:]):
+        return "", "conflicting_source_branch_aliases"
+    return branches[0], ""
+
+
 # Preserve the private helper used by existing callers while the strict public
 # parser is shared by later pipeline phases.
 _canonical_source = canonical_source_identity
@@ -151,11 +179,53 @@ def _source_dir(source_path: str) -> str:
     return "" if parent == "." else parent
 
 
+def _identity_keys(metadata: dict, *, name: str, category: str) -> set[str]:
+    """Return every plausible key so malformed aliases still make duplicates ambiguous."""
+    repo_value = metadata.get("repo")
+    repo = repo_value.strip() if isinstance(repo_value, str) else ""
+    values = [metadata[field] for field in ("path", "github_path") if field in metadata]
+    if not values:
+        values = [None]
+
+    keys = set()
+    for value in values:
+        exact_repo, source_path, error = canonical_source_identity(repo_value, value)
+        if not error:
+            keys.add(f"{exact_repo.casefold()}:{source_path}")
+            continue
+        fallback = build_skill_key(
+            repo.casefold(),
+            str(value or ""),
+            name=name,
+            category=category,
+        )
+        if fallback:
+            keys.add(fallback)
+    return keys
+
+
+def _has_case_conflict(paths: list[str]) -> bool:
+    """Detect case-only conflicts in complete paths or any directory prefix."""
+    seen: dict[str, str] = {}
+    for relative in paths:
+        parts = relative.split("/")
+        for length in range(1, len(parts) + 1):
+            prefix = "/".join(parts[:length])
+            folded = prefix.casefold()
+            previous = seen.get(folded)
+            if previous is not None and previous != prefix:
+                return True
+            seen[folded] = prefix
+    return False
+
+
 def _actual_bundled_files(dirpath: str) -> list[str]:
     root = Path(dirpath)
     files = []
+    archive_paths = []
     for path in root.rglob("*"):
         relative = path.relative_to(root).as_posix()
+        archive_paths.append(relative)
         if path.is_symlink():
             raise ValueError(f"symbolic link is not allowed in archive skill: {relative}")
         try:
@@ -167,12 +237,15 @@ def _actual_bundled_files(dirpath: str) -> list[str]:
         if relative in {"SKILL.md", "metadata.json"}:
             continue
         files.append(relative)
+    if _has_case_conflict(archive_paths):
+        raise ValueError(f"case-conflicting paths are not allowed in archive skill: {dirpath}")
     return sorted(files)
 
 
 def _local_verdict(paths: list[str]) -> str:
     counts = classify_files(paths)
     counts["doc"] += sum(1 for path in paths if path.lower().endswith("/skill.md"))
+    counts["asset"] += sum(1 for path in paths if path.endswith("/metadata.json"))
     return verdict_from_counts(counts)
 
 
@@ -194,13 +267,17 @@ def _declared_bundled_files(metadata: dict) -> tuple[list[str], bool]:
     for value in declared:
         if not isinstance(value, str) or not value or value != value.strip() or "\\" in value:
             return [], False
+        if any(part in {"", ".", ".."} for part in value.split("/")):
+            return [], False
         path = PurePosixPath(value)
-        if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        if path.is_absolute():
             return [], False
         normalized_path = path.as_posix()
         if normalized_path in {"SKILL.md", "metadata.json"} or normalized_path in normalized:
             return [], False
         normalized.append(normalized_path)
+    if _has_case_conflict(normalized):
+        return [], False
     return sorted(normalized), True
 
 
@@ -230,22 +307,12 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
         path_parts = PurePosixPath(relative_dir).parts
         category = str(metadata.get("category") or (path_parts[0] if path_parts else "other"))
         name = str(metadata.get("name") or (path_parts[-1] if path_parts else skill_dir.name))
-        raw_source_path = (
-            metadata.get("path") if "path" in metadata else metadata.get("github_path", "")
-        )
         repo, source_path, source_error = canonical_source_identity_from_metadata(metadata)
-        stable_key = (
-            f"{repo.casefold()}:{source_path}"
-            if not source_error
-            else build_skill_key(
-                repo,
-                str(raw_source_path),
-                name=name,
-                category=category,
-            )
-        )
-        if stable_key:
-            key_counts[stable_key] += 1
+        source_branch, branch_error = canonical_source_branch_from_metadata(metadata)
+        identity_keys = _identity_keys(metadata, name=name, category=category)
+        stable_key = f"{repo.casefold()}:{source_path}" if not source_error else ""
+        for identity_key in identity_keys:
+            key_counts[identity_key] += 1
 
         actual_files = _actual_bundled_files(dirpath)
         declared_files, declared_files_valid = _declared_bundled_files(metadata)
@@ -274,10 +341,11 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
             metadata_mismatch_count += 1
 
         stars = _parse_stars(metadata.get("stars"), metadata_path)
-        if source_error:
+        provenance_error = source_error or branch_error
+        if provenance_error:
             source_identity_errors.append({
                 "archive_path": relative_dir,
-                "error": source_error,
+                "error": provenance_error,
                 "eligible_for_backfill": (
                     asset_state == "missing_claimed_assets"
                     and stars >= min_stars
@@ -287,7 +355,7 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
         if (
             asset_state == "missing_claimed_assets"
             and stars >= min_stars
-            and not source_error
+            and not provenance_error
             and declared_files_valid
         ):
             candidates.append({
@@ -295,6 +363,7 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
                 "archive_path": relative_dir,
                 "repo": repo,
                 "source_path": source_path,
+                "github_branch": source_branch,
                 "dir": _source_dir(source_path),
                 "name": name,
                 "category": category,
