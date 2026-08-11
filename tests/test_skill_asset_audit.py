@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
+import audit_skill_assets
 import verify_upstream_assets as liveness
 from skill_asset_audit import (
     classify_files,
@@ -46,6 +47,133 @@ class TestClassifyFiles:
         assert verdict_from_counts({"exec": 1, "doc": 0, "asset": 0}) == "EXEC"
         assert verdict_from_counts({"exec": 0, "doc": 2, "asset": 0}) == "REF_ASSET"
         assert verdict_from_counts({"exec": 0, "doc": 0, "asset": 0}) == "BARE"
+
+
+class TestStrictBackfillInventory:
+    @pytest.mark.parametrize("repo", ["../tools", "owner/..", "./repo", "owner/."])
+    def test_rejects_dot_segment_repository_components(self, repo):
+        assert audit_skill_assets.canonical_source_identity(
+            repo, "skills/demo/SKILL.md"
+        )[2] == "invalid_repo"
+
+    def test_requires_one_exact_source_branch(self):
+        assert audit_skill_assets.canonical_source_branch_from_metadata({}) == (
+            "",
+            "missing_source_branch",
+        )
+        assert audit_skill_assets.canonical_source_branch_from_metadata({
+            "github_branch": "main",
+            "branch": "release",
+        }) == ("", "conflicting_source_branch_aliases")
+        assert audit_skill_assets.canonical_source_branch_from_metadata({
+            "github_branch": " release/v1 ",
+            "branch": "release/v1",
+        }) == ("release/v1", "")
+
+    def test_conflicting_aliases_contribute_every_normalized_identity_key(self):
+        keys = audit_skill_assets._identity_keys(
+            {
+                "repo": "Acme/Tools",
+                "path": "skills/one/SKILL.md",
+                "github_path": "skills/two/SKILL.md",
+            },
+            name="demo",
+            category="dev",
+        )
+        assert keys == {
+            "acme/tools:skills/one/SKILL.md",
+            "acme/tools:skills/two/SKILL.md",
+        }
+
+    @pytest.mark.parametrize(
+        "paths",
+        [
+            ["references/Guide.md", "references/guide.md"],
+            ["References/one.md", "references/two.md"],
+        ],
+    )
+    def test_detects_case_conflicts_in_files_and_directory_prefixes(self, paths):
+        assert audit_skill_assets.has_case_conflicting_paths(paths) is True
+
+    @pytest.mark.parametrize(
+        "declared",
+        [
+            ["references//guide.md"],
+            ["references/Guide.md", "references/guide.md"],
+            ["References/one.md", "references/two.md"],
+        ],
+    )
+    def test_rejects_non_portable_bundled_file_declarations(self, declared):
+        assert audit_skill_assets._declared_bundled_files({
+            "bundled_files": declared,
+        }) == ([], False)
+
+    def test_nested_metadata_is_a_bundled_asset(self):
+        assert audit_skill_assets._local_verdict(["references/metadata.json"]) == "REF_ASSET"
+
+    def test_nested_metadata_keeps_current_state_internally_consistent(self, tmp_path):
+        skill = tmp_path / "data" / "dev" / "demo"
+        (skill / "references").mkdir(parents=True)
+        (skill / "SKILL.md").write_text("See references/metadata.json.", encoding="utf-8")
+        (skill / "references" / "metadata.json").write_text("{}", encoding="utf-8")
+
+        report = audit_skill_assets.run_current_state(str(tmp_path / "data"), min_stars=0)
+
+        assert report["actual_bundled_file_count"] == 1
+        assert report["local_verdict_counts"] == {"REF_ASSET": 1}
+
+    def test_conflicting_alias_record_makes_valid_candidate_ambiguous(self, tmp_path):
+        root = tmp_path / "data"
+        for name, metadata in (
+            (
+                "valid",
+                {
+                    "repo": "acme/tools",
+                    "path": "skills/one/SKILL.md",
+                    "github_branch": "main",
+                    "stars": 100,
+                },
+            ),
+            (
+                "conflict",
+                {
+                    "repo": "Acme/Tools",
+                    "path": "skills/two/SKILL.md",
+                    "github_path": "skills/one/SKILL.md",
+                    "github_branch": "main",
+                    "stars": 100,
+                },
+            ),
+        ):
+            skill = root / "dev" / name
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text("Run scripts/setup.py.", encoding="utf-8")
+            (skill / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=100)
+
+        assert report["ambiguous_stable_key_count"] == 1
+        assert report["backfill_candidate_count"] == 0
+
+    def test_backfill_target_preserves_source_branch(self, tmp_path):
+        skill = tmp_path / "data" / "dev" / "demo"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("Run scripts/setup.py.", encoding="utf-8")
+        (skill / "metadata.json").write_text(
+            json.dumps({
+                "repo": "acme/tools",
+                "path": "skills/demo/SKILL.md",
+                "github_branch": "release/v1",
+                "stars": 100,
+            }),
+            encoding="utf-8",
+        )
+
+        [target] = audit_skill_assets.build_backfill_targets(
+            str(tmp_path / "data"), min_stars=100
+        )
+
+        assert target["github_branch"] == "release/v1"
 
 
 class TestIterArchivedSkills:
