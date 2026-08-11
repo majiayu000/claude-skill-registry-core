@@ -63,19 +63,26 @@ def skill_key(skill: dict) -> str:
     category = sanitize_category(skill.get("category") or "other")
     return f"{category}:{name}"
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('sync_and_download.log'),
-        logging.StreamHandler()
-    ]
-)
+
 logger = logging.getLogger(__name__)
 ACQUISITION_MANIFEST_VERSION = 1
 DEFAULT_MANIFEST_PATH = ROOT_DIR / "sources" / "acquisition_manifest.json"
 DEFAULT_LEARNING_PRIORS_PATH = ROOT_DIR / "sources" / "learning" / "discovery_priors.json"
 GITHUB_API_BASE = "https://api.github.com"
+
+
+def configure_sync_logging(log_path: str = "sync_and_download.log") -> None:
+    """Configure CLI logging explicitly, never as a shared-module import side effect."""
+    if getattr(configure_sync_logging, "_configured", False):
+        return
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler(log_path), logging.StreamHandler()],
+        force=True,
+    )
+    configure_sync_logging._configured = True
+
 
 BUNDLED_DIR_ALLOWLIST = {
     "bin",
@@ -207,7 +214,7 @@ def normalize_download_repo(repo: str) -> str:
     """Normalize source repo values used by the downloader."""
     repo = (repo or "").strip()
     if repo.startswith("https://github.com/"):
-        repo = repo[len("https://github.com/"):]
+        repo = repo[len("https://github.com/") :]
     repo = repo.split("/tree/")[0]
     repo = repo.split("/blob/")[0]
     return repo.rstrip("/")
@@ -222,7 +229,7 @@ def normalize_repo_path(path: str, repo: str) -> str:
     if path.startswith("https://github.com/") and repo:
         prefix = f"https://github.com/{repo}/"
         if path.startswith(prefix):
-            rest = path[len(prefix):]
+            rest = path[len(prefix) :]
             parts = rest.split("/", 2)
             if len(parts) >= 3 and parts[0] in {"blob", "tree"}:
                 return parts[2].strip("/")
@@ -280,7 +287,7 @@ def bundled_relative_path(source_dir: str, repo_path: str) -> str:
         return ""
     if not repo_path.startswith(prefix):
         return ""
-    return repo_path[len(prefix):]
+    return repo_path[len(prefix) :]
 
 
 def should_recurse_bundled_dir(relative_path: str) -> bool:
@@ -586,8 +593,7 @@ def validate_existing_archive_sources(
     if metadata_errors:
         sample = "\n".join(metadata_errors[:20])
         raise RuntimeError(
-            "Cannot validate existing archive metadata for security blocklist:\n"
-            f"{sample}"
+            f"Cannot validate existing archive metadata for security blocklist:\n{sample}"
         )
 
     if blocked_archives:
@@ -602,8 +608,7 @@ def validate_existing_archive_sources(
                     resolved_archive_dir.relative_to(output_root)
                 except ValueError as exc:
                     raise RuntimeError(
-                        "Refusing to remove blocked archive outside output dir: "
-                        f"{archive_dir}"
+                        f"Refusing to remove blocked archive outside output dir: {archive_dir}"
                     ) from exc
                 if resolved_archive_dir in removed_dirs:
                     continue
@@ -618,10 +623,7 @@ def validate_existing_archive_sources(
             )
             return removed_archives
 
-        raise RuntimeError(
-            "Existing archive contains blocked source repos:\n"
-            f"{sample}"
-        )
+        raise RuntimeError(f"Existing archive contains blocked source repos:\n{sample}")
 
     return []
 
@@ -661,7 +663,9 @@ def remove_ci_untracked_archive_files(output_dir: Path) -> int:
         try:
             target.relative_to(output_root)
         except ValueError as exc:
-            raise RuntimeError(f"Refusing untracked archive path outside output dir: {target}") from exc
+            raise RuntimeError(
+                f"Refusing untracked archive path outside output dir: {target}"
+            ) from exc
         if target.is_dir():
             shutil.rmtree(target)
         elif target.exists() or target.is_symlink():
@@ -702,7 +706,9 @@ def build_branch_probe_order(
     return _ordered_unique(candidates)
 
 
-def build_relative_probe_order(relative_candidates: list[str], manifest_entry: dict | None) -> list[str]:
+def build_relative_probe_order(
+    relative_candidates: list[str], manifest_entry: dict | None
+) -> list[str]:
     """Build relative-path probe order with manifest hint first."""
     candidates = []
     if manifest_entry and manifest_entry.get("relative_path"):

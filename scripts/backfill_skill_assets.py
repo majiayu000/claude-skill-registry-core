@@ -17,6 +17,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -31,7 +32,7 @@ from audit_skill_assets import (
     canonical_source_identity_from_metadata,
 )
 from sync_download import download_skills
-from sync_download_support import exact_source_branch
+from sync_download_support import bundled_file_blobs_match, exact_source_branch
 
 
 def _assert_no_symlink_components(root: Path, destination: Path) -> None:
@@ -100,6 +101,51 @@ def _asset_free_archive_snapshot(destination: Path) -> str:
     return digest.hexdigest()
 
 
+def _archive_snapshot(directory: Path) -> str:
+    """Hash a prepared archive while rejecting links and special files."""
+    digest = hashlib.sha256()
+    for path in sorted(directory.rglob("*")):
+        relative = path.relative_to(directory).as_posix()
+        mode = path.lstat().st_mode
+        if stat.S_ISLNK(mode):
+            raise ValueError(f"prepared archive contains a symbolic link: {relative}")
+        if stat.S_ISDIR(mode):
+            continue
+        if not stat.S_ISREG(mode):
+            raise ValueError(f"prepared archive contains a special file: {relative}")
+        digest.update(relative.encode("utf-8") + b"\0" + path.read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def _directory_identity(directory: Path) -> tuple[int, int]:
+    details = directory.lstat()
+    if stat.S_ISLNK(details.st_mode) or not stat.S_ISDIR(details.st_mode):
+        raise ValueError(f"archive parent is not a real directory: {directory}")
+    return details.st_dev, details.st_ino
+
+
+def _replace_in_verified_directory(
+    directory: Path,
+    expected_identity: tuple[int, int],
+    source_name: str,
+    destination_name: str,
+) -> None:
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(directory, flags)
+    try:
+        details = os.fstat(descriptor)
+        if (details.st_dev, details.st_ino) != expected_identity:
+            raise ValueError(f"archive parent changed before swap: {directory}")
+        os.replace(
+            source_name,
+            destination_name,
+            src_dir_fd=descriptor,
+            dst_dir_fd=descriptor,
+        )
+    finally:
+        os.close(descriptor)
+
+
 def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
     targets = []
     seen_keys = set()
@@ -137,8 +183,8 @@ def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
         if not destination.is_dir() or not skill_path.is_file():
             raise ValueError(f"archive target does not exist: {destination}")
         metadata = _load_metadata(metadata_path)
-        existing_repo, existing_path, existing_error = (
-            canonical_source_identity_from_metadata(metadata)
+        existing_repo, existing_path, existing_error = canonical_source_identity_from_metadata(
+            metadata
         )
         if existing_error or f"{existing_repo.casefold()}:{existing_path}" != stable_key:
             raise ValueError(f"archive metadata identity mismatch: {metadata_path}")
@@ -160,7 +206,9 @@ def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
         }
         for field, expected_value in expected_target_fields.items():
             if target.get(field) != expected_value:
-                raise ValueError(f"target line {line_number} {field} does not match archive metadata")
+                raise ValueError(
+                    f"target line {line_number} {field} does not match archive metadata"
+                )
 
         skill = {
             **{
@@ -175,13 +223,15 @@ def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
             "category": existing_category,
             "stars": existing_stars,
         }
-        targets.append({
-            "stable_key": stable_key,
-            "archive_path": target["archive_path"],
-            "destination": destination,
-            "archive_snapshot": archive_snapshot,
-            "skill": skill,
-        })
+        targets.append(
+            {
+                "stable_key": stable_key,
+                "archive_path": target["archive_path"],
+                "destination": destination,
+                "archive_snapshot": archive_snapshot,
+                "skill": skill,
+            }
+        )
     if not targets:
         raise ValueError("backfill target file is empty")
     return targets
@@ -229,6 +279,8 @@ def validate_staged_archives(targets: list[dict], stage_root: Path) -> dict[str,
                 f"staged bundled_files mismatch: {stable_key}; "
                 f"declared={sorted(declared)}, actual={actual}"
             )
+        if not bundled_file_blobs_match(metadata, skill_dir, declared):
+            raise ValueError(f"staged bundled file blob mismatch: {stable_key}")
     return staged
 
 
@@ -244,19 +296,30 @@ def _cleanup_directories(paths: list[Path]) -> list[str]:
     return errors
 
 
-def _rollback_applied_archives(applied: list[tuple[Path, Path]]) -> list[str]:
+def _rollback_applied_archives(
+    applied: list[tuple[Path, Path, tuple[int, int]]],
+) -> list[str]:
     errors = []
-    for destination, backup in reversed(applied):
+    for destination, backup, parent_identity in reversed(applied):
         failed_copy = None
         try:
             if destination.exists():
                 failed_copy = destination.parent / f".{destination.name}.failed-{uuid.uuid4().hex}"
-                os.replace(destination, failed_copy)
+                _replace_in_verified_directory(
+                    destination.parent, parent_identity, destination.name, failed_copy.name
+                )
             try:
-                os.replace(backup, destination)
+                _replace_in_verified_directory(
+                    destination.parent, parent_identity, backup.name, destination.name
+                )
             except Exception:
                 if failed_copy is not None and failed_copy.exists() and not destination.exists():
-                    os.replace(failed_copy, destination)
+                    _replace_in_verified_directory(
+                        destination.parent,
+                        parent_identity,
+                        failed_copy.name,
+                        destination.name,
+                    )
                 raise
             if failed_copy is not None:
                 errors.extend(_cleanup_directories([failed_copy]))
@@ -267,21 +330,38 @@ def _rollback_applied_archives(applied: list[tuple[Path, Path]]) -> list[str]:
     return errors
 
 
-def apply_staged_archives(targets: list[dict], stage_root: Path) -> None:
+def apply_staged_archives(
+    targets: list[dict],
+    stage_root: Path,
+    scanned_snapshots: dict[str, str],
+) -> None:
     staged = validate_staged_archives(targets, stage_root)
+    if set(scanned_snapshots) != set(staged):
+        raise ValueError("ClamAV snapshot identities do not match staged archives")
 
     prepared = []
+    created_candidates = []
     try:
         for target in targets:
             destination = target["destination"]
+            stable_key = target["stable_key"]
             _assert_no_symlink_components(destination.parents[1], destination)
+            parent_identity = _directory_identity(destination.parent)
             if _asset_free_archive_snapshot(destination) != target["archive_snapshot"]:
-                raise ValueError(f"backfill destination changed after target generation: {destination}")
+                raise ValueError(
+                    f"backfill destination changed after target generation: {destination}"
+                )
             candidate = Path(
                 tempfile.mkdtemp(prefix=f".{destination.name}.backfill-", dir=destination.parent)
             )
-            prepared.append((target, destination, candidate))
-            shutil.copytree(staged[target["stable_key"]], candidate, dirs_exist_ok=True)
+            created_candidates.append(candidate)
+            if _directory_identity(destination.parent) != parent_identity:
+                raise ValueError(f"archive parent changed during preparation: {destination.parent}")
+            if _archive_snapshot(staged[stable_key]) != scanned_snapshots[stable_key]:
+                raise ValueError(f"staged archive changed after ClamAV scan: {stable_key}")
+            shutil.copytree(staged[stable_key], candidate, dirs_exist_ok=True)
+            if _archive_snapshot(candidate) != scanned_snapshots[stable_key]:
+                raise ValueError(f"copied archive differs from ClamAV scan: {stable_key}")
             metadata_path = candidate / "metadata.json"
             existing_metadata = _load_metadata(destination / "metadata.json")
             staged_metadata = _load_metadata(metadata_path)
@@ -296,10 +376,11 @@ def apply_staged_archives(targets: list[dict], stage_root: Path) -> None:
                 json.dumps(merged_metadata, indent=2, ensure_ascii=False),
                 encoding="utf-8",
             )
+            prepared.append(
+                (target, destination, candidate, parent_identity, _archive_snapshot(candidate))
+            )
     except Exception as exc:
-        cleanup_errors = _cleanup_directories(
-            [candidate for _target, _dest, candidate in prepared]
-        )
+        cleanup_errors = _cleanup_directories(created_candidates)
         if cleanup_errors:
             raise RuntimeError(
                 "backfill preparation failed and cleanup was incomplete: "
@@ -309,19 +390,25 @@ def apply_staged_archives(targets: list[dict], stage_root: Path) -> None:
 
     applied = []
     try:
-        for target, destination, candidate in prepared:
+        for target, destination, candidate, parent_identity, candidate_snapshot in prepared:
             _assert_no_symlink_components(destination.parents[1], destination)
             if _asset_free_archive_snapshot(destination) != target["archive_snapshot"]:
                 raise ValueError(f"backfill destination changed before swap: {destination}")
+            if _directory_identity(destination.parent) != parent_identity:
+                raise ValueError(f"archive parent changed before swap: {destination.parent}")
+            if _archive_snapshot(candidate) != candidate_snapshot:
+                raise ValueError(f"prepared backfill changed before swap: {candidate}")
             backup = destination.parent / f".{destination.name}.backup-{uuid.uuid4().hex}"
-            os.replace(destination, backup)
-            applied.append((destination, backup))
-            os.replace(candidate, destination)
+            _replace_in_verified_directory(
+                destination.parent, parent_identity, destination.name, backup.name
+            )
+            applied.append((destination, backup, parent_identity))
+            _replace_in_verified_directory(
+                destination.parent, parent_identity, candidate.name, destination.name
+            )
     except Exception as exc:
         rollback_errors = _rollback_applied_archives(applied)
-        cleanup_errors = _cleanup_directories(
-            [candidate for _target, _dest, candidate in prepared]
-        )
+        cleanup_errors = _cleanup_directories(created_candidates)
         errors = rollback_errors + cleanup_errors
         if errors:
             raise RuntimeError(
@@ -330,17 +417,23 @@ def apply_staged_archives(targets: list[dict], stage_root: Path) -> None:
         raise
 
     cleanup_errors = _cleanup_directories(
-        [candidate for _target, _destination, candidate in prepared]
-        + [backup for _destination, backup in applied]
+        created_candidates + [backup for _destination, backup, _identity in applied]
     )
     if cleanup_errors:
-        raise RuntimeError("backfill applied but cleanup was incomplete: " + "; ".join(cleanup_errors))
+        raise RuntimeError(
+            "backfill applied but cleanup was incomplete: " + "; ".join(cleanup_errors)
+        )
 
 
-def scan_staged_archives_with_clamav(stage_root: Path, binary: str = "clamscan") -> None:
+def scan_staged_archives_with_clamav(
+    stage_root: Path,
+    binary: str = "clamscan",
+) -> dict[str, str]:
     """Fail closed unless ClamAV reports the complete staged batch clean."""
     if not stage_root.is_dir():
         raise ValueError(f"staged archive root does not exist: {stage_root}")
+    staged = _staged_archives(stage_root)
+    before = {key: _archive_snapshot(path) for key, path in staged.items()}
     try:
         result = subprocess.run(
             [binary, "--recursive", "--infected", str(stage_root)],
@@ -356,6 +449,10 @@ def scan_staged_archives_with_clamav(stage_root: Path, binary: str = "clamscan")
         raise RuntimeError(
             f"ClamAV rejected staged backfill with exit code {result.returncode}: {details}"
         )
+    after = {key: _archive_snapshot(path) for key, path in staged.items()}
+    if after != before:
+        raise RuntimeError("staged archives changed during ClamAV scan")
+    return after
 
 
 async def run_backfill(
@@ -401,8 +498,10 @@ async def run_backfill(
                 validate_staged_archives(targets, stage_root)
                 status = "validated"
                 if apply:
-                    scan_staged_archives_with_clamav(stage_root, clamscan_binary)
-                    apply_staged_archives(targets, stage_root)
+                    scanned_snapshots = scan_staged_archives_with_clamav(
+                        stage_root, clamscan_binary
+                    )
+                    apply_staged_archives(targets, stage_root, scanned_snapshots)
                     status = "applied"
     except Exception as exc:  # noqa: BLE001 — emit a structured report for every failure
         status = "failed"
