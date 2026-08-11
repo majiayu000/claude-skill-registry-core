@@ -333,8 +333,8 @@ def build_search_index(
         candidate_rank = (
             stars,
             quality_score,
-            -asset_penalty,
             len(description),
+            -asset_penalty,
             json.dumps(
                 full_record,
                 ensure_ascii=True,
@@ -345,8 +345,8 @@ def build_search_index(
         existing_rank = (
             int(existing.get("stars", 0) or 0),
             int(existing.get("quality_score", 0) or 0),
-            -float(existing.get("_asset_ranking_penalty", 0.1)),
             int(existing.get("_description_length", 0) or 0),
+            -float(existing.get("_asset_ranking_penalty", 0.1)),
             json.dumps(
                 existing_records["full"],
                 ensure_ascii=True,
@@ -391,8 +391,7 @@ def build_search_index(
                 "recommended_score": max(0, round(
                     quality_score * 0.45
                     + trust_score * 0.30
-                    + min(100, stars**0.5) * 0.25
-                    - asset_penalty,
+                    + min(100, stars**0.5) * 0.25,
                     2,
                 )),
             }
@@ -428,9 +427,9 @@ def build_search_index(
         (records["lite"] for records in records_by_key.values()),
         key=lambda x: (
             x.get("quality_score", 0),
-            -x.get("_asset_ranking_penalty", 0.1),
             x.get("trust_score", 0),
             x.get("stars", 0),
+            -x.get("_asset_ranking_penalty", 0.1),
         ),
         reverse=True,
     )
@@ -441,7 +440,10 @@ def build_search_index(
     lite_skills = all_lite_skills[:LITE_INDEX_LIMIT]
     ranking_records = sorted(
         ranking_records_by_id.values(),
-        key=lambda x: x.get("recommended_score", 0),
+        key=lambda x: (
+            x.get("recommended_score", 0),
+            -x.get("asset_ranking_penalty", 0.1),
+        ),
         reverse=True,
     )
 

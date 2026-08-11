@@ -473,11 +473,75 @@ def test_live_asset_facets_win_equal_search_ranks_by_downranking_only(tmp_path):
     plain_rank = by_install[plain["install"]]
     assert live_rank["asset_ranking_penalty"] == 0
     assert plain_rank["asset_ranking_penalty"] == 0.1
-    assert live_rank["recommended_score"] > plain_rank["recommended_score"]
+    assert live_rank["recommended_score"] == plain_rank["recommended_score"]
     assert stats["asset_state_counts"] == {"verified": 1}
     assert stats["asset_liveness_counts"] == {"live": 1}
     featured = json.loads((output_dir / "featured.json").read_text())
     assert [skill["name"] for skill in featured["skills"]] == ["verified-live", "plain"]
+
+
+def test_asset_evidence_never_overrides_existing_non_equal_ranks(tmp_path):
+    live = _skill(
+        name="live-one-star",
+        repo="acme/live",
+        install="acme/live/SKILL.md",
+        branch="main",
+        stars=1,
+        asset_state="verified",
+        asset_liveness="live",
+    )
+    gone = _skill(
+        name="gone-two-stars",
+        repo="acme/gone",
+        install="acme/gone/SKILL.md",
+        branch="main",
+        stars=2,
+        asset_state="verified",
+        asset_liveness="gone",
+    )
+    output_dir = tmp_path / "docs"
+
+    build_search_index([live, gone], output_dir)
+
+    lite = json.loads((output_dir / "search-index-lite.json").read_text())
+    assert [skill["name"] for skill in lite["skills"]] == [
+        "gone-two-stars", "live-one-star",
+    ]
+    ranking_manifest = json.loads((output_dir / "ranking-index-manifest.json").read_text())
+    ranking_shard = json.loads((output_dir / ranking_manifest["shards"][0]["path"]).read_text())
+    assert [record["install"] for record in ranking_shard["records"]] == [
+        gone["install"], live["install"],
+    ]
+    assert ranking_shard["records"][0]["recommended_score"] > (
+        ranking_shard["records"][1]["recommended_score"]
+    )
+
+
+def test_asset_evidence_does_not_override_existing_dedupe_winner(tmp_path):
+    plain = _skill(
+        name="plain-short",
+        description="short",
+        repo="acme/shared",
+        install="acme/shared/SKILL.md",
+        branch="main",
+        stars=10,
+    )
+    gone = _skill(
+        name="gone-long",
+        description="a much longer description that won before asset facets existed",
+        repo="acme/shared",
+        install="acme/shared/SKILL.md",
+        branch="main",
+        stars=10,
+        asset_state="verified",
+        asset_liveness="gone",
+    )
+    output_dir = tmp_path / "docs"
+
+    build_search_index([plain, gone], output_dir)
+
+    lite = json.loads((output_dir / "search-index-lite.json").read_text())
+    assert [skill["name"] for skill in lite["skills"]] == ["gone-long"]
 
 
 def test_asset_ranking_penalties_are_downrank_only():
@@ -490,11 +554,14 @@ def test_asset_ranking_penalties_are_downrank_only():
 
 
 def test_verified_asset_fields_omit_malformed_claims_and_incomplete_liveness(tmp_path):
-    skill_dir = tmp_path / "skill"
+    skill_dir = tmp_path / "dev" / "skill"
     (skill_dir / "scripts").mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("body", encoding="utf-8")
     (skill_dir / "scripts/run.py").write_text("asset", encoding="utf-8")
     base = {
+        "repo": "acme/tools",
+        "path": "skills/demo/SKILL.md",
+        "github_branch": "main",
         "archive_mode": "directory",
         "bundled_files": ["scripts/run.py"],
         "github_commit_sha": "a" * 40,
@@ -514,6 +581,16 @@ def test_verified_asset_fields_omit_malformed_claims_and_incomplete_liveness(tmp
     ]
     for change in invalid_changes:
         assert verified_asset_fields({**base, **change}, skill_dir, tmp_path) == {}
+
+    for missing_field in ("repo", "path", "github_branch"):
+        incomplete = dict(base)
+        incomplete.pop(missing_field)
+        assert verified_asset_fields(incomplete, skill_dir, tmp_path) == {}
+    for conflict in (
+        {"github_path": "skills/other/SKILL.md"},
+        {"branch": "develop"},
+    ):
+        assert verified_asset_fields({**base, **conflict}, skill_dir, tmp_path) == {}
 
     verified = verified_asset_fields({**base, "asset_liveness": "live"}, skill_dir, tmp_path)
     assert verified["asset_state"] == "verified"
@@ -543,13 +620,16 @@ def test_verified_asset_fields_omit_malformed_claims_and_incomplete_liveness(tmp
 
 
 def test_verified_asset_fields_reject_symlinks(tmp_path):
-    skill_dir = tmp_path / "skill"
-    skill_dir.mkdir()
+    skill_dir = tmp_path / "dev" / "skill"
+    skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("body", encoding="utf-8")
     external = tmp_path / "external.py"
     external.write_text("asset", encoding="utf-8")
     (skill_dir / "run.py").symlink_to(external)
     metadata = {
+        "repo": "acme/tools",
+        "path": "skills/demo/SKILL.md",
+        "github_branch": "main",
         "archive_mode": "directory",
         "bundled_files": ["run.py"],
         "github_commit_sha": "a" * 40,
@@ -567,6 +647,28 @@ def test_verified_asset_fields_reject_symlinks(tmp_path):
     linked_root = tmp_path / "linked-root"
     linked_root.symlink_to(tmp_path, target_is_directory=True)
     assert verified_asset_fields(metadata, linked_root / "skill", linked_root) == {}
+
+
+def test_registry_and_search_omit_verified_state_without_source_identity(tmp_path):
+    skills_dir = tmp_path / "skills"
+    skill_dir = skills_dir / "development" / "asset-demo"
+    (skill_dir / "scripts").mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Asset demo", encoding="utf-8")
+    (skill_dir / "scripts" / "run.py").write_text("print('ok')", encoding="utf-8")
+    (skill_dir / "metadata.json").write_text(json.dumps({
+        "name": "asset-demo",
+        "category": "development",
+        "archive_mode": "directory",
+        "bundled_files": ["scripts/run.py"],
+        "github_commit_sha": "a" * 40,
+        "assets_verified_at": "2026-08-01T00:00:00Z",
+    }), encoding="utf-8")
+
+    [search_record] = scan_skills_v2(skills_dir)
+    [registry_record] = scan_registry_skills(skills_dir)
+
+    assert "asset_state" not in search_record
+    assert "asset_state" not in registry_record
 
 
 def test_registry_fallback_preserves_validated_asset_fields(tmp_path):

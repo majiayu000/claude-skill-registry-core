@@ -7,7 +7,9 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional
 
+from audit_skill_assets import canonical_source_identity_from_metadata
 from category_taxonomy import resolve_category
+from sync_download_support import exact_source_branch
 from utils import (
     extract_description,
     get_repo_suffix,
@@ -90,6 +92,8 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
         candidate.resolve().relative_to(root.resolve())
     except ValueError:
         return {}
+    if len(relative.parts) != 2:
+        return {}
     current = root
     for part in relative.parts:
         current /= part
@@ -100,8 +104,11 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
     declared = metadata.get("bundled_files")
     pinned_sha = metadata.get("github_commit_sha")
     verified_at = metadata.get("assets_verified_at")
+    _repo, _source_path, source_error = canonical_source_identity_from_metadata(metadata)
     if (
-        metadata.get("archive_mode") != "directory"
+        source_error
+        or not exact_source_branch(metadata)
+        or metadata.get("archive_mode") != "directory"
         or not isinstance(declared, list)
         or not declared
         or not isinstance(pinned_sha, str)
@@ -175,6 +182,8 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
             continue
         skill_dir = skill_md.parent
         rel_parts = skill_dir.relative_to(skills_dir).parts
+        if len(rel_parts) != 2:
+            continue
         category_name = rel_parts[0] if rel_parts else "other"
         metadata = load_metadata(skill_dir)
         dir_name = skill_dir.name
@@ -200,7 +209,7 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
         category = resolve_category(metadata.get("category", category_name), allow_unknown=True)
 
         repo = metadata.get("repo", "")
-        github_path = metadata.get("github_path") or metadata.get("path") or "/".join(rel_parts)
+        github_path = metadata.get("path") or metadata.get("github_path") or "/".join(rel_parts)
         github_branch = metadata.get("github_branch") or metadata.get("branch") or "main"
 
         if github_path and repo:
