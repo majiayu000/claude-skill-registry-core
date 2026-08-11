@@ -33,6 +33,7 @@ from audit_skill_assets import (
 )
 from sync_download import download_skills
 from sync_download_support import bundled_file_blobs_match, exact_source_branch
+from sync_pipeline_support import has_case_conflicting_paths
 
 
 def _assert_no_symlink_components(root: Path, destination: Path) -> None:
@@ -79,12 +80,16 @@ def _load_metadata(path: Path) -> dict:
 
 def _actual_support_files(skill_dir: Path) -> list[str]:
     actual = []
+    archive_paths = []
     for path in skill_dir.rglob("*"):
         relative_path = path.relative_to(skill_dir).as_posix()
+        archive_paths.append(relative_path)
         if path.is_symlink():
             raise ValueError(f"archive contains a symbolic link: {relative_path}")
         if path.is_file() and relative_path not in {"SKILL.md", "metadata.json"}:
             actual.append(relative_path)
+    if has_case_conflicting_paths(archive_paths):
+        raise ValueError(f"archive contains case-conflicting paths: {skill_dir}")
     return sorted(actual)
 
 
@@ -167,6 +172,9 @@ def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
         )
         if source_error:
             raise ValueError(f"target line {line_number} has {source_error}")
+        target_branch = exact_source_branch(target)
+        if not target_branch:
+            raise ValueError(f"target line {line_number} lacks an exact source branch")
         stable_key = f"{repo.casefold()}:{source_path}"
         if target.get("stable_key") != stable_key:
             raise ValueError(f"target line {line_number} stable_key does not match source")
@@ -191,6 +199,10 @@ def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
         branch = exact_source_branch(metadata)
         if not branch:
             raise ValueError(f"archive metadata lacks an exact source branch: {metadata_path}")
+        if branch != target_branch:
+            raise ValueError(
+                f"target line {line_number} source branch does not match archive metadata"
+            )
         archive_snapshot = _asset_free_archive_snapshot(destination)
 
         existing_name = str(metadata.get("name") or destination.name)
@@ -218,7 +230,7 @@ def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
             },
             "repo": repo,
             "path": source_path,
-            "github_branch": branch,
+            "github_branch": target_branch,
             "name": existing_name,
             "category": existing_category,
             "stars": existing_stars,
@@ -273,6 +285,8 @@ def validate_staged_archives(targets: list[dict], stage_root: Path) -> dict[str,
             raise ValueError(f"staged backfill contains no bundled files: {stable_key}")
         if any(not isinstance(path, str) or not path for path in declared):
             raise ValueError(f"staged bundled_files is malformed: {metadata_path}")
+        if has_case_conflicting_paths(declared):
+            raise ValueError(f"staged bundled_files contains case conflicts: {metadata_path}")
         actual = _actual_support_files(skill_dir)
         if sorted(declared) != actual:
             raise ValueError(
