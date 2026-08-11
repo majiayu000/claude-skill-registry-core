@@ -803,6 +803,35 @@ class TestApplyStagedArchives:
             backfill_skill_assets.apply_staged_archives(loaded, stage_root)
         assert (destination / "SKILL.md").read_text() == "Run scripts/setup.py."
 
+    def test_rolls_back_candidate_mutated_during_swap(self, tmp_path, monkeypatch):
+        archive_root = tmp_path / "archive"
+        destination, target = make_backfill_target(archive_root)
+        targets_path = tmp_path / "targets.jsonl"
+        targets_path.write_text(json.dumps(target) + "\n")
+        loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
+        stage_root = tmp_path / "stage"
+        self._stage(stage_root, target)
+        self._allow_clean_scan(monkeypatch)
+        real_replace = backfill_skill_assets.os.replace
+        mutated = False
+
+        def mutate_after_backup(source, target_path, *args, **kwargs):
+            nonlocal mutated
+            result = real_replace(source, target_path, *args, **kwargs)
+            if source == destination.name and ".backup-" in str(target_path) and not mutated:
+                candidate = next(destination.parent.glob(".demo.backfill-*"))
+                (candidate / "scripts" / "setup.py").write_text("print('tampered')")
+                mutated = True
+            return result
+
+        monkeypatch.setattr(backfill_skill_assets.os, "replace", mutate_after_backup)
+
+        with pytest.raises(ValueError, match="differs from ClamAV scan"):
+            backfill_skill_assets.apply_staged_archives(loaded, stage_root)
+        assert mutated is True
+        assert (destination / "SKILL.md").read_text() == "Run scripts/setup.py."
+        assert not (destination / "scripts").exists()
+
     def test_rejects_non_hex_sha_and_unexpected_identity(self, tmp_path):
         archive_root = tmp_path / "archive"
         _destination, target = make_backfill_target(archive_root)
