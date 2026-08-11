@@ -69,6 +69,10 @@ class TestStrictBackfillInventory:
             "github_branch": " release/v1 ",
             "branch": "release/v1",
         }) == ("release/v1", "")
+        pinned_ref = "a" * 40
+        assert audit_skill_assets.canonical_source_branch_from_metadata({
+            "github_branch": pinned_ref,
+        }) == (pinned_ref, "")
 
     def test_conflicting_aliases_contribute_every_normalized_identity_key(self):
         keys = audit_skill_assets._identity_keys(
@@ -99,6 +103,7 @@ class TestStrictBackfillInventory:
         "declared",
         [
             ["references//guide.md"],
+            ["C:/scripts/run.py"],
             ["references/Guide.md", "references/guide.md"],
             ["References/one.md", "references/two.md"],
         ],

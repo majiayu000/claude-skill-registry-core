@@ -610,40 +610,15 @@ def test_exact_download_rejects_redirected_repository_identity(tmp_path, monkeyp
     assert stats["failed"] == 1
 
 
-def test_exact_download_rejects_raw_sha_branch_alias(tmp_path, monkeypatch):
-    module = load_module()
-    registry_path = tmp_path / "registry.json"
-    output_dir = tmp_path / "skills"
-    registry_path.write_text(
-        json.dumps(
-            {
-                "skills": [
-                    {
-                        "name": "demo",
-                        "repo": "acme/demo",
-                        "path": "skills/demo/SKILL.md",
-                        "category": "development",
-                        "github_branch": "a" * 40,
-                    }
-                ]
-            }
-        )
-    )
-    install_fake_aiohttp(monkeypatch, {})
+def test_exact_download_accepts_raw_sha_source_ref():
+    scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    from sync_download_support import exact_source_branch
 
-    stats = asyncio.run(
-        module.download_skills(
-            registry_path,
-            output_dir,
-            manifest_path=None,
-            cleanup_ci_untracked=False,
-            exact_paths_only=True,
-            pin_commit_sha=True,
-        )
-    )
+    pinned_ref = "a" * 40
 
-    assert stats["downloaded"] == 0
-    assert stats["failed"] == 1
+    assert exact_source_branch({"github_branch": pinned_ref}) == pinned_ref
 
 
 def test_exact_download_does_not_probe_name_fallbacks(tmp_path, monkeypatch):

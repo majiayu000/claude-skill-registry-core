@@ -35,7 +35,6 @@ from sync_pipeline_support import has_case_conflicting_paths
 from utils import build_skill_key
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-COMMIT_SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
 
 
 def _read_skill(dirpath: str) -> str:
@@ -159,7 +158,6 @@ def canonical_source_branch_from_metadata(metadata: dict) -> tuple[str, str]:
             not branch
             or len(branch) > 255
             or any(ord(character) < 33 or ord(character) == 127 for character in branch)
-            or COMMIT_SHA_PATTERN.fullmatch(branch)
         ):
             return "", "invalid_source_branch"
         branches.append(branch)
@@ -253,7 +251,9 @@ def _declared_bundled_files(metadata: dict) -> tuple[list[str], bool]:
     for value in declared:
         if not isinstance(value, str) or not value or value != value.strip() or "\\" in value:
             return [], False
-        if any(part in {"", ".", ".."} for part in value.split("/")):
+        if re.match(r"^[A-Za-z]:/", value) or any(
+            part in {"", ".", ".."} for part in value.split("/")
+        ):
             return [], False
         path = PurePosixPath(value)
         if path.is_absolute():
