@@ -267,6 +267,18 @@ class TestCurrentStateInventory:
             "",
         )
 
+    def test_accepts_case_insensitive_skill_filename(self):
+        assert audit_skill_assets.canonical_source_identity(
+            "acme/tools", "skills/a/skill.md"
+        ) == ("acme/tools", "skills/a/skill.md", "")
+
+    def test_rejects_conflicting_source_path_aliases(self):
+        assert audit_skill_assets.canonical_source_identity_from_metadata({
+            "repo": "acme/tools",
+            "path": "skills/old/SKILL.md",
+            "github_path": "skills/new/SKILL.md",
+        })[2] == "conflicting_source_path_aliases"
+
     def test_nested_declared_skill_is_counted_only_as_support_file(self, tmp_path):
         root = tmp_path / "data"
         parent = make_skill(
@@ -293,6 +305,73 @@ class TestCurrentStateInventory:
         assert report["actual_bundled_file_count"] == 1
         assert report["local_verdict_counts"] == {"REF_ASSET": 1}
 
+    def test_nested_skill_is_support_even_when_metadata_is_stale(self, tmp_path):
+        root = tmp_path / "data"
+        parent = make_skill(
+            root,
+            "dev",
+            "parent",
+            "See references/helper/SKILL.md.",
+            {
+                "repo": "acme/tools",
+                "path": "skills/parent/SKILL.md",
+                "archive_mode": "directory",
+                "bundled_files": [],
+            },
+        )
+        helper = parent / "references" / "helper"
+        helper.mkdir(parents=True)
+        (helper / "SKILL.md").write_text("helper")
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=0)
+
+        assert report["total_skills"] == 1
+        assert report["actual_bundled_file_count"] == 1
+        assert report["metadata_mismatch_count"] == 1
+
+    def test_repository_case_aliases_are_ambiguous(self, tmp_path):
+        root = tmp_path / "data"
+        for name, repo in (("one", "Acme/Tools"), ("two", "acme/tools")):
+            make_skill(
+                root,
+                "dev",
+                name,
+                "Run scripts/setup.py.",
+                {
+                    "repo": repo,
+                    "path": "skills/demo/SKILL.md",
+                    "stars": 100,
+                },
+            )
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=100)
+
+        assert report["ambiguous_stable_key_count"] == 1
+        assert report["backfill_candidate_count"] == 0
+
+    @pytest.mark.parametrize(
+        "declared",
+        [{}, ["scripts/run.py", 7], ["scripts/run.py", "scripts/run.py"]],
+    )
+    def test_malformed_bundled_files_is_visible_drift(self, tmp_path, declared):
+        root = tmp_path / "data"
+        make_skill(
+            root,
+            "dev",
+            "broken",
+            "body",
+            {
+                "repo": "acme/tools",
+                "path": "skills/broken/SKILL.md",
+                "archive_mode": "skill-md",
+                "bundled_files": declared,
+            },
+        )
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=0)
+
+        assert report["metadata_mismatch_count"] == 1
+
     def test_rejects_symbolic_links(self, tmp_path):
         root = tmp_path / "data"
         skill = make_skill(
@@ -318,7 +397,8 @@ class TestCurrentStateInventory:
         with pytest.raises(ValueError, match="invalid metadata object"):
             audit_skill_assets.run_current_state(str(root))
 
-    def test_rejects_invalid_stars(self, tmp_path):
+    @pytest.mark.parametrize("stars", ["many", "100", 100.9, {}, [], -1, True])
+    def test_rejects_invalid_stars(self, tmp_path, stars):
         root = tmp_path / "data"
         make_skill(
             root,
@@ -328,7 +408,7 @@ class TestCurrentStateInventory:
             {
                 "repo": "acme/tools",
                 "path": "skills/broken/SKILL.md",
-                "stars": "many",
+                "stars": stars,
             },
         )
 
