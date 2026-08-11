@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from audit_skill_assets import canonical_source_identity
+from audit_skill_assets import canonical_source_identity_from_metadata
 from sync_download_support import exact_source_branch
 
 SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
@@ -88,10 +88,17 @@ class GitHubClient:
                 raise GitHubApiError(0, "GitHub tree contains a malformed entry")
             path = entry.get("path")
             entry_type = entry.get("type")
-            if not isinstance(path, str) or not isinstance(entry_type, str):
-                raise GitHubApiError(0, "GitHub tree entry lacks path or type")
-            if entry_type == "blob":
+            mode = entry.get("mode")
+            if not all(isinstance(value, str) for value in (path, entry_type, mode)):
+                raise GitHubApiError(0, "GitHub tree entry lacks path, type, or mode")
+            if entry_type == "blob" and mode in {"100644", "100755"}:
                 paths.add(path)
+            elif entry_type == "blob" and mode != "120000":
+                raise GitHubApiError(0, f"GitHub tree contains unsupported blob mode {mode}")
+            elif entry_type == "tree" and mode != "040000":
+                raise GitHubApiError(0, f"GitHub tree contains unsupported tree mode {mode}")
+            elif entry_type not in {"blob", "tree", "commit"}:
+                raise GitHubApiError(0, f"GitHub tree contains unsupported type {entry_type}")
         return paths
 
 
@@ -180,17 +187,12 @@ def _target_from_metadata(metadata_path: Path, skills_dir: Path) -> Target:
         raise ValueError(f"invalid metadata JSON: {exc}") from exc
     if not isinstance(metadata, dict):
         raise ValueError("metadata must be an object")
-    canonical_path = metadata.get("path")
-    legacy_path = metadata.get("github_path")
-    for field, value in (("path", canonical_path), ("github_path", legacy_path)):
-        if field in metadata and (not isinstance(value, str) or not value.strip()):
-            raise ValueError(f"{field} must be a non-empty string")
-    if "path" in metadata and "github_path" in metadata and canonical_path != legacy_path:
-        raise ValueError("conflicting path and github_path identities")
-    repo, source_path, source_error = canonical_source_identity(
-        metadata.get("repo"), canonical_path if "path" in metadata else legacy_path
-    )
+    repo, source_path, source_error = canonical_source_identity_from_metadata(metadata)
     if source_error:
+        if source_error == "conflicting_source_path_aliases":
+            raise ValueError("conflicting path and github_path identities")
+        if source_error == "missing_source_path" and "path" in metadata:
+            raise ValueError("path must be a non-empty string")
         raise ValueError(source_error)
     canonical_branch = metadata.get("github_branch")
     legacy_branch = metadata.get("branch")
@@ -203,11 +205,14 @@ def _target_from_metadata(metadata_path: Path, skills_dir: Path) -> Target:
         and canonical_branch != legacy_branch
     ):
         raise ValueError("conflicting github_branch and branch identities")
+    if any(
+        isinstance(value, str) and SHA_PATTERN.fullmatch(value.strip())
+        for value in (canonical_branch, legacy_branch)
+    ):
+        raise ValueError("source branch cannot be a raw commit SHA")
     branch = exact_source_branch(metadata)
     if not branch:
         raise ValueError("missing exact source branch")
-    if SHA_PATTERN.fullmatch(branch):
-        raise ValueError("source branch cannot be a raw commit SHA")
     pinned_sha = metadata.get("github_commit_sha")
     if not isinstance(pinned_sha, str) or not SHA_PATTERN.fullmatch(pinned_sha):
         raise ValueError("missing immutable github_commit_sha")
@@ -224,7 +229,7 @@ def _target_from_metadata(metadata_path: Path, skills_dir: Path) -> Target:
     if sorted(normalized) != actual:
         raise ValueError(f"bundled_files mismatch: declared={sorted(normalized)}, actual={actual}")
     return Target(
-        stable_key=f"{repo}:{source_path}",
+        stable_key=f"{repo.casefold()}:{source_path}",
         repo=repo,
         source_path=source_path,
         branch=branch,
@@ -273,8 +278,21 @@ def load_targets(skills_dir: Path) -> tuple[list[Target], list[dict]]:
                     "status": "local_error",
                     "error": "canonical archive skill directory cannot be a symlink",
                 })
-            elif skill_path.is_dir() and (skill_path / "metadata.json").exists():
-                metadata_paths.append(skill_path / "metadata.json")
+            elif skill_path.is_dir():
+                metadata_path = skill_path / "metadata.json"
+                if (
+                    metadata_path.is_symlink()
+                    or not metadata_path.exists()
+                    or not metadata_path.is_file()
+                ):
+                    if _looks_like_target(None, skill_path):
+                        errors.append({
+                            "stable_key": relative_path(skill_path, root),
+                            "status": "local_error",
+                            "error": "metadata.json must be a regular file",
+                        })
+                    continue
+                metadata_paths.append(metadata_path)
     for metadata_path in metadata_paths:
         skill_dir = metadata_path.parent
         try:

@@ -266,6 +266,25 @@ class TestAssetLiveness:
         report = json.loads((tmp_path / "report.json").read_text())
         assert report["summary"] == {"local_error": 1}
 
+    @pytest.mark.parametrize("metadata_state", ["missing", "dangling", "directory"])
+    def test_missing_or_nonregular_metadata_is_local_error(self, tmp_path, metadata_state):
+        skills = tmp_path / "skills"
+        metadata_path = make_verified_asset(skills, "alpha")
+        metadata_path.unlink()
+        if metadata_state == "dangling":
+            metadata_path.symlink_to(tmp_path / "missing.json")
+        elif metadata_state == "directory":
+            metadata_path.mkdir()
+
+        targets, errors = liveness.load_targets(skills)
+
+        assert targets == []
+        assert errors == [{
+            "stable_key": "dev/alpha",
+            "status": "local_error",
+            "error": "metadata.json must be a regular file",
+        }]
+
     @pytest.mark.parametrize(
         "change,error",
         [
@@ -473,7 +492,11 @@ class TestGitHubClient:
         requests = []
         payloads = iter([
             {"name": "feature/assets", "commit": {"sha": "a" * 40}},
-            {"tree": [{"path": "SKILL.md", "type": "blob"}, {"path": "dir", "type": "tree"}]},
+            {"tree": [
+                {"path": "SKILL.md", "type": "blob", "mode": "100644"},
+                {"path": "linked.py", "type": "blob", "mode": "120000"},
+                {"path": "dir", "type": "tree", "mode": "040000"},
+            ]},
         ])
 
         def fake_urlopen(request, timeout):
