@@ -684,7 +684,7 @@ class TestBackfillTargets:
         [
             None,
             {"github_branch": ""},
-            {"github_branch": "a" * 40},
+            {"github_branch": "bad branch"},
             {"github_branch": "release/v2"},
         ],
     )
@@ -703,6 +703,22 @@ class TestBackfillTargets:
 
         with pytest.raises(ValueError, match="exact source branch|does not match"):
             backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
+
+    def test_accepts_matching_commit_pinned_target_ref(self, tmp_path):
+        archive_root = tmp_path / "archive"
+        skill, target = make_backfill_target(archive_root)
+        pinned_ref = "a" * 40
+        target["github_branch"] = pinned_ref
+        metadata_path = skill / "metadata.json"
+        metadata = json.loads(metadata_path.read_text())
+        metadata["github_branch"] = pinned_ref
+        metadata_path.write_text(json.dumps(metadata))
+        targets_path = tmp_path / "targets.jsonl"
+        targets_path.write_text(json.dumps(target) + "\n")
+
+        [loaded] = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
+
+        assert loaded["skill"]["github_branch"] == pinned_ref
 
     def test_rejects_identity_mismatch_and_archive_traversal(self, tmp_path):
         archive_root = tmp_path / "archive"
