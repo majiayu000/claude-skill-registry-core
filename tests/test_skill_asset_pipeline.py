@@ -188,6 +188,8 @@ class TestCurrentStateInventory:
             "archive_mode_counts": {"directory": 1, "skill-md": 2},
             "actual_bundled_file_count": 1,
             "metadata_mismatch_count": 1,
+            "source_identity_error_count": 0,
+            "source_identity_errors": [],
             "ambiguous_stable_key_count": 0,
             "backfill_candidate_count": 1,
         }
@@ -216,14 +218,6 @@ class TestCurrentStateInventory:
                 "category": "dev",
             },
         )
-        make_skill(
-            root,
-            "dev",
-            "missing-path",
-            "Run scripts/build.py.",
-            {"stars": 900, "repo": "acme/no-path", "name": "missing-path"},
-        )
-
         rows = audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
 
         assert rows == [
@@ -243,6 +237,27 @@ class TestCurrentStateInventory:
         report = audit_skill_assets.run_current_state(str(root), min_stars=100)
         assert report["ambiguous_stable_key_count"] == 1
         assert report["backfill_candidate_count"] == 1
+
+    def test_invalid_candidate_identity_is_reported_and_blocks_targets(self, tmp_path):
+        root = tmp_path / "data"
+        make_skill(
+            root,
+            "dev",
+            "missing-path",
+            "Run scripts/build.py.",
+            {"stars": 900, "repo": "acme/no-path", "name": "missing-path"},
+        )
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=100)
+
+        assert report["source_identity_error_count"] == 1
+        assert report["source_identity_errors"] == [{
+            "archive_path": "dev/missing-path",
+            "error": "missing_source_path",
+            "eligible_for_backfill": True,
+        }]
+        with pytest.raises(ValueError, match="dev/missing-path.*missing_source_path"):
+            audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
 
     @pytest.mark.parametrize(
         ("repo", "source_path", "error"),
