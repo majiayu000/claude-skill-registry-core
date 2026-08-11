@@ -333,11 +333,9 @@ def _rollback_applied_archives(
 def apply_staged_archives(
     targets: list[dict],
     stage_root: Path,
-    scanned_snapshots: dict[str, str],
+    clamscan_binary: str = "clamscan",
 ) -> None:
     staged = validate_staged_archives(targets, stage_root)
-    if set(scanned_snapshots) != set(staged):
-        raise ValueError("ClamAV snapshot identities do not match staged archives")
 
     prepared = []
     created_candidates = []
@@ -357,11 +355,7 @@ def apply_staged_archives(
             created_candidates.append(candidate)
             if _directory_identity(destination.parent) != parent_identity:
                 raise ValueError(f"archive parent changed during preparation: {destination.parent}")
-            if _archive_snapshot(staged[stable_key]) != scanned_snapshots[stable_key]:
-                raise ValueError(f"staged archive changed after ClamAV scan: {stable_key}")
             shutil.copytree(staged[stable_key], candidate, dirs_exist_ok=True)
-            if _archive_snapshot(candidate) != scanned_snapshots[stable_key]:
-                raise ValueError(f"copied archive differs from ClamAV scan: {stable_key}")
             metadata_path = candidate / "metadata.json"
             existing_metadata = _load_metadata(destination / "metadata.json")
             staged_metadata = _load_metadata(metadata_path)
@@ -376,9 +370,11 @@ def apply_staged_archives(
                 json.dumps(merged_metadata, indent=2, ensure_ascii=False),
                 encoding="utf-8",
             )
-            prepared.append(
-                (target, destination, candidate, parent_identity, _archive_snapshot(candidate))
-            )
+            prepared.append((target, destination, candidate, parent_identity))
+        scanned_snapshots = _scan_archives_with_clamav(
+            {target["stable_key"]: candidate for target, _dest, candidate, _identity in prepared},
+            clamscan_binary,
+        )
     except Exception as exc:
         cleanup_errors = _cleanup_directories(created_candidates)
         if cleanup_errors:
@@ -390,13 +386,13 @@ def apply_staged_archives(
 
     applied = []
     try:
-        for target, destination, candidate, parent_identity, candidate_snapshot in prepared:
+        for target, destination, candidate, parent_identity in prepared:
             _assert_no_symlink_components(destination.parents[1], destination)
             if _asset_free_archive_snapshot(destination) != target["archive_snapshot"]:
                 raise ValueError(f"backfill destination changed before swap: {destination}")
             if _directory_identity(destination.parent) != parent_identity:
                 raise ValueError(f"archive parent changed before swap: {destination.parent}")
-            if _archive_snapshot(candidate) != candidate_snapshot:
+            if _archive_snapshot(candidate) != scanned_snapshots[target["stable_key"]]:
                 raise ValueError(f"prepared backfill changed before swap: {candidate}")
             backup = destination.parent / f".{destination.name}.backup-{uuid.uuid4().hex}"
             _replace_in_verified_directory(
@@ -425,34 +421,43 @@ def apply_staged_archives(
         )
 
 
+def _scan_archives_with_clamav(
+    archives: dict[str, Path],
+    binary: str = "clamscan",
+) -> dict[str, str]:
+    """Fail closed unless ClamAV scans the exact final archive bytes clean."""
+    before = {key: _archive_snapshot(path) for key, path in archives.items()}
+    for stable_key, archive in archives.items():
+        try:
+            result = subprocess.run(
+                [binary, "--recursive", "--infected", str(archive)],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError(f"unable to execute ClamAV: {exc}") from exc
+        if result.returncode != 0:
+            details = (result.stdout + "\n" + result.stderr).strip()[-1000:]
+            raise RuntimeError(
+                f"ClamAV rejected {stable_key} with exit code {result.returncode}: {details}"
+            )
+    after = {key: _archive_snapshot(path) for key, path in archives.items()}
+    if after != before:
+        raise RuntimeError("final candidate archives changed during ClamAV scan")
+    return after
+
+
 def scan_staged_archives_with_clamav(
     stage_root: Path,
     binary: str = "clamscan",
 ) -> dict[str, str]:
-    """Fail closed unless ClamAV reports the complete staged batch clean."""
+    """Compatibility wrapper for validating a downloaded staging tree."""
     if not stage_root.is_dir():
         raise ValueError(f"staged archive root does not exist: {stage_root}")
-    staged = _staged_archives(stage_root)
-    before = {key: _archive_snapshot(path) for key, path in staged.items()}
-    try:
-        result = subprocess.run(
-            [binary, "--recursive", "--infected", str(stage_root)],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=600,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError(f"unable to execute ClamAV: {exc}") from exc
-    if result.returncode != 0:
-        details = (result.stdout + "\n" + result.stderr).strip()[-1000:]
-        raise RuntimeError(
-            f"ClamAV rejected staged backfill with exit code {result.returncode}: {details}"
-        )
-    after = {key: _archive_snapshot(path) for key, path in staged.items()}
-    if after != before:
-        raise RuntimeError("staged archives changed during ClamAV scan")
-    return after
+    staged = _staged_archives(stage_root) or {".": stage_root}
+    return _scan_archives_with_clamav(staged, binary)
 
 
 async def run_backfill(
@@ -498,10 +503,7 @@ async def run_backfill(
                 validate_staged_archives(targets, stage_root)
                 status = "validated"
                 if apply:
-                    scanned_snapshots = scan_staged_archives_with_clamav(
-                        stage_root, clamscan_binary
-                    )
-                    apply_staged_archives(targets, stage_root, scanned_snapshots)
+                    apply_staged_archives(targets, stage_root, clamscan_binary)
                     status = "applied"
     except Exception as exc:  # noqa: BLE001 — emit a structured report for every failure
         status = "failed"
