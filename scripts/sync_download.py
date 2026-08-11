@@ -21,7 +21,10 @@ from security_blocklist import blocked_metadata_source, load_security_blocklist
 from sync_download_support import (
     build_archived_skill_metadata,
     classify_download_result,
+    collect_pinned_tree_entries,
+    content_matches_git_blob,
     exact_source_branch,
+    resolve_exact_commit_sha,
     select_bundled_file_entries,
 )
 from sync_pipeline_support import (
@@ -292,29 +295,8 @@ async def download_skills(
         add_observation(skipped_skill, outcome="skipped", failure_reason=skipped_reason)
 
     commit_sha_cache: dict[tuple[str, str], str] = {}
-
-    async def resolve_commit_sha(
-        session: aiohttp.ClientSession,
-        repo: str,
-        branch: str,
-    ) -> str:
-        cache_key = (repo, branch)
-        if cache_key in commit_sha_cache:
-            return commit_sha_cache[cache_key]
-        url = f"{GITHUB_API_BASE}/repos/{repo}/commits/{quote(branch, safe='')}"
-        async with session.get(url, timeout=request_timeout) as resp:
-            if resp.status != 200:
-                raise RuntimeError(f"commit resolution failed with status {resp.status}")
-            payload = await resp.json()
-        commit_sha = payload.get("sha") if isinstance(payload, dict) else ""
-        if (
-            not isinstance(commit_sha, str)
-            or len(commit_sha) != 40
-            or any(character not in "0123456789abcdefABCDEF" for character in commit_sha)
-        ):
-            raise RuntimeError("commit resolution returned an invalid SHA")
-        commit_sha_cache[cache_key] = commit_sha
-        return commit_sha
+    repo_identity_cache: dict[str, str] = {}
+    tree_cache: dict[tuple[str, str], list[dict]] = {}
 
     async def fetch_contents_listing(
         session: aiohttp.ClientSession,
@@ -386,6 +368,7 @@ async def download_skills(
                             "relative_path": rel_path,
                             "download_url": entry.get("download_url") or "",
                             "size": size,
+                            "sha": entry.get("sha") or "",
                         }
                     )
 
@@ -402,9 +385,15 @@ async def download_skills(
         archived: list[str] = []
         failed: list[str] = []
         try:
-            entries, truncated = await collect_bundled_file_entries(
-                session, repo, branch, resolved_skill_path
-            )
+            if pin_commit_sha:
+                entries, truncated = await collect_pinned_tree_entries(
+                    session, repo, branch, resolved_skill_path,
+                    timeout=request_timeout, tree_cache=tree_cache,
+                )
+            else:
+                entries, truncated = await collect_bundled_file_entries(
+                    session, repo, branch, resolved_skill_path
+                )
         except BundledListingError as exc:
             if not require_complete_archive:
                 return archived, failed, ""
@@ -438,6 +427,9 @@ async def download_skills(
                 continue
 
             if not is_safe_bundled_file(rel_path, len(content)):
+                failed.append(rel_path)
+                continue
+            if pin_commit_sha and not content_matches_git_blob(entry, content):
                 failed.append(rel_path)
                 continue
             target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -505,7 +497,7 @@ async def download_skills(
                 stats["manifest_misses"] += 1
 
         if exact_paths_only:
-            if not path or not path.endswith("SKILL.md"):
+            if not path or path.rsplit("/", 1)[-1].casefold() != "skill.md":
                 failures["invalid_exact_path"].append(name)
                 add_observation(skill, outcome="failed", failure_reason="invalid_exact_path")
                 return False
@@ -532,7 +524,15 @@ async def download_skills(
                 download_ref = branch
                 if pin_commit_sha:
                     try:
-                        download_ref = await resolve_commit_sha(session, repo, branch)
+                        download_ref = await resolve_exact_commit_sha(
+                            session,
+                            repo,
+                            branch,
+                            timeout=request_timeout,
+                            security_blocklist=security_blocklist,
+                            repo_cache=repo_identity_cache,
+                            commit_cache=commit_sha_cache,
+                        )
                     except Exception as exc:  # noqa: BLE001 — recorded as a failed branch
                         commit_resolution_failed = True
                         logger.warning("Unable to pin %s@%s: %s", repo, branch, exc)
