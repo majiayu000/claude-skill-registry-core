@@ -650,23 +650,27 @@ class TestApplyStagedArchives:
         (staged / "scripts" / "setup.py").write_text("print('ok')")
         return staged
 
-    def _scan_proof(self, target, staged):
-        return {
-            target["stable_key"]: backfill_skill_assets._archive_snapshot(staged)
-        }
+    def _allow_clean_scan(self, monkeypatch):
+        monkeypatch.setattr(
+            backfill_skill_assets,
+            "_scan_archives_with_clamav",
+            lambda archives, _binary: {
+                key: backfill_skill_assets._archive_snapshot(path)
+                for key, path in archives.items()
+            },
+        )
 
-    def test_applies_complete_staged_archive(self, tmp_path):
+    def test_applies_complete_staged_archive(self, tmp_path, monkeypatch):
         archive_root = tmp_path / "archive"
         destination, target = make_backfill_target(archive_root)
         targets_path = tmp_path / "targets.jsonl"
         targets_path.write_text(json.dumps(target) + "\n")
         loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
         stage_root = tmp_path / "stage"
-        staged = self._stage(stage_root, target)
+        self._stage(stage_root, target)
+        self._allow_clean_scan(monkeypatch)
 
-        backfill_skill_assets.apply_staged_archives(
-            loaded, stage_root, self._scan_proof(loaded[0], staged)
-        )
+        backfill_skill_assets.apply_staged_archives(loaded, stage_root)
 
         assert (destination / "SKILL.md").read_text() == "new"
         assert (destination / "scripts" / "setup.py").is_file()
@@ -681,7 +685,8 @@ class TestApplyStagedArchives:
         targets_path.write_text(json.dumps(target) + "\n")
         loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
         stage_root = tmp_path / "stage"
-        staged = self._stage(stage_root, target)
+        self._stage(stage_root, target)
+        self._allow_clean_scan(monkeypatch)
         real_replace = backfill_skill_assets.os.replace
         failed = False
 
@@ -695,9 +700,7 @@ class TestApplyStagedArchives:
         monkeypatch.setattr(backfill_skill_assets.os, "replace", fail_candidate_once)
 
         with pytest.raises(OSError, match="swap failed"):
-            backfill_skill_assets.apply_staged_archives(
-                loaded, stage_root, self._scan_proof(loaded[0], staged)
-            )
+            backfill_skill_assets.apply_staged_archives(loaded, stage_root)
         assert (destination / "SKILL.md").read_text() == "Run scripts/setup.py."
 
     def test_rejects_non_hex_sha_and_unexpected_identity(self, tmp_path):
@@ -763,19 +766,29 @@ class TestApplyStagedArchives:
             )
         assert source.is_dir()
 
-    def test_rejects_stage_changed_after_clamav_snapshot(self, tmp_path):
+    def test_clamav_scans_final_merged_candidate(self, tmp_path, monkeypatch):
         archive_root = tmp_path / "archive"
-        _destination, target = make_backfill_target(archive_root)
+        destination, target = make_backfill_target(archive_root)
         targets_path = tmp_path / "targets.jsonl"
         targets_path.write_text(json.dumps(target) + "\n")
         loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
         stage_root = tmp_path / "stage"
-        staged = self._stage(stage_root, target)
-        proof = self._scan_proof(loaded[0], staged)
-        (staged / "SKILL.md").write_text("unscanned replacement")
+        self._stage(stage_root, target)
+        scanned_metadata = []
 
-        with pytest.raises(ValueError, match="changed after ClamAV"):
-            backfill_skill_assets.apply_staged_archives(loaded, stage_root, proof)
+        def scan_final(archives, _binary):
+            for path in archives.values():
+                scanned_metadata.append(json.loads((path / "metadata.json").read_text()))
+            return {
+                key: backfill_skill_assets._archive_snapshot(path)
+                for key, path in archives.items()
+            }
+
+        monkeypatch.setattr(backfill_skill_assets, "_scan_archives_with_clamav", scan_final)
+        backfill_skill_assets.apply_staged_archives(loaded, stage_root)
+
+        assert scanned_metadata[0]["downloaded_at"] == "2026-01-02T00:00:00Z"
+        assert (destination / "metadata.json").is_file()
 
     def test_rollback_continues_after_one_restore_fails(self, tmp_path, monkeypatch):
         first = tmp_path / "first"
@@ -820,13 +833,11 @@ class TestApplyStagedArchives:
         targets_path.write_text(json.dumps(target) + "\n")
         loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
         stage_root = tmp_path / "stage"
-        staged = self._stage(stage_root, target)
+        self._stage(stage_root, target)
         (destination / "new-asset.py").write_text("print('changed')")
 
         with pytest.raises(ValueError, match="already contains support files"):
-            backfill_skill_assets.apply_staged_archives(
-                loaded, stage_root, self._scan_proof(loaded[0], staged)
-            )
+            backfill_skill_assets.apply_staged_archives(loaded, stage_root)
         assert (destination / "new-asset.py").is_file()
 
 
@@ -988,7 +999,7 @@ class TestRunBackfill:
         monkeypatch.setattr(backfill_skill_assets, "download_skills", successful_download)
         monkeypatch.setattr(
             backfill_skill_assets,
-            "scan_staged_archives_with_clamav",
+            "_scan_archives_with_clamav",
             lambda *_args: (_ for _ in ()).throw(RuntimeError("ClamAV infected")),
         )
         result = asyncio.run(
