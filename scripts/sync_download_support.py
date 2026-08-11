@@ -14,6 +14,7 @@ from sync_pipeline_support import (
     MAX_BUNDLED_TOTAL_BYTES,
     BundledListingError,
     bundled_relative_path,
+    has_case_conflicting_paths,
     is_safe_bundled_file,
     should_recurse_bundled_dir,
     skill_source_dir,
@@ -27,6 +28,9 @@ GITHUB_RAW_BASE = "https://raw.githubusercontent.com"
 
 def select_bundled_file_entries(candidates: list[dict]) -> tuple[list[dict], bool]:
     """Apply bundle limits and report whether eligible files were omitted."""
+    relative_paths = [entry["relative_path"] for entry in candidates]
+    if has_case_conflicting_paths(relative_paths):
+        raise BundledListingError(".", "case-conflicting bundled paths")
     selected = []
     total_size = 0
     truncated = False

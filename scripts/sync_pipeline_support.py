@@ -290,6 +290,21 @@ def bundled_relative_path(source_dir: str, repo_path: str) -> str:
     return repo_path[len(prefix) :]
 
 
+def has_case_conflicting_paths(paths: list[str]) -> bool:
+    """Detect case-only conflicts in complete paths or any directory prefix."""
+    seen: dict[str, str] = {}
+    for relative in paths:
+        parts = relative.split("/")
+        for length in range(1, len(parts) + 1):
+            prefix = "/".join(parts[:length])
+            folded = prefix.casefold()
+            previous = seen.get(folded)
+            if previous is not None and previous != prefix:
+                return True
+            seen[folded] = prefix
+    return False
+
+
 def should_recurse_bundled_dir(relative_path: str) -> bool:
     """Return True when a support subdirectory is safe to inspect."""
     parts = [part for part in relative_path.strip("/").split("/") if part]

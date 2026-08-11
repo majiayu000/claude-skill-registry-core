@@ -91,7 +91,7 @@ class TestStrictBackfillInventory:
         ],
     )
     def test_detects_case_conflicts_in_files_and_directory_prefixes(self, paths):
-        assert audit_skill_assets._has_case_conflict(paths) is True
+        assert audit_skill_assets.has_case_conflicting_paths(paths) is True
 
     @pytest.mark.parametrize(
         "declared",

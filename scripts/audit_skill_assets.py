@@ -31,6 +31,7 @@ from skill_asset_audit import (
     iter_archived_skills,
     verdict_from_counts,
 )
+from sync_pipeline_support import has_case_conflicting_paths
 from utils import build_skill_key
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -204,21 +205,6 @@ def _identity_keys(metadata: dict, *, name: str, category: str) -> set[str]:
     return keys
 
 
-def _has_case_conflict(paths: list[str]) -> bool:
-    """Detect case-only conflicts in complete paths or any directory prefix."""
-    seen: dict[str, str] = {}
-    for relative in paths:
-        parts = relative.split("/")
-        for length in range(1, len(parts) + 1):
-            prefix = "/".join(parts[:length])
-            folded = prefix.casefold()
-            previous = seen.get(folded)
-            if previous is not None and previous != prefix:
-                return True
-            seen[folded] = prefix
-    return False
-
-
 def _actual_bundled_files(dirpath: str) -> list[str]:
     root = Path(dirpath)
     files = []
@@ -237,7 +223,7 @@ def _actual_bundled_files(dirpath: str) -> list[str]:
         if relative in {"SKILL.md", "metadata.json"}:
             continue
         files.append(relative)
-    if _has_case_conflict(archive_paths):
+    if has_case_conflicting_paths(archive_paths):
         raise ValueError(f"case-conflicting paths are not allowed in archive skill: {dirpath}")
     return sorted(files)
 
@@ -276,7 +262,7 @@ def _declared_bundled_files(metadata: dict) -> tuple[list[str], bool]:
         if normalized_path in {"SKILL.md", "metadata.json"} or normalized_path in normalized:
             return [], False
         normalized.append(normalized_path)
-    if _has_case_conflict(normalized):
+    if has_case_conflicting_paths(normalized):
         return [], False
     return sorted(normalized), True
 

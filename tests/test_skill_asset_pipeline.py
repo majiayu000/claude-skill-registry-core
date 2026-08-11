@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import audit_skill_assets
 import backfill_skill_assets
 import skill_asset_audit
+import sync_download_support
 import verify_upstream_assets
 
 
@@ -640,6 +641,7 @@ def make_backfill_target(
         "archive_path": f"dev/{name}",
         "repo": repo,
         "source_path": source_path,
+        "github_branch": "main",
         "name": name,
         "category": "dev",
         "stars": 500,
@@ -649,6 +651,21 @@ def make_backfill_target(
 
 
 class TestBackfillTargets:
+    @pytest.mark.parametrize(
+        "paths",
+        [
+            ["references/Guide.md", "references/guide.md"],
+            ["References/one.md", "references/two.md"],
+        ],
+    )
+    def test_download_selection_rejects_case_conflicts(self, paths):
+        entries = [{"relative_path": path, "size": 1} for path in paths]
+
+        with pytest.raises(
+            sync_download_support.BundledListingError, match="case-conflicting"
+        ):
+            sync_download_support.select_bundled_file_entries(entries)
+
     def test_loads_exact_target_and_preserves_existing_metadata(self, tmp_path):
         archive_root = tmp_path / "archive"
         _skill, target = make_backfill_target(archive_root)
@@ -660,6 +677,32 @@ class TestBackfillTargets:
         assert loaded["stable_key"] == target["stable_key"]
         assert loaded["destination"] == archive_root / "dev" / "demo"
         assert loaded["skill"]["license"] == "MIT"
+        assert loaded["skill"]["github_branch"] == target["github_branch"]
+
+    @pytest.mark.parametrize(
+        "branch_update",
+        [
+            None,
+            {"github_branch": ""},
+            {"github_branch": "a" * 40},
+            {"github_branch": "release/v2"},
+        ],
+    )
+    def test_rejects_missing_invalid_or_mismatched_target_branch(
+        self, tmp_path, branch_update
+    ):
+        archive_root = tmp_path / "archive"
+        _skill, target = make_backfill_target(archive_root)
+        targets_path = tmp_path / "targets.jsonl"
+        target_payload = dict(target)
+        if branch_update is None:
+            target_payload.pop("github_branch")
+        else:
+            target_payload.update(branch_update)
+        targets_path.write_text(json.dumps(target_payload) + "\n")
+
+        with pytest.raises(ValueError, match="exact source branch|does not match"):
+            backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
 
     def test_rejects_identity_mismatch_and_archive_traversal(self, tmp_path):
         archive_root = tmp_path / "archive"
@@ -878,6 +921,22 @@ class TestApplyStagedArchives:
         metadata_path.write_text(json.dumps(metadata))
 
         with pytest.raises(ValueError, match="contains no bundled files"):
+            backfill_skill_assets.validate_staged_archives(loaded, stage_root)
+
+    def test_rejects_case_conflicting_staged_declaration(self, tmp_path):
+        archive_root = tmp_path / "archive"
+        _destination, target = make_backfill_target(archive_root)
+        targets_path = tmp_path / "targets.jsonl"
+        targets_path.write_text(json.dumps(target) + "\n")
+        loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
+        stage_root = tmp_path / "stage"
+        staged = self._stage(stage_root, target)
+        metadata_path = staged / "metadata.json"
+        metadata = json.loads(metadata_path.read_text())
+        metadata["bundled_files"] = ["scripts/Setup.py", "scripts/setup.py"]
+        metadata_path.write_text(json.dumps(metadata))
+
+        with pytest.raises(ValueError, match="case conflicts"):
             backfill_skill_assets.validate_staged_archives(loaded, stage_root)
 
     def test_rejects_staged_asset_that_no_longer_matches_pinned_blob(self, tmp_path):
