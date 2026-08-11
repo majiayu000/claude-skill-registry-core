@@ -60,8 +60,6 @@ def exact_source_branch(skill: dict) -> str:
             return ""
         if any(ord(character) < 33 or ord(character) == 127 for character in branch):
             return ""
-        if re.fullmatch(r"[0-9a-fA-F]{40}", branch):
-            return ""
         branches.append(branch)
     if not branches or any(branch != branches[0] for branch in branches[1:]):
         return ""
