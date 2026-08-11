@@ -35,6 +35,8 @@ from sync_pipeline_support import has_case_conflicting_paths
 from utils import build_skill_key
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+COMMIT_SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
+INVALID_GIT_REF_CHARACTERS = frozenset("~^:?*[\\")
 
 
 def _read_skill(dirpath: str) -> str:
@@ -45,9 +47,7 @@ def _read_skill(dirpath: str) -> str:
 def run_census(root: str) -> dict:
     buckets: collections.Counter = collections.Counter()
     sizes: dict[str, list[int]] = collections.defaultdict(list)
-    for dirpath, _meta in iter_archived_skills(root):
-        if not _is_canonical_archive_skill(dirpath, root):
-            continue
+    for dirpath, _meta in _canonical_archive_rows(root):
         text = _read_skill(dirpath)
         bucket = classify_skill_text(text)
         buckets[bucket] += 1
@@ -70,9 +70,7 @@ def run_census(root: str) -> dict:
 
 def run_targets(root: str, min_stars: int) -> None:
     seen: set[tuple[str, str]] = set()
-    for dirpath, meta in iter_archived_skills(root):
-        if not _is_canonical_archive_skill(dirpath, root):
-            continue
+    for dirpath, meta in _canonical_archive_rows(root):
         if not meta:
             continue
         stars = meta.get("stars") or 0
@@ -100,6 +98,23 @@ def _is_canonical_archive_skill(dirpath: str, root: str | Path) -> bool:
     except ValueError:
         return False
     return len(relative.parts) == 2
+
+
+def _canonical_archive_rows(root: str | Path) -> list[tuple[str, dict | None]]:
+    """Return canonical archive roots after rejecting global case collisions."""
+    archive_root = Path(root).resolve()
+    rows = [
+        (dirpath, metadata)
+        for dirpath, metadata in iter_archived_skills(str(root))
+        if _is_canonical_archive_skill(dirpath, archive_root)
+    ]
+    relative_dirs = [
+        Path(dirpath).resolve().relative_to(archive_root).as_posix()
+        for dirpath, _metadata in rows
+    ]
+    if _has_case_conflict(relative_dirs):
+        raise ValueError(f"archive contains case-conflicting skill roots: {root}")
+    return rows
 
 
 def canonical_source_identity(
@@ -154,11 +169,7 @@ def canonical_source_branch_from_metadata(metadata: dict) -> tuple[str, str]:
         if not isinstance(raw_branch, str):
             return "", "invalid_source_branch"
         branch = raw_branch.strip()
-        if (
-            not branch
-            or len(branch) > 255
-            or any(ord(character) < 33 or ord(character) == 127 for character in branch)
-        ):
+        if not is_valid_git_source_ref(branch):
             return "", "invalid_source_branch"
         branches.append(branch)
     if not branches:
@@ -166,6 +177,24 @@ def canonical_source_branch_from_metadata(metadata: dict) -> tuple[str, str]:
     if any(branch != branches[0] for branch in branches[1:]):
         return "", "conflicting_source_branch_aliases"
     return branches[0], ""
+
+
+def is_valid_git_source_ref(ref: str) -> bool:
+    """Validate a Git branch-like ref while explicitly allowing commit SHAs."""
+    if COMMIT_SHA_PATTERN.fullmatch(ref):
+        return True
+    if not ref or len(ref) > 255 or ref == "@" or ref.startswith(("/", "-")):
+        return False
+    if ref.endswith(("/", ".")) or "//" in ref or ".." in ref or "@{" in ref:
+        return False
+    if any(ord(character) < 33 or ord(character) == 127 for character in ref):
+        return False
+    if any(character in INVALID_GIT_REF_CHARACTERS for character in ref):
+        return False
+    return all(
+        component and not component.startswith(".") and not component.endswith(".lock")
+        for component in ref.split("/")
+    )
 
 
 # Preserve the private helper used by existing callers while the strict public
@@ -280,11 +309,8 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
     metadata_mismatch_count = 0
     source_identity_errors = []
 
-    for dirpath, raw_meta in iter_archived_skills(root):
+    for dirpath, raw_meta in _canonical_archive_rows(root):
         skill_dir = Path(dirpath).resolve()
-        if not _is_canonical_archive_skill(dirpath, archive_root):
-            continue
-
         metadata_path = skill_dir / "metadata.json"
         if metadata_path.exists() and not isinstance(raw_meta, dict):
             raise ValueError(f"invalid metadata object: {metadata_path}")
