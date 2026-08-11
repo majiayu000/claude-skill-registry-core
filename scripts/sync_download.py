@@ -23,7 +23,9 @@ from sync_download_support import (
     classify_download_result,
     collect_pinned_tree_entries,
     content_matches_git_blob,
+    download_bundled_files_to_directory,
     exact_source_branch,
+    read_response_bytes_limited,
     resolve_exact_commit_sha,
     select_bundled_file_entries,
 )
@@ -93,6 +95,7 @@ async def download_skills(
 
     import aiohttp
     from security_scanner import SecurityScanner
+
     GITHUB_RAW_BASE = "https://raw.githubusercontent.com"
     BRANCHES = ("main", "master")
     MAX_CONCURRENT = 100
@@ -106,9 +109,7 @@ async def download_skills(
     skills = registry.get("skills", [])
     logger.info(f"Total skills in registry: {len(skills)}")
     manifest_file = Path(manifest_path) if manifest_path is not None else None
-    manifest_entries = (
-        load_acquisition_manifest(manifest_file) if manifest_file is not None else {}
-    )
+    manifest_entries = load_acquisition_manifest(manifest_file) if manifest_file is not None else {}
     if manifest_file is not None:
         logger.info(
             "Acquisition manifest loaded: %s entries from %s",
@@ -202,7 +203,9 @@ async def download_skills(
                                 "name": (skipped_skill.get("name") or "").strip(),
                                 "repo": (skipped_skill.get("repo") or "").strip(),
                                 "path": (skipped_skill.get("path") or "").strip(),
-                                "category": sanitize_category(skipped_skill.get("category", "other")),
+                                "category": sanitize_category(
+                                    skipped_skill.get("category", "other")
+                                ),
                                 "candidate_key": skill_key(skipped_skill),
                                 "outcome": "skipped",
                                 "failure_reason": skipped_reason,
@@ -374,82 +377,6 @@ async def download_skills(
 
         return select_bundled_file_entries(candidates)
 
-    async def download_bundled_files(
-        session: aiohttp.ClientSession,
-        repo: str,
-        branch: str,
-        resolved_skill_path: str,
-        skill_dir: Path,
-        require_complete_archive: bool,
-    ) -> tuple[list[str], list[str], str]:
-        archived: list[str] = []
-        failed: list[str] = []
-        try:
-            if pin_commit_sha:
-                entries, truncated = await collect_pinned_tree_entries(
-                    session, repo, branch, resolved_skill_path,
-                    timeout=request_timeout, tree_cache=tree_cache,
-                )
-            else:
-                entries, truncated = await collect_bundled_file_entries(
-                    session, repo, branch, resolved_skill_path
-                )
-        except BundledListingError as exc:
-            if not require_complete_archive:
-                return archived, failed, ""
-            return archived, [str(exc)], "bundled_listing_failed"
-        if truncated and require_complete_archive:
-            message = "eligible bundled files exceed per-skill count or byte limits"
-            return archived, [message], "bundled_limits_exceeded"
-        if not entries:
-            return archived, failed, ""
-
-        skill_root = skill_dir.resolve()
-        for entry in entries:
-            rel_path = entry["relative_path"]
-            target_path = (skill_dir / rel_path).resolve()
-            try:
-                target_path.relative_to(skill_root)
-            except ValueError:
-                failed.append(rel_path)
-                continue
-
-            pinned_url = f"{GITHUB_RAW_BASE}/{repo}/{branch}/{quote(entry['repo_path'], safe='/')}"
-            url = pinned_url if pin_commit_sha else entry["download_url"] or pinned_url
-            try:
-                async with session.get(url, timeout=request_timeout) as resp:
-                    if resp.status != 200:
-                        failed.append(rel_path)
-                        continue
-                    content = await resp.read()
-            except Exception:
-                failed.append(rel_path)
-                continue
-
-            if not is_safe_bundled_file(rel_path, len(content)):
-                failed.append(rel_path)
-                continue
-            if pin_commit_sha and not content_matches_git_blob(entry, content):
-                failed.append(rel_path)
-                continue
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            target_path.write_bytes(content)
-            archived.append(rel_path)
-
-        if failed and not require_complete_archive:
-            skill_root = skill_dir.resolve()
-            for rel_path in archived:
-                target_path = (skill_dir / rel_path).resolve()
-                try:
-                    target_path.relative_to(skill_root)
-                except ValueError:
-                    continue
-                target_path.unlink(missing_ok=True)
-            return [], [], ""
-
-        failure_reason = "bundled_download_failed" if failed else ""
-        return archived, failed, failure_reason
-
     async def try_download(session: aiohttp.ClientSession, skill: dict) -> bool:
         name = (skill.get("name") or "").strip() or "unknown"
         normalized_name = normalize_name(name)
@@ -487,9 +414,7 @@ async def download_skills(
             return False
 
         manifest_key = build_manifest_key(repo, path, name, category)
-        manifest_entry = (
-            manifest_entries.get(manifest_key) if manifest_file is not None else None
-        )
+        manifest_entry = manifest_entries.get(manifest_key) if manifest_file is not None else None
         if manifest_file is not None:
             if manifest_entry:
                 stats["manifest_hits"] += 1
@@ -543,18 +468,61 @@ async def download_skills(
                     attempts += 1
                     skill_dir = None
                     try:
+                        try:
+                            pinned_tree_result = (
+                                await collect_pinned_tree_entries(
+                                    session,
+                                    repo,
+                                    download_ref,
+                                    relative_path,
+                                    timeout=request_timeout,
+                                    tree_cache=tree_cache,
+                                )
+                                if pin_commit_sha
+                                else None
+                            )
+                        except BundledListingError as exc:
+                            failures["bundled_listing_failed"].append(f"{name}: {exc}")
+                            stats["url_attempts"] += attempts
+                            add_observation(
+                                skill,
+                                outcome="failed",
+                                failure_reason="bundled_listing_failed",
+                                attempts=attempts,
+                            )
+                            return False
                         async with session.get(url, timeout=request_timeout) as resp:
                             if resp.status == 200:
-                                content = normalize_skill_frontmatter_description(await resp.text(), skill)
-                                if content and len(content) > 50 and ("---" in content[:50] or "#" in content[:100]):
-                                    require_complete_archive = (
-                                        requires_complete_bundled_archive(content)
-                                        or (exact_paths_only and pin_commit_sha)
+                                if pinned_tree_result is not None:
+                                    raw_content = await read_response_bytes_limited(
+                                        resp, pinned_tree_result[2]["size"]
                                     )
+                                    if not content_matches_git_blob(
+                                        pinned_tree_result[2], raw_content
+                                    ):
+                                        raise ValueError(
+                                            "pinned SKILL.md response does not match its Git blob"
+                                        )
+                                    source_text = raw_content.decode("utf-8-sig")
+                                else:
+                                    source_text = await resp.text()
+                                content = normalize_skill_frontmatter_description(
+                                    source_text, skill
+                                )
+                                if (
+                                    content
+                                    and len(content) > 50
+                                    and ("---" in content[:50] or "#" in content[:100])
+                                ):
+                                    require_complete_archive = requires_complete_bundled_archive(
+                                        content
+                                    ) or (exact_paths_only and pin_commit_sha)
                                     category_dir = output_dir / category
                                     category_dir.mkdir(parents=True, exist_ok=True)
                                     key = build_skill_key(repo, path, name=name, category=category)
-                                    skill_dir = ensure_unique_dir(category_dir, normalized_name, key, repo=repo)
+                                    skill_dir = ensure_unique_dir(
+                                        category_dir, normalized_name, key, repo=repo
+                                    )
                                     skill_dir.mkdir(parents=True, exist_ok=True)
                                     (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
                                     resolved_path = path or relative_path
@@ -562,13 +530,19 @@ async def download_skills(
                                         bundled_files,
                                         bundled_failures,
                                         bundled_failure_reason,
-                                    ) = await download_bundled_files(
+                                        bundled_file_blobs,
+                                    ) = await download_bundled_files_to_directory(
                                         session,
                                         repo,
                                         download_ref,
                                         relative_path,
                                         skill_dir,
                                         require_complete_archive,
+                                        pin_commit_sha=pin_commit_sha,
+                                        timeout=request_timeout,
+                                        tree_cache=tree_cache,
+                                        contents_collector=collect_bundled_file_entries,
+                                        pinned_tree_result=pinned_tree_result,
                                     )
                                     if bundled_failures:
                                         failure_reason = (
@@ -601,6 +575,7 @@ async def download_skills(
                                                 branch=branch,
                                                 dir_name=skill_dir.name,
                                                 bundled_files=bundled_files,
+                                                bundled_file_blobs=bundled_file_blobs,
                                                 commit_sha=download_ref if pin_commit_sha else "",
                                                 assets_verified_at=(
                                                     to_utc_iso(utc_now()) if pin_commit_sha else ""
@@ -609,7 +584,7 @@ async def download_skills(
                                             indent=2,
                                             ensure_ascii=False,
                                         ),
-                                        encoding="utf-8"
+                                        encoding="utf-8",
                                     )
                                     is_safe, security_issues = security_scanner.scan_file(
                                         skill_dir / "SKILL.md"
@@ -651,7 +626,11 @@ async def download_skills(
                                             "repo": repo,
                                             "branch": branch,
                                             "relative_path": relative_path,
-                                            **({"commit_sha": download_ref} if pin_commit_sha else {}),
+                                            **(
+                                                {"commit_sha": download_ref}
+                                                if pin_commit_sha
+                                                else {}
+                                            ),
                                             "updated_at": datetime.utcnow().isoformat() + "Z",
                                         }
                                         manifest_state["dirty"] = True
@@ -718,7 +697,7 @@ async def download_skills(
 
     async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
         for i in range(0, len(pending), BATCH_SIZE):
-            batch = pending[i:i + BATCH_SIZE]
+            batch = pending[i : i + BATCH_SIZE]
             batch_num = i // BATCH_SIZE + 1
             total_batches = (len(pending) + BATCH_SIZE - 1) // BATCH_SIZE
 
@@ -733,9 +712,7 @@ async def download_skills(
                     stats["failed"] += 1
                     if internal_error:
                         failures["internal_error"].append(internal_error)
-                        add_observation(
-                            skill, outcome="failed", failure_reason="internal_error"
-                        )
+                        add_observation(skill, outcome="failed", failure_reason="internal_error")
 
             elapsed = time.time() - start_time
             rate = stats["downloaded"] / elapsed if elapsed > 0 else 0

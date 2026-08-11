@@ -3,7 +3,9 @@
 Network access is stubbed at the `gh` subprocess boundary so the census,
 verification, and fetch stages run against real files in tmp_path.
 """
+
 import asyncio
+import hashlib
 import json
 import os
 import sys
@@ -33,31 +35,56 @@ def make_skill(root, category, name, body, meta=None):
     return skill_dir
 
 
+def git_blob_sha(content: bytes) -> str:
+    header = f"blob {len(content)}\0".encode("ascii")
+    return hashlib.sha1(header + content, usedforsecurity=False).hexdigest()
+
+
 @pytest.fixture
 def archive(tmp_path):
     root = tmp_path / "data"
     make_skill(
-        root, "dev", "with-script",
+        root,
+        "dev",
+        "with-script",
         "Run scripts/setup.py first.",
-        {"stars": 500, "repo": "acme/tools", "path": "skills/with-script/SKILL.md",
-         "name": "with-script"},
+        {
+            "stars": 500,
+            "repo": "acme/tools",
+            "path": "skills/with-script/SKILL.md",
+            "name": "with-script",
+        },
     )
     make_skill(
-        root, "dev", "with-docs",
+        root,
+        "dev",
+        "with-docs",
         "See references/guide.md for details.",
-        {"stars": 300, "repo": "acme/docs", "path": "skills/with-docs/SKILL.md",
-         "name": "with-docs"},
+        {
+            "stars": 300,
+            "repo": "acme/docs",
+            "path": "skills/with-docs/SKILL.md",
+            "name": "with-docs",
+        },
     )
     make_skill(
-        root, "dev", "plain",
+        root,
+        "dev",
+        "plain",
         "Just prose, no local files.",
         {"stars": 900, "repo": "acme/plain", "path": "skills/plain/SKILL.md", "name": "plain"},
     )
     make_skill(
-        root, "dev", "low-stars",
+        root,
+        "dev",
+        "low-stars",
         "Run scripts/other.py first.",
-        {"stars": 3, "repo": "acme/small", "path": "skills/low-stars/SKILL.md",
-         "name": "low-stars"},
+        {
+            "stars": 3,
+            "repo": "acme/small",
+            "path": "skills/low-stars/SKILL.md",
+            "name": "low-stars",
+        },
     )
     return root
 
@@ -65,14 +92,16 @@ def archive(tmp_path):
 class TestFetchRepoTree:
     def test_returns_blob_paths(self, monkeypatch):
         monkeypatch.setattr(
-            skill_asset_audit.subprocess, "run",
+            skill_asset_audit.subprocess,
+            "run",
             lambda *a, **k: FakeCompleted(stdout='["a/SKILL.md", "a/run.py"]'),
         )
         assert skill_asset_audit.fetch_repo_tree("acme/tools") == ["a/SKILL.md", "a/run.py"]
 
     def test_raises_on_gh_failure(self, monkeypatch):
         monkeypatch.setattr(
-            skill_asset_audit.subprocess, "run",
+            skill_asset_audit.subprocess,
+            "run",
             lambda *a, **k: FakeCompleted(returncode=1, stderr="Not Found"),
         )
         with pytest.raises(RuntimeError, match="Not Found"):
@@ -97,8 +126,12 @@ class TestTargets:
         audit_skill_assets.run_targets(str(archive), 100)
         rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
         assert [r["name"] for r in rows] == ["with-script"]
-        assert rows[0] == {"repo": "acme/tools", "dir": "skills/with-script",
-                           "stars": 500, "name": "with-script"}
+        assert rows[0] == {
+            "repo": "acme/tools",
+            "dir": "skills/with-script",
+            "stars": 500,
+            "name": "with-script",
+        }
 
     def test_lower_threshold_includes_small_repos(self, archive, capsys):
         audit_skill_assets.run_targets(str(archive), 1)
@@ -137,6 +170,7 @@ class TestCurrentStateInventory:
                 "category": "dev",
                 "archive_mode": "directory",
                 "bundled_files": ["scripts/setup.py"],
+                "bundled_file_blobs": {"scripts/setup.py": git_blob_sha(b"print('ok')")},
             },
         )
         (archived / "scripts").mkdir()
@@ -187,6 +221,8 @@ class TestCurrentStateInventory:
             "archive_mode_counts": {"directory": 1, "skill-md": 2},
             "actual_bundled_file_count": 1,
             "metadata_mismatch_count": 1,
+            "source_identity_error_count": 0,
+            "source_identity_errors": [],
             "ambiguous_stable_key_count": 0,
             "backfill_candidate_count": 1,
         }
@@ -215,14 +251,6 @@ class TestCurrentStateInventory:
                 "category": "dev",
             },
         )
-        make_skill(
-            root,
-            "dev",
-            "missing-path",
-            "Run scripts/build.py.",
-            {"stars": 900, "repo": "acme/no-path", "name": "missing-path"},
-        )
-
         rows = audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
 
         assert rows == [
@@ -242,6 +270,29 @@ class TestCurrentStateInventory:
         report = audit_skill_assets.run_current_state(str(root), min_stars=100)
         assert report["ambiguous_stable_key_count"] == 1
         assert report["backfill_candidate_count"] == 1
+
+    def test_invalid_candidate_identity_is_reported_and_blocks_targets(self, tmp_path):
+        root = tmp_path / "data"
+        make_skill(
+            root,
+            "dev",
+            "missing-path",
+            "Run scripts/build.py.",
+            {"stars": 900, "repo": "acme/no-path", "name": "missing-path"},
+        )
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=100)
+
+        assert report["source_identity_error_count"] == 1
+        assert report["source_identity_errors"] == [
+            {
+                "archive_path": "dev/missing-path",
+                "error": "missing_source_path",
+                "eligible_for_backfill": True,
+            }
+        ]
+        with pytest.raises(ValueError, match="dev/missing-path.*missing_source_path"):
+            audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
 
     @pytest.mark.parametrize(
         ("repo", "source_path", "error"),
@@ -267,16 +318,23 @@ class TestCurrentStateInventory:
         )
 
     def test_accepts_case_insensitive_skill_filename(self):
-        assert audit_skill_assets.canonical_source_identity(
-            "acme/tools", "skills/a/skill.md"
-        ) == ("acme/tools", "skills/a/skill.md", "")
+        assert audit_skill_assets.canonical_source_identity("acme/tools", "skills/a/skill.md") == (
+            "acme/tools",
+            "skills/a/skill.md",
+            "",
+        )
 
     def test_rejects_conflicting_source_path_aliases(self):
-        assert audit_skill_assets.canonical_source_identity_from_metadata({
-            "repo": "acme/tools",
-            "path": "skills/old/SKILL.md",
-            "github_path": "skills/new/SKILL.md",
-        })[2] == "conflicting_source_path_aliases"
+        assert (
+            audit_skill_assets.canonical_source_identity_from_metadata(
+                {
+                    "repo": "acme/tools",
+                    "path": "skills/old/SKILL.md",
+                    "github_path": "skills/new/SKILL.md",
+                }
+            )[2]
+            == "conflicting_source_path_aliases"
+        )
 
     def test_nested_declared_skill_is_counted_only_as_support_file(self, tmp_path):
         root = tmp_path / "data"
@@ -448,7 +506,9 @@ class TestAuditMain:
             audit_skill_assets.main()
 
 
-def make_backfill_target(root, *, name="demo", repo="acme/tools", source_path="skills/demo/SKILL.md"):
+def make_backfill_target(
+    root, *, name="demo", repo="acme/tools", source_path="skills/demo/SKILL.md"
+):
     skill = make_skill(
         root,
         "dev",
@@ -583,11 +643,17 @@ class TestApplyStagedArchives:
                 "github_branch": "main",
                 "archive_mode": "directory",
                 "bundled_files": ["scripts/setup.py"],
+                "bundled_file_blobs": {"scripts/setup.py": git_blob_sha(b"print('ok')")},
             },
         )
         (staged / "scripts").mkdir()
         (staged / "scripts" / "setup.py").write_text("print('ok')")
         return staged
+
+    def _scan_proof(self, target, staged):
+        return {
+            target["stable_key"]: backfill_skill_assets._archive_snapshot(staged)
+        }
 
     def test_applies_complete_staged_archive(self, tmp_path):
         archive_root = tmp_path / "archive"
@@ -596,9 +662,11 @@ class TestApplyStagedArchives:
         targets_path.write_text(json.dumps(target) + "\n")
         loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
         stage_root = tmp_path / "stage"
-        self._stage(stage_root, target)
+        staged = self._stage(stage_root, target)
 
-        backfill_skill_assets.apply_staged_archives(loaded, stage_root)
+        backfill_skill_assets.apply_staged_archives(
+            loaded, stage_root, self._scan_proof(loaded[0], staged)
+        )
 
         assert (destination / "SKILL.md").read_text() == "new"
         assert (destination / "scripts" / "setup.py").is_file()
@@ -613,21 +681,23 @@ class TestApplyStagedArchives:
         targets_path.write_text(json.dumps(target) + "\n")
         loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
         stage_root = tmp_path / "stage"
-        self._stage(stage_root, target)
+        staged = self._stage(stage_root, target)
         real_replace = backfill_skill_assets.os.replace
         failed = False
 
-        def fail_candidate_once(source, target_path):
+        def fail_candidate_once(source, target_path, *args, **kwargs):
             nonlocal failed
             if ".backfill-" in str(source) and not failed:
                 failed = True
                 raise OSError("swap failed")
-            return real_replace(source, target_path)
+            return real_replace(source, target_path, *args, **kwargs)
 
         monkeypatch.setattr(backfill_skill_assets.os, "replace", fail_candidate_once)
 
         with pytest.raises(OSError, match="swap failed"):
-            backfill_skill_assets.apply_staged_archives(loaded, stage_root)
+            backfill_skill_assets.apply_staged_archives(
+                loaded, stage_root, self._scan_proof(loaded[0], staged)
+            )
         assert (destination / "SKILL.md").read_text() == "Run scripts/setup.py."
 
     def test_rejects_non_hex_sha_and_unexpected_identity(self, tmp_path):
@@ -668,6 +738,45 @@ class TestApplyStagedArchives:
         with pytest.raises(ValueError, match="contains no bundled files"):
             backfill_skill_assets.validate_staged_archives(loaded, stage_root)
 
+    def test_rejects_staged_asset_that_no_longer_matches_pinned_blob(self, tmp_path):
+        archive_root = tmp_path / "archive"
+        _destination, target = make_backfill_target(archive_root)
+        targets_path = tmp_path / "targets.jsonl"
+        targets_path.write_text(json.dumps(target) + "\n")
+        loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
+        stage_root = tmp_path / "stage"
+        staged = self._stage(stage_root, target)
+        (staged / "scripts" / "setup.py").write_text("print('tampered')")
+
+        with pytest.raises(ValueError, match="blob mismatch"):
+            backfill_skill_assets.validate_staged_archives(loaded, stage_root)
+
+    def test_descriptor_relative_replace_rejects_changed_parent(self, tmp_path):
+        source = tmp_path / "source"
+        source.mkdir()
+        with pytest.raises(ValueError, match="parent changed"):
+            backfill_skill_assets._replace_in_verified_directory(
+                tmp_path,
+                (-1, -1),
+                source.name,
+                "destination",
+            )
+        assert source.is_dir()
+
+    def test_rejects_stage_changed_after_clamav_snapshot(self, tmp_path):
+        archive_root = tmp_path / "archive"
+        _destination, target = make_backfill_target(archive_root)
+        targets_path = tmp_path / "targets.jsonl"
+        targets_path.write_text(json.dumps(target) + "\n")
+        loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
+        stage_root = tmp_path / "stage"
+        staged = self._stage(stage_root, target)
+        proof = self._scan_proof(loaded[0], staged)
+        (staged / "SKILL.md").write_text("unscanned replacement")
+
+        with pytest.raises(ValueError, match="changed after ClamAV"):
+            backfill_skill_assets.apply_staged_archives(loaded, stage_root, proof)
+
     def test_rollback_continues_after_one_restore_fails(self, tmp_path, monkeypatch):
         first = tmp_path / "first"
         second = tmp_path / "second"
@@ -684,16 +793,20 @@ class TestApplyStagedArchives:
         real_replace = backfill_skill_assets.os.replace
         failed = False
 
-        def fail_second_restore_once(source, target_path):
+        def fail_second_restore_once(source, target_path, *args, **kwargs):
             nonlocal failed
-            if source == second_backup and not failed:
+            if source == second_backup.name and not failed:
                 failed = True
                 raise OSError("restore failed")
-            return real_replace(source, target_path)
+            return real_replace(source, target_path, *args, **kwargs)
 
         monkeypatch.setattr(backfill_skill_assets.os, "replace", fail_second_restore_once)
+        parent_identity = backfill_skill_assets._directory_identity(tmp_path)
         errors = backfill_skill_assets._rollback_applied_archives(
-            [(first, first_backup), (second, second_backup)]
+            [
+                (first, first_backup, parent_identity),
+                (second, second_backup, parent_identity),
+            ]
         )
 
         assert errors and "restore failed" in errors[0]
@@ -707,11 +820,13 @@ class TestApplyStagedArchives:
         targets_path.write_text(json.dumps(target) + "\n")
         loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
         stage_root = tmp_path / "stage"
-        self._stage(stage_root, target)
+        staged = self._stage(stage_root, target)
         (destination / "new-asset.py").write_text("print('changed')")
 
         with pytest.raises(ValueError, match="already contains support files"):
-            backfill_skill_assets.apply_staged_archives(loaded, stage_root)
+            backfill_skill_assets.apply_staged_archives(
+                loaded, stage_root, self._scan_proof(loaded[0], staged)
+            )
         assert (destination / "new-asset.py").is_file()
 
 
@@ -726,22 +841,27 @@ class TestRunBackfill:
         async def fake_download(registry_path, stage_root, *args, **kwargs):
             registry = json.loads(registry_path.read_text())
             skill = registry["skills"][0]
-            staged = make_skill(stage_root, "dev", "demo", "new", {
-                **skill,
-                "github_commit_sha": "a" * 40,
-                "assets_verified_at": "2026-08-11T00:00:00Z",
-                "archive_mode": "directory",
-                "bundled_files": ["scripts/setup.py"],
-            })
+            staged = make_skill(
+                stage_root,
+                "dev",
+                "demo",
+                "new",
+                {
+                    **skill,
+                    "github_commit_sha": "a" * 40,
+                    "assets_verified_at": "2026-08-11T00:00:00Z",
+                    "archive_mode": "directory",
+                    "bundled_files": ["scripts/setup.py"],
+                    "bundled_file_blobs": {"scripts/setup.py": git_blob_sha(b"print('ok')")},
+                },
+            )
             (staged / "scripts").mkdir()
             (staged / "scripts" / "setup.py").write_text("print('ok')")
             return {"downloaded": 1, "failed": 0}
 
         monkeypatch.setattr(backfill_skill_assets, "download_skills", fake_download)
         result = asyncio.run(
-            backfill_skill_assets.run_backfill(
-                targets_path, archive_root, report_path, apply=False
-            )
+            backfill_skill_assets.run_backfill(targets_path, archive_root, report_path, apply=False)
         )
 
         assert result == 0
@@ -763,9 +883,7 @@ class TestRunBackfill:
 
         monkeypatch.setattr(backfill_skill_assets, "download_skills", failed_download)
         result = asyncio.run(
-            backfill_skill_assets.run_backfill(
-                targets_path, archive_root, report_path, apply=True
-            )
+            backfill_skill_assets.run_backfill(targets_path, archive_root, report_path, apply=True)
         )
 
         report = json.loads(report_path.read_text())
@@ -783,20 +901,24 @@ class TestRunBackfill:
 
         async def empty_bundle_download(registry_path, stage_root, *_args, **_kwargs):
             skill = json.loads(registry_path.read_text())["skills"][0]
-            make_skill(stage_root, "dev", "demo", "new", {
-                **skill,
-                "github_commit_sha": "a" * 40,
-                "assets_verified_at": "2026-08-11T00:00:00Z",
-                "archive_mode": "skill-md",
-                "bundled_files": [],
-            })
+            make_skill(
+                stage_root,
+                "dev",
+                "demo",
+                "new",
+                {
+                    **skill,
+                    "github_commit_sha": "a" * 40,
+                    "assets_verified_at": "2026-08-11T00:00:00Z",
+                    "archive_mode": "skill-md",
+                    "bundled_files": [],
+                },
+            )
             return {"downloaded": 1, "failed": 0}
 
         monkeypatch.setattr(backfill_skill_assets, "download_skills", empty_bundle_download)
         result = asyncio.run(
-            backfill_skill_assets.run_backfill(
-                targets_path, archive_root, report_path, apply=True
-            )
+            backfill_skill_assets.run_backfill(targets_path, archive_root, report_path, apply=True)
         )
 
         report = json.loads(report_path.read_text())
@@ -828,9 +950,7 @@ class TestRunBackfill:
             lambda *_args: (_ for _ in ()).throw(OSError("apply failed")),
         )
         result = asyncio.run(
-            backfill_skill_assets.run_backfill(
-                targets_path, archive_root, report_path, apply=True
-            )
+            backfill_skill_assets.run_backfill(targets_path, archive_root, report_path, apply=True)
         )
 
         report = json.loads(report_path.read_text())
@@ -847,13 +967,20 @@ class TestRunBackfill:
 
         async def successful_download(registry_path, stage_root, *_args, **_kwargs):
             skill = json.loads(registry_path.read_text())["skills"][0]
-            staged = make_skill(stage_root, "dev", "demo", "new", {
-                **skill,
-                "github_commit_sha": "a" * 40,
-                "assets_verified_at": "2026-08-11T00:00:00Z",
-                "archive_mode": "directory",
-                "bundled_files": ["scripts/setup.py"],
-            })
+            staged = make_skill(
+                stage_root,
+                "dev",
+                "demo",
+                "new",
+                {
+                    **skill,
+                    "github_commit_sha": "a" * 40,
+                    "assets_verified_at": "2026-08-11T00:00:00Z",
+                    "archive_mode": "directory",
+                    "bundled_files": ["scripts/setup.py"],
+                    "bundled_file_blobs": {"scripts/setup.py": git_blob_sha(b"print('ok')")},
+                },
+            )
             (staged / "scripts").mkdir()
             (staged / "scripts" / "setup.py").write_text("print('ok')")
             return {"downloaded": 1, "failed": 0}
@@ -864,9 +991,9 @@ class TestRunBackfill:
             "scan_staged_archives_with_clamav",
             lambda *_args: (_ for _ in ()).throw(RuntimeError("ClamAV infected")),
         )
-        result = asyncio.run(backfill_skill_assets.run_backfill(
-            targets_path, archive_root, report_path, apply=True
-        ))
+        result = asyncio.run(
+            backfill_skill_assets.run_backfill(targets_path, archive_root, report_path, apply=True)
+        )
 
         assert result == 1
         assert json.loads(report_path.read_text())["error"] == "RuntimeError: ClamAV infected"
