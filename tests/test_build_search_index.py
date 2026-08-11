@@ -10,6 +10,7 @@ These tests pin the behavior that path="" and path="." are equivalent to a
 real subdirectory path for scoring purposes whenever a repo is present.
 """
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -49,6 +50,11 @@ def _skill(**overrides):
     }
     base.update(overrides)
     return base
+
+
+def git_blob_sha(content: bytes) -> str:
+    header = f"blob {len(content)}\0".encode("ascii")
+    return hashlib.sha1(header + content, usedforsecurity=False).hexdigest()
 
 
 def test_is_root_mounted_path_recognizes_empty_and_dot():
@@ -397,6 +403,9 @@ def test_registry_and_search_publish_only_locally_validated_asset_facets(tmp_pat
         "category": "development",
         "archive_mode": "directory",
         "bundled_files": ["scripts/run.py"],
+        "bundled_file_blobs": {
+            "scripts/run.py": git_blob_sha(b"print('ok')")
+        },
         "github_commit_sha": "a" * 40,
         "assets_verified_at": "2026-08-01T00:00:00Z",
         "asset_liveness": "live",
@@ -425,6 +434,12 @@ def test_registry_and_search_publish_only_locally_validated_asset_facets(tmp_pat
     for record in (search_record, registry_record):
         assert "asset_state" not in record
         assert "asset_liveness" not in record
+
+    support_file.write_text("print('tampered')", encoding="utf-8")
+    [search_record] = scan_skills_v2(skills_dir)
+    [registry_record] = scan_registry_skills(skills_dir)
+    for record in (search_record, registry_record):
+        assert "asset_state" not in record
 
 
 def test_live_asset_facets_win_equal_search_ranks_by_downranking_only(tmp_path):
@@ -544,6 +559,27 @@ def test_asset_evidence_does_not_override_existing_dedupe_winner(tmp_path):
     assert [skill["name"] for skill in lite["skills"]] == ["gone-long"]
 
 
+def test_asset_fields_do_not_change_legacy_final_dedupe_tie(tmp_path):
+    common = {
+        "name": "same",
+        "description": "same description",
+        "repo": "acme/shared",
+        "path": "SKILL.md",
+        "install": "acme/shared/SKILL.md",
+        "branch": "main",
+        "stars": 10,
+    }
+    plain = _skill(**common)
+    same_penalty_verified = _skill(**common, asset_state="verified")
+    output_dir = tmp_path / "docs"
+
+    build_search_index([plain, same_penalty_verified], output_dir)
+
+    lite = json.loads((output_dir / "search-index-lite.json").read_text())
+    assert len(lite["skills"]) == 1
+    assert "asset_state" not in lite["skills"][0]
+
+
 def test_asset_ranking_penalties_are_downrank_only():
     assert asset_ranking_penalty({"asset_state": "verified", "asset_liveness": "live"}) == 0
     assert asset_ranking_penalty({"asset_state": "verified"}) == 0.1
@@ -564,6 +600,7 @@ def test_verified_asset_fields_omit_malformed_claims_and_incomplete_liveness(tmp
         "github_branch": "main",
         "archive_mode": "directory",
         "bundled_files": ["scripts/run.py"],
+        "bundled_file_blobs": {"scripts/run.py": git_blob_sha(b"asset")},
         "github_commit_sha": "a" * 40,
         "assets_verified_at": "2026-08-01T00:00:00Z",
     }
@@ -578,6 +615,8 @@ def test_verified_asset_fields_omit_malformed_claims_and_incomplete_liveness(tmp
         {"bundled_files": ["scripts/run.py", "scripts/run.py"]},
         {"github_commit_sha": "bad"},
         {"assets_verified_at": ""},
+        {"assets_verified_at": "not-a-date"},
+        {"bundled_file_blobs": {"scripts/run.py": "a" * 40}},
     ]
     for change in invalid_changes:
         assert verified_asset_fields({**base, **change}, skill_dir, tmp_path) == {}
@@ -606,6 +645,28 @@ def test_verified_asset_fields_omit_malformed_claims_and_incomplete_liveness(tmp
     )
     assert verified["asset_liveness"] == "gone"
     assert "assets_liveness_sha" not in verified
+    invalid_gone = verified_asset_fields(
+        {
+            **base,
+            "asset_liveness": "gone",
+            "assets_liveness_checked_at": "2026-08-11T00:00:00Z",
+            "assets_liveness_sha": "b" * 40,
+        },
+        skill_dir,
+        tmp_path,
+    )
+    assert "asset_liveness" not in invalid_gone
+    invalid_timestamp = verified_asset_fields(
+        {
+            **base,
+            "asset_liveness": "live",
+            "assets_liveness_checked_at": "not-a-date",
+            "assets_liveness_sha": "b" * 40,
+        },
+        skill_dir,
+        tmp_path,
+    )
+    assert "asset_liveness" not in invalid_timestamp
     verified = verified_asset_fields(
         {
             **base,

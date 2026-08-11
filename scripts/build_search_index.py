@@ -34,6 +34,7 @@ from search_sources import (
     has_install_location,
     infer_compatible_agents,
     infer_install_status,
+    legacy_asset_free_record,
     load_from_registry,
     load_registry_count,
     scan_skills_v2,
@@ -41,7 +42,6 @@ from search_sources import (
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
-
 # First-paint catalog index used by the static Pages app. Full search shards
 # remain available through search-index.json as a compatibility pointer.
 LITE_INDEX_LIMIT = 5000
@@ -334,25 +334,25 @@ def build_search_index(
             stars,
             quality_score,
             len(description),
-            -asset_penalty,
             json.dumps(
-                full_record,
+                legacy_asset_free_record(full_record),
                 ensure_ascii=True,
                 sort_keys=True,
                 separators=(",", ":"),
             ),
+            -asset_penalty,
         )
         existing_rank = (
             int(existing.get("stars", 0) or 0),
             int(existing.get("quality_score", 0) or 0),
             int(existing.get("_description_length", 0) or 0),
-            -float(existing.get("_asset_ranking_penalty", 0.1)),
             json.dumps(
-                existing_records["full"],
+                legacy_asset_free_record(existing_records["full"]),
                 ensure_ascii=True,
                 sort_keys=True,
                 separators=(",", ":"),
             ),
+            -float(existing.get("_asset_ranking_penalty", 0.1)),
         ) if existing_records else None
         if not existing or (
             existing_rank is not None and candidate_rank > existing_rank
