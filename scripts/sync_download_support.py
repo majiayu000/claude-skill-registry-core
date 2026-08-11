@@ -3,7 +3,7 @@
 
 import hashlib
 import re
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote
 
@@ -21,6 +21,8 @@ from sync_pipeline_support import (
 from utils import build_legal_metadata
 
 SHA_PATTERN = re.compile(r"[0-9a-fA-F]{40}")
+MAX_SKILL_FILE_BYTES = 1_000_000
+GITHUB_RAW_BASE = "https://raw.githubusercontent.com"
 
 
 def select_bundled_file_entries(candidates: list[dict]) -> tuple[list[dict], bool]:
@@ -81,23 +83,16 @@ async def resolve_exact_commit_sha(
     if canonical_repo is None:
         async with session.get(f"{GITHUB_API_BASE}/repos/{repo}", timeout=timeout) as response:
             if response.status != 200:
-                raise RuntimeError(
-                    f"repository resolution failed with status {response.status}"
-                )
+                raise RuntimeError(f"repository resolution failed with status {response.status}")
             payload = await response.json()
         canonical_repo = payload.get("full_name") if isinstance(payload, dict) else ""
-        if (
-            not isinstance(canonical_repo, str)
-            or canonical_repo.casefold() != repo.casefold()
-        ):
+        if not isinstance(canonical_repo, str) or canonical_repo.casefold() != repo.casefold():
             raise RuntimeError("repository resolution returned a different canonical identity")
         if blocked_metadata_source({"repo": canonical_repo}, security_blocklist):
             raise RuntimeError("repository resolution returned a blocked canonical identity")
         repo_cache[repo] = canonical_repo
 
-    branch_url = (
-        f"{GITHUB_API_BASE}/repos/{canonical_repo}/branches/{quote(branch, safe='')}"
-    )
+    branch_url = f"{GITHUB_API_BASE}/repos/{canonical_repo}/branches/{quote(branch, safe='')}"
     async with session.get(branch_url, timeout=timeout) as response:
         if response.status != 200:
             raise RuntimeError(f"branch resolution failed with status {response.status}")
@@ -121,7 +116,7 @@ async def collect_pinned_tree_entries(
     *,
     timeout: Any,
     tree_cache: dict[tuple[str, str], list[dict]],
-) -> tuple[list[dict], bool]:
+) -> tuple[list[dict], bool, dict]:
     """Collect a complete, regular-file-only bundle from one immutable Git tree."""
     cache_key = (repo, commit_sha)
     entries = tree_cache.get(cache_key)
@@ -137,7 +132,7 @@ async def collect_pinned_tree_entries(
         except Exception as exc:
             reason = str(exc) or exc.__class__.__name__
             raise BundledListingError(".", reason) from exc
-        if not isinstance(payload, dict) or payload.get("truncated") is True:
+        if not isinstance(payload, dict) or payload.get("truncated") is not False:
             raise BundledListingError(".", "truncated or malformed Git tree")
         entries = payload.get("tree")
         if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
@@ -154,6 +149,22 @@ async def collect_pinned_tree_entries(
         or source_entry.get("mode") not in {"100644", "100755"}
     ):
         raise BundledListingError(resolved_skill_path, "source skill is not a regular blob")
+    source_size = source_entry.get("size")
+    source_sha = source_entry.get("sha")
+    if (
+        isinstance(source_size, bool)
+        or not isinstance(source_size, int)
+        or source_size < 0
+        or source_size > MAX_SKILL_FILE_BYTES
+    ):
+        raise BundledListingError(resolved_skill_path, "source skill has an invalid size")
+    if not isinstance(source_sha, str) or not SHA_PATTERN.fullmatch(source_sha):
+        raise BundledListingError(resolved_skill_path, "source skill lacks a valid object ID")
+    source_blob = {
+        "repo_path": resolved_skill_path,
+        "size": source_size,
+        "sha": source_sha.lower(),
+    }
 
     source_dir = skill_source_dir(resolved_skill_path)
     candidates = []
@@ -170,7 +181,7 @@ async def collect_pinned_tree_entries(
             size = -1
         parts = PurePosixPath(rel_path).parts
         in_support_scope = is_safe_bundled_file(rel_path, size) or (
-            len(parts) > 1 and should_recurse_bundled_dir(parts[0])
+            bool(parts) and should_recurse_bundled_dir(parts[0])
         )
         entry_type = entry.get("type")
         mode = entry.get("mode")
@@ -185,14 +196,137 @@ async def collect_pinned_tree_entries(
         blob_sha = entry.get("sha")
         if not isinstance(blob_sha, str) or not SHA_PATTERN.fullmatch(blob_sha):
             raise BundledListingError(repo_path, "regular blob lacks a valid object ID")
-        candidates.append({
-            "repo_path": repo_path,
-            "relative_path": rel_path,
-            "download_url": "",
-            "size": size,
-            "sha": blob_sha.lower(),
-        })
-    return select_bundled_file_entries(candidates)
+        candidates.append(
+            {
+                "repo_path": repo_path,
+                "relative_path": rel_path,
+                "download_url": "",
+                "size": size,
+                "sha": blob_sha.lower(),
+            }
+        )
+    selected, truncated = select_bundled_file_entries(candidates)
+    return selected, truncated, source_blob
+
+
+async def read_response_bytes_limited(response: Any, max_bytes: int) -> bytes:
+    """Read a response without buffering more than the allowed byte count."""
+    advertised_size = getattr(response, "content_length", None)
+    if advertised_size is not None and (
+        isinstance(advertised_size, bool)
+        or not isinstance(advertised_size, int)
+        or advertised_size < 0
+        or advertised_size > max_bytes
+    ):
+        raise ValueError("response Content-Length exceeds or violates the byte limit")
+    stream = getattr(response, "content", None)
+    if stream is None or not hasattr(stream, "iter_chunked"):
+        raise ValueError("response body does not expose a bounded byte stream")
+    content = bytearray()
+    async for chunk in stream.iter_chunked(64 * 1024):
+        if not isinstance(chunk, bytes):
+            raise ValueError("response body yielded a non-byte chunk")
+        content.extend(chunk)
+        if len(content) > max_bytes:
+            raise ValueError("response body exceeds the byte limit")
+    return bytes(content)
+
+
+async def download_bundled_files_to_directory(
+    session: Any,
+    repo: str,
+    branch: str,
+    resolved_skill_path: str,
+    skill_dir: Path,
+    require_complete_archive: bool,
+    *,
+    pin_commit_sha: bool,
+    timeout: Any,
+    tree_cache: dict[tuple[str, str], list[dict]],
+    contents_collector: Any,
+    pinned_tree_result: tuple[list[dict], bool, dict] | None = None,
+) -> tuple[list[str], list[str], str, dict[str, str]]:
+    """Download a validated support bundle and return its immutable blob map."""
+    archived: list[str] = []
+    failed: list[str] = []
+    blob_ids: dict[str, str] = {}
+    try:
+        if pin_commit_sha:
+            entries, truncated, _source_blob = (
+                pinned_tree_result
+                if pinned_tree_result is not None
+                else await collect_pinned_tree_entries(
+                    session,
+                    repo,
+                    branch,
+                    resolved_skill_path,
+                    timeout=timeout,
+                    tree_cache=tree_cache,
+                )
+            )
+        else:
+            entries, truncated = await contents_collector(
+                session, repo, branch, resolved_skill_path
+            )
+    except BundledListingError as exc:
+        if not require_complete_archive:
+            return archived, failed, "", blob_ids
+        return archived, [str(exc)], "bundled_listing_failed", blob_ids
+    if truncated and require_complete_archive:
+        message = "eligible bundled files exceed per-skill count or byte limits"
+        return archived, [message], "bundled_limits_exceeded", blob_ids
+    if not entries:
+        return archived, failed, "", blob_ids
+
+    skill_root = skill_dir.resolve()
+    for entry in entries:
+        rel_path = entry["relative_path"]
+        target_path = (skill_dir / rel_path).resolve()
+        try:
+            target_path.relative_to(skill_root)
+        except ValueError:
+            failed.append(rel_path)
+            continue
+
+        pinned_url = f"{GITHUB_RAW_BASE}/{repo}/{branch}/{quote(entry['repo_path'], safe='/')}"
+        url = pinned_url if pin_commit_sha else entry["download_url"] or pinned_url
+        try:
+            async with session.get(url, timeout=timeout) as response:
+                if response.status != 200:
+                    failed.append(rel_path)
+                    continue
+                if pin_commit_sha:
+                    content = await read_response_bytes_limited(response, entry["size"])
+                else:
+                    content = await response.read()
+        except Exception:
+            failed.append(rel_path)
+            continue
+
+        if not is_safe_bundled_file(rel_path, len(content)):
+            failed.append(rel_path)
+            continue
+        if pin_commit_sha and not content_matches_git_blob(entry, content):
+            failed.append(rel_path)
+            continue
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_bytes(content)
+        archived.append(rel_path)
+        if pin_commit_sha:
+            blob_ids[rel_path] = entry["sha"]
+
+    if failed and not require_complete_archive:
+        for rel_path in archived:
+            target_path = (skill_dir / rel_path).resolve()
+            try:
+                target_path.relative_to(skill_root)
+            except ValueError:
+                continue
+            target_path.unlink(missing_ok=True)
+        return [], [], "", {}
+
+    failure_reason = "bundled_download_failed" if failed else ""
+    return archived, failed, failure_reason, blob_ids
 
 
 def content_matches_git_blob(entry: dict, content: bytes) -> bool:
@@ -204,6 +338,28 @@ def content_matches_git_blob(entry: dict, content: bytes) -> bool:
     blob_header = f"blob {len(content)}\0".encode("ascii")
     actual_sha = hashlib.sha1(blob_header + content, usedforsecurity=False).hexdigest()
     return actual_sha == expected_sha.casefold()
+
+
+def bundled_file_blobs_match(
+    metadata: dict,
+    skill_dir: Path,
+    bundled_files: list[str],
+) -> bool:
+    """Verify that every archived support file matches its pinned Git blob ID."""
+    blob_ids = metadata.get("bundled_file_blobs")
+    if not isinstance(blob_ids, dict) or set(blob_ids) != set(bundled_files):
+        return False
+    for relative_path in bundled_files:
+        expected_sha = blob_ids.get(relative_path)
+        if not isinstance(expected_sha, str) or not SHA_PATTERN.fullmatch(expected_sha):
+            return False
+        try:
+            content = (skill_dir / relative_path).read_bytes()
+        except OSError:
+            return False
+        if not content_matches_git_blob({"size": len(content), "sha": expected_sha}, content):
+            return False
+    return True
 
 
 def classify_download_result(skill: dict, result: object) -> tuple[bool, str]:
@@ -227,6 +383,7 @@ def build_archived_skill_metadata(
     branch: str,
     dir_name: str,
     bundled_files: list[str],
+    bundled_file_blobs: dict[str, str] | None = None,
     commit_sha: str = "",
     assets_verified_at: str = "",
 ) -> dict:
@@ -260,5 +417,10 @@ def build_archived_skill_metadata(
         "dir_name": dir_name,
         "archive_mode": "directory" if bundled_files else "skill-md",
         "bundled_files": bundled_files,
+        **(
+            {"bundled_file_blobs": dict(sorted(bundled_file_blobs.items()))}
+            if commit_sha and bundled_files and bundled_file_blobs
+            else {}
+        ),
         **legal_meta,
     }

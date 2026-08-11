@@ -492,7 +492,7 @@ class TestGitHubClient:
         requests = []
         payloads = iter([
             {"name": "feature/assets", "commit": {"sha": "a" * 40}},
-            {"tree": [
+            {"truncated": False, "tree": [
                 {"path": "SKILL.md", "type": "blob", "mode": "100644"},
                 {"path": "linked.py", "type": "blob", "mode": "120000"},
                 {"path": "dir", "type": "tree", "mode": "040000"},
@@ -526,4 +526,12 @@ class TestGitHubClient:
             lambda _request, timeout: self.Response({"truncated": True}),
         )
         with pytest.raises(liveness.GitHubApiError, match="truncated"):
+            liveness.GitHubClient().tree("acme/tools", "a" * 40)
+
+        monkeypatch.setattr(
+            liveness.urllib.request,
+            "urlopen",
+            lambda _request, timeout: self.Response({"tree": []}),
+        )
+        with pytest.raises(liveness.GitHubApiError, match="truncated or malformed"):
             liveness.GitHubClient().tree("acme/tools", "a" * 40)

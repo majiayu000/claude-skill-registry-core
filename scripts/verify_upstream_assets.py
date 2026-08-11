@@ -77,8 +77,8 @@ class GitHubClient:
 
     def tree(self, repo: str, sha: str) -> set[str]:
         payload = self.get_json(f"/repos/{repo}/git/trees/{sha}?recursive=1")
-        if payload.get("truncated") is True:
-            raise GitHubApiError(0, "GitHub tree response is truncated")
+        if payload.get("truncated") is not False:
+            raise GitHubApiError(0, "GitHub tree response is truncated or malformed")
         entries = payload.get("tree")
         if not isinstance(entries, list):
             raise GitHubApiError(0, "GitHub tree response lacks entries")
