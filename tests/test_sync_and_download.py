@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -82,6 +83,26 @@ def install_fake_aiohttp(monkeypatch, routes):
         ClientError=OSError,
     )
     monkeypatch.setitem(sys.modules, "aiohttp", fake_aiohttp)
+
+
+def git_blob_sha(content: bytes) -> str:
+    header = f"blob {len(content)}\0".encode("ascii")
+    return hashlib.sha1(header + content, usedforsecurity=False).hexdigest()
+
+
+def exact_repo_routes(repo: str, branch: str, sha: str, tree: list[dict]) -> dict:
+    encoded_branch = branch.replace("/", "%2F")
+    return {
+        f"https://api.github.com/repos/{repo}": FakeResponse(
+            200, json_payload={"full_name": repo}
+        ),
+        f"https://api.github.com/repos/{repo}/branches/{encoded_branch}": FakeResponse(
+            200, json_payload={"name": branch, "commit": {"sha": sha}}
+        ),
+        f"https://api.github.com/repos/{repo}/git/trees/{sha}?recursive=1": FakeResponse(
+            200, json_payload={"truncated": False, "tree": tree}
+        ),
+    }
 
 
 def test_should_fail_on_empty_download_only_when_all_attempts_fail():
@@ -411,7 +432,7 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(tmp_path, mon
                     {
                         "name": "demo",
                         "repo": "acme/demo",
-                        "path": "skills/demo folder/SKILL.md",
+                        "path": "skills/demo folder/skill.md",
                         "category": "development",
                         "github_branch": "release/v1",
                     }
@@ -421,13 +442,27 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(tmp_path, mon
         encoding="utf-8",
     )
     sha = "a" * 40
+    script_body = b"print('ok')\n"
     install_fake_aiohttp(
         monkeypatch,
         {
-            "https://api.github.com/repos/acme/demo/commits/release%2Fv1": FakeResponse(
-                200, json_payload={"sha": sha}
-            ),
-            f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo%20folder/SKILL.md": (
+            **exact_repo_routes("acme/demo", "release/v1", sha, [
+                {
+                    "path": "skills/demo folder/skill.md",
+                    "type": "blob",
+                    "mode": "100644",
+                    "size": 100,
+                    "sha": "b" * 40,
+                },
+                {
+                    "path": "skills/demo folder/scripts/setup.py",
+                    "type": "blob",
+                    "mode": "100644",
+                    "size": len(script_body),
+                    "sha": git_blob_sha(script_body),
+                },
+            ]),
+            f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo%20folder/skill.md": (
                 FakeResponse(
                     200,
                     text=(
@@ -436,30 +471,8 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(tmp_path, mon
                     ),
                 )
             ),
-            f"https://api.github.com/repos/acme/demo/contents/skills/demo%20folder?ref={sha}": (
-                FakeResponse(
-                    200,
-                    json_payload=[
-                        {"type": "file", "path": "skills/demo folder/SKILL.md", "size": 100},
-                        {"type": "dir", "path": "skills/demo folder/scripts", "size": 0},
-                    ],
-                )
-            ),
-            f"https://api.github.com/repos/acme/demo/contents/skills/demo%20folder/scripts?ref={sha}": (
-                FakeResponse(
-                    200,
-                    json_payload=[
-                        {
-                            "type": "file",
-                            "path": "skills/demo folder/scripts/setup.py",
-                            "download_url": "https://untrusted.example/setup.py",
-                            "size": 12,
-                        }
-                    ],
-                )
-            ),
             f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo%20folder/scripts/setup.py": (
-                FakeResponse(200, body=b"print('ok')\n")
+                FakeResponse(200, body=script_body)
             ),
         },
     )
@@ -522,6 +535,62 @@ def test_exact_download_fails_closed_when_commit_cannot_be_resolved(tmp_path, mo
     assert not list(output_dir.rglob("SKILL.md"))
 
 
+def test_exact_download_rejects_redirected_repository_identity(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    registry_path.write_text(json.dumps({"skills": [{
+        "name": "demo",
+        "repo": "acme/old-name",
+        "path": "skills/demo/SKILL.md",
+        "category": "development",
+        "github_branch": "main",
+    }]}))
+    install_fake_aiohttp(monkeypatch, {
+        "https://api.github.com/repos/acme/old-name": FakeResponse(
+            200, json_payload={"full_name": "acme/new-name"}
+        ),
+    })
+
+    stats = asyncio.run(module.download_skills(
+        registry_path,
+        output_dir,
+        manifest_path=None,
+        cleanup_ci_untracked=False,
+        exact_paths_only=True,
+        pin_commit_sha=True,
+    ))
+
+    assert stats["downloaded"] == 0
+    assert stats["failed"] == 1
+
+
+def test_exact_download_rejects_raw_sha_branch_alias(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    registry_path.write_text(json.dumps({"skills": [{
+        "name": "demo",
+        "repo": "acme/demo",
+        "path": "skills/demo/SKILL.md",
+        "category": "development",
+        "github_branch": "a" * 40,
+    }]}))
+    install_fake_aiohttp(monkeypatch, {})
+
+    stats = asyncio.run(module.download_skills(
+        registry_path,
+        output_dir,
+        manifest_path=None,
+        cleanup_ci_untracked=False,
+        exact_paths_only=True,
+        pin_commit_sha=True,
+    ))
+
+    assert stats["downloaded"] == 0
+    assert stats["failed"] == 1
+
+
 def test_exact_download_does_not_probe_name_fallbacks(tmp_path, monkeypatch):
     module = load_module()
     registry_path = tmp_path / "registry.json"
@@ -546,17 +615,12 @@ def test_exact_download_does_not_probe_name_fallbacks(tmp_path, monkeypatch):
     install_fake_aiohttp(
         monkeypatch,
         {
-            "https://api.github.com/repos/acme/demo/commits/main": FakeResponse(
-                200, json_payload={"sha": sha}
-            ),
+            **exact_repo_routes("acme/demo", "main", sha, []),
             f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo/SKILL.md": (
                 FakeResponse(
                     200,
                     text="---\nname: demo\ndescription: fallback\n---\n# Demo\n",
                 )
-            ),
-            "https://api.github.com/repos/acme/demo/commits/master": FakeResponse(
-                200, json_payload={"sha": sha}
             ),
         },
     )
@@ -590,33 +654,31 @@ def test_exact_download_fails_when_bundle_limits_truncate(tmp_path, monkeypatch)
     }]}))
     sha = "c" * 40
     install_fake_aiohttp(monkeypatch, {
-        "https://api.github.com/repos/acme/demo/commits/main": FakeResponse(
-            200, json_payload={"sha": sha}
-        ),
+        **exact_repo_routes("acme/demo", "main", sha, [
+            {
+                "path": "skills/demo/SKILL.md",
+                "type": "blob",
+                "mode": "100644",
+                "size": 100,
+                "sha": "d" * 40,
+            },
+            *[
+                {
+                    "path": f"skills/demo/scripts/tool_{index}.py",
+                    "type": "blob",
+                    "mode": "100644",
+                    "size": 10,
+                    "sha": "e" * 40,
+                }
+                for index in range(101)
+            ],
+        ]),
         f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo/SKILL.md": FakeResponse(
             200,
             text=(
                 "---\nname: demo\ndescription: A large bundled demo.\n---\n"
                 "# Demo\nRun scripts/tool_0.py.\n"
             ),
-        ),
-        f"https://api.github.com/repos/acme/demo/contents/skills/demo?ref={sha}": FakeResponse(
-            200,
-            json_payload=[
-                {"type": "file", "path": "skills/demo/SKILL.md", "size": 100},
-                {"type": "dir", "path": "skills/demo/scripts", "size": 0},
-            ],
-        ),
-        f"https://api.github.com/repos/acme/demo/contents/skills/demo/scripts?ref={sha}": (
-            FakeResponse(200, json_payload=[
-                {
-                    "type": "file",
-                    "path": f"skills/demo/scripts/tool_{index}.py",
-                    "download_url": "",
-                    "size": 10,
-                }
-                for index in range(101)
-            ])
         ),
     })
 
@@ -635,6 +697,126 @@ def test_exact_download_fails_when_bundle_limits_truncate(tmp_path, monkeypatch)
     report = json.loads(failure_report_path.read_text())
     assert report["failure_reasons"]["bundled_limits_exceeded"] == 1
     assert not list(output_dir.rglob("SKILL.md"))
+
+
+@pytest.mark.parametrize(
+    ("asset_entry", "body"),
+    [
+        ({"type": "blob", "mode": "120000", "size": 12, "sha": "f" * 40}, b"target.py"),
+        ({"type": "commit", "mode": "160000", "size": 0, "sha": "f" * 40}, b""),
+    ],
+)
+def test_exact_download_rejects_non_regular_upstream_assets(
+    tmp_path, monkeypatch, asset_entry, body
+):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure.json"
+    registry_path.write_text(json.dumps({"skills": [{
+        "name": "demo",
+        "repo": "acme/demo",
+        "path": "skills/demo/SKILL.md",
+        "category": "development",
+        "github_branch": "main",
+    }]}))
+    sha = "1" * 40
+    routes = exact_repo_routes("acme/demo", "main", sha, [
+        {
+            "path": "skills/demo/SKILL.md",
+            "type": "blob",
+            "mode": "100644",
+            "size": 100,
+            "sha": "2" * 40,
+        },
+        {"path": "skills/demo/scripts/run.py", **asset_entry},
+    ])
+    routes[f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo/SKILL.md"] = (
+        FakeResponse(
+            200,
+            text=(
+                "---\nname: demo\ndescription: Exact demo.\n---\n"
+                "# Demo\nRun scripts/run.py.\n"
+            ),
+        )
+    )
+    routes[f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo/scripts/run.py"] = (
+        FakeResponse(200, body=body)
+    )
+    install_fake_aiohttp(monkeypatch, routes)
+
+    stats = asyncio.run(module.download_skills(
+        registry_path,
+        output_dir,
+        manifest_path=None,
+        failure_report_path=failure_report_path,
+        cleanup_ci_untracked=False,
+        exact_paths_only=True,
+        pin_commit_sha=True,
+    ))
+
+    assert stats["downloaded"] == 0
+    report = json.loads(failure_report_path.read_text())
+    assert report["failure_reasons"]["bundled_listing_failed"] == 1
+
+
+def test_exact_download_rejects_truncated_asset_response(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure.json"
+    registry_path.write_text(json.dumps({"skills": [{
+        "name": "demo",
+        "repo": "acme/demo",
+        "path": "skills/demo/SKILL.md",
+        "category": "development",
+        "github_branch": "main",
+    }]}))
+    sha = "3" * 40
+    expected_body = b"x" * 100
+    routes = exact_repo_routes("acme/demo", "main", sha, [
+        {
+            "path": "skills/demo/SKILL.md",
+            "type": "blob",
+            "mode": "100644",
+            "size": 100,
+            "sha": "4" * 40,
+        },
+        {
+            "path": "skills/demo/scripts/run.py",
+            "type": "blob",
+            "mode": "100644",
+            "size": len(expected_body),
+            "sha": git_blob_sha(expected_body),
+        },
+    ])
+    routes[f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo/SKILL.md"] = (
+        FakeResponse(
+            200,
+            text=(
+                "---\nname: demo\ndescription: Exact demo.\n---\n"
+                "# Demo\nRun scripts/run.py.\n"
+            ),
+        )
+    )
+    routes[f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo/scripts/run.py"] = (
+        FakeResponse(200, body=b"x")
+    )
+    install_fake_aiohttp(monkeypatch, routes)
+
+    stats = asyncio.run(module.download_skills(
+        registry_path,
+        output_dir,
+        manifest_path=None,
+        failure_report_path=failure_report_path,
+        cleanup_ci_untracked=False,
+        exact_paths_only=True,
+        pin_commit_sha=True,
+    ))
+
+    assert stats["downloaded"] == 0
+    report = json.loads(failure_report_path.read_text())
+    assert report["failure_reasons"]["bundled_download_failed"] == 1
 
 
 def test_unexpected_skill_exception_is_recorded_in_failure_report(tmp_path, monkeypatch):

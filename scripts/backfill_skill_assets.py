@@ -17,6 +17,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import uuid
@@ -25,9 +26,28 @@ from pathlib import Path, PurePosixPath
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from audit_skill_assets import canonical_source_identity
+from audit_skill_assets import (
+    canonical_source_identity,
+    canonical_source_identity_from_metadata,
+)
 from sync_download import download_skills
 from sync_download_support import exact_source_branch
+
+
+def _assert_no_symlink_components(root: Path, destination: Path) -> None:
+    root = root.absolute()
+    destination = destination.absolute()
+    if root.is_symlink():
+        raise ValueError(f"archive root cannot be a symbolic link: {root}")
+    try:
+        relative = destination.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"archive destination escapes archive root: {destination}") from exc
+    current = root
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            raise ValueError(f"archive destination contains a symbolic link: {current}")
 
 
 def _archive_destination(archive_root: Path, archive_path: object) -> Path:
@@ -37,9 +57,10 @@ def _archive_destination(archive_root: Path, archive_path: object) -> Path:
     parts = PurePosixPath(normalized).parts
     if len(parts) != 2 or any(part in {"", ".", ".."} for part in parts):
         raise ValueError(f"invalid canonical archive_path: {archive_path!r}")
-    destination = (archive_root / Path(*parts)).resolve()
+    destination = (archive_root.absolute() / Path(*parts)).absolute()
+    _assert_no_symlink_components(archive_root, destination)
     try:
-        destination.relative_to(archive_root.resolve())
+        destination.resolve().relative_to(archive_root.resolve())
     except ValueError as exc:
         raise ValueError(f"archive_path escapes archive root: {archive_path!r}") from exc
     return destination
@@ -100,7 +121,7 @@ def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
         )
         if source_error:
             raise ValueError(f"target line {line_number} has {source_error}")
-        stable_key = f"{repo}:{source_path}"
+        stable_key = f"{repo.casefold()}:{source_path}"
         if target.get("stable_key") != stable_key:
             raise ValueError(f"target line {line_number} stable_key does not match source")
         if stable_key in seen_keys:
@@ -116,10 +137,10 @@ def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
         if not destination.is_dir() or not skill_path.is_file():
             raise ValueError(f"archive target does not exist: {destination}")
         metadata = _load_metadata(metadata_path)
-        existing_repo, existing_path, existing_error = canonical_source_identity(
-            metadata.get("repo"), metadata.get("path") or metadata.get("github_path")
+        existing_repo, existing_path, existing_error = (
+            canonical_source_identity_from_metadata(metadata)
         )
-        if existing_error or f"{existing_repo}:{existing_path}" != stable_key:
+        if existing_error or f"{existing_repo.casefold()}:{existing_path}" != stable_key:
             raise ValueError(f"archive metadata identity mismatch: {metadata_path}")
         branch = exact_source_branch(metadata)
         if not branch:
@@ -129,12 +150,9 @@ def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
         existing_name = str(metadata.get("name") or destination.name)
         existing_category = str(metadata.get("category") or destination.parent.name)
         raw_stars = metadata.get("stars", 0)
-        if isinstance(raw_stars, bool):
+        if isinstance(raw_stars, bool) or not isinstance(raw_stars, int) or raw_stars < 0:
             raise ValueError(f"archive metadata stars must be an integer: {metadata_path}")
-        try:
-            existing_stars = int(raw_stars or 0)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"archive metadata stars must be an integer: {metadata_path}") from exc
+        existing_stars = raw_stars
         expected_target_fields = {
             "name": existing_name,
             "category": existing_category,
@@ -145,7 +163,11 @@ def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
                 raise ValueError(f"target line {line_number} {field} does not match archive metadata")
 
         skill = {
-            **metadata,
+            **{
+                key: value
+                for key, value in metadata.items()
+                if key not in {"github_path", "branch"}
+            },
             "repo": repo,
             "path": source_path,
             "github_branch": branch,
@@ -169,15 +191,13 @@ def _staged_archives(stage_root: Path) -> dict[str, Path]:
     staged = {}
     for metadata_path in sorted(stage_root.glob("*/*/metadata.json")):
         metadata = _load_metadata(metadata_path)
-        repo, source_path, source_error = canonical_source_identity(
-            metadata.get("repo"), metadata.get("path") or metadata.get("github_path")
-        )
+        repo, source_path, source_error = canonical_source_identity_from_metadata(metadata)
         commit_sha = metadata.get("github_commit_sha")
         if source_error:
             raise ValueError(f"staged metadata has {source_error}: {metadata_path}")
         if not isinstance(commit_sha, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", commit_sha):
             raise ValueError(f"staged metadata lacks immutable commit SHA: {metadata_path}")
-        stable_key = f"{repo}:{source_path}"
+        stable_key = f"{repo.casefold()}:{source_path}"
         if stable_key in staged:
             raise ValueError(f"duplicate staged stable_key: {stable_key}")
         staged[stable_key] = metadata_path.parent
@@ -254,6 +274,7 @@ def apply_staged_archives(targets: list[dict], stage_root: Path) -> None:
     try:
         for target in targets:
             destination = target["destination"]
+            _assert_no_symlink_components(destination.parents[1], destination)
             if _asset_free_archive_snapshot(destination) != target["archive_snapshot"]:
                 raise ValueError(f"backfill destination changed after target generation: {destination}")
             candidate = Path(
@@ -269,6 +290,8 @@ def apply_staged_archives(targets: list[dict], stage_root: Path) -> None:
                 **staged_metadata,
                 "dir_name": destination.name,
             }
+            merged_metadata.pop("github_path", None)
+            merged_metadata.pop("branch", None)
             metadata_path.write_text(
                 json.dumps(merged_metadata, indent=2, ensure_ascii=False),
                 encoding="utf-8",
@@ -287,6 +310,7 @@ def apply_staged_archives(targets: list[dict], stage_root: Path) -> None:
     applied = []
     try:
         for target, destination, candidate in prepared:
+            _assert_no_symlink_components(destination.parents[1], destination)
             if _asset_free_archive_snapshot(destination) != target["archive_snapshot"]:
                 raise ValueError(f"backfill destination changed before swap: {destination}")
             backup = destination.parent / f".{destination.name}.backup-{uuid.uuid4().hex}"
@@ -313,6 +337,27 @@ def apply_staged_archives(targets: list[dict], stage_root: Path) -> None:
         raise RuntimeError("backfill applied but cleanup was incomplete: " + "; ".join(cleanup_errors))
 
 
+def scan_staged_archives_with_clamav(stage_root: Path, binary: str = "clamscan") -> None:
+    """Fail closed unless ClamAV reports the complete staged batch clean."""
+    if not stage_root.is_dir():
+        raise ValueError(f"staged archive root does not exist: {stage_root}")
+    try:
+        result = subprocess.run(
+            [binary, "--recursive", "--infected", str(stage_root)],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=600,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"unable to execute ClamAV: {exc}") from exc
+    if result.returncode != 0:
+        details = (result.stdout + "\n" + result.stderr).strip()[-1000:]
+        raise RuntimeError(
+            f"ClamAV rejected staged backfill with exit code {result.returncode}: {details}"
+        )
+
+
 async def run_backfill(
     targets_path: Path,
     archive_root: Path,
@@ -320,6 +365,7 @@ async def run_backfill(
     *,
     apply: bool,
     github_token: str = "",
+    clamscan_binary: str = "clamscan",
 ) -> int:
     targets = []
     stats = {}
@@ -355,6 +401,7 @@ async def run_backfill(
                 validate_staged_archives(targets, stage_root)
                 status = "validated"
                 if apply:
+                    scan_staged_archives_with_clamav(stage_root, clamscan_binary)
                     apply_staged_archives(targets, stage_root)
                     status = "applied"
     except Exception as exc:  # noqa: BLE001 — emit a structured report for every failure
@@ -382,6 +429,7 @@ def main() -> None:
     parser.add_argument("archive_root", type=Path)
     parser.add_argument("report", type=Path)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--clamscan-binary", default="clamscan")
     args = parser.parse_args()
     raise SystemExit(
         asyncio.run(
@@ -391,6 +439,7 @@ def main() -> None:
                 args.report,
                 apply=args.apply,
                 github_token=os.environ.get("GITHUB_TOKEN", ""),
+                clamscan_binary=args.clamscan_binary,
             )
         )
     )
