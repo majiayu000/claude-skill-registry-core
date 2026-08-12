@@ -136,7 +136,7 @@ def _metadata_hash(raw: bytes) -> str:
 def _safe_bundle_path(value: object) -> str:
     if not is_safe_portable_relative_path(value):
         return ""
-    if value in {"SKILL.md", "metadata.json"}:
+    if PurePosixPath(value).parts[0].casefold() in {"skill.md", "metadata.json"}:
         return ""
     return value
 
@@ -259,6 +259,16 @@ def load_targets(skills_dir: Path) -> tuple[list[Target], list[dict]]:
         category_paths = sorted(root.iterdir())
     except OSError as exc:
         return [], [{"stable_key": str(skills_dir), "status": "local_error", "error": str(exc)}]
+    if has_case_conflicting_paths(
+        path.name for path in category_paths if path.is_dir() or path.is_symlink()
+    ):
+        return [], [
+            {
+                "stable_key": str(skills_dir),
+                "status": "local_error",
+                "error": "canonical archive contains case-conflicting category paths",
+            }
+        ]
     for category_path in category_paths:
         if category_path.is_symlink():
             errors.append(
@@ -279,6 +289,17 @@ def load_targets(skills_dir: Path) -> tuple[list[Target], list[dict]]:
                     "stable_key": relative_path(category_path, root),
                     "status": "local_error",
                     "error": str(exc)[:500],
+                }
+            )
+            continue
+        if has_case_conflicting_paths(
+            path.name for path in skill_paths if path.is_dir() or path.is_symlink()
+        ):
+            errors.append(
+                {
+                    "stable_key": relative_path(category_path, root),
+                    "status": "local_error",
+                    "error": "canonical archive contains case-conflicting skill paths",
                 }
             )
             continue

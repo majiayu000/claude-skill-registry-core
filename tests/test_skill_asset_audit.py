@@ -673,6 +673,9 @@ class TestAssetLiveness:
         [
             ({"bundled_files": []}, "non-empty"),
             ({"bundled_files": ["../run.py"]}, "invalid or duplicate"),
+            ({"bundled_files": ["skill.md"]}, "invalid or duplicate"),
+            ({"bundled_files": ["Metadata.json"]}, "invalid or duplicate"),
+            ({"bundled_files": ["skill.md/run.py"]}, "invalid or duplicate"),
             ({"bundled_files": ["C:scripts/run.py"]}, "invalid or duplicate"),
             (
                 {"bundled_files": ["scripts/Run.py", "scripts/run.py"]},
@@ -715,6 +718,35 @@ class TestAssetLiveness:
         targets, errors = liveness.load_targets(skills)
         assert targets == []
         assert "cannot be a symlink" in errors[0]["error"]
+
+    def test_case_conflicting_skill_roots_are_rejected(self, tmp_path):
+        skills = tmp_path / "skills"
+        make_verified_asset(skills, "Alpha")
+        try:
+            make_verified_asset(skills, "alpha")
+        except FileExistsError:
+            pytest.skip("case-insensitive filesystem cannot represent the fixture")
+
+        targets, errors = liveness.load_targets(skills)
+
+        assert targets == []
+        assert "case-conflicting skill paths" in errors[0]["error"]
+
+    def test_case_conflicting_category_roots_are_rejected(self, tmp_path):
+        skills = tmp_path / "skills"
+        first = make_verified_asset(skills, "alpha")
+        first.parent.parent.rename(skills / "Dev")
+        try:
+            make_verified_asset(skills, "beta")
+        except FileExistsError:
+            pytest.skip("case-insensitive filesystem cannot represent the fixture")
+        if len(list(skills.iterdir())) < 2:
+            pytest.skip("case-insensitive filesystem cannot represent the fixture")
+
+        targets, errors = liveness.load_targets(skills)
+
+        assert targets == []
+        assert "case-conflicting category paths" in errors[0]["error"]
 
     def test_apply_rejects_changed_metadata(self, tmp_path):
         skills = tmp_path / "skills"
