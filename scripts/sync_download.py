@@ -19,15 +19,16 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from security_blocklist import blocked_metadata_source, load_security_blocklist
 from sync_download_support import (
+    asset_redistribution_approved,
     build_archived_skill_metadata,
     classify_download_result,
+    collect_contents_bundled_file_entries,
     collect_pinned_tree_entries,
     content_matches_git_blob,
     download_bundled_files_to_directory,
     exact_source_branch,
     read_response_bytes_limited,
     resolve_exact_commit_sha,
-    select_bundled_file_entries,
 )
 from sync_pipeline_support import (
     DEFAULT_LEARNING_PRIORS_PATH,
@@ -39,11 +40,8 @@ from sync_pipeline_support import (
     build_manifest_key,
     build_relative_candidates,
     build_relative_probe_order,
-    bundled_relative_path,
     filter_pending_skills,
-    is_safe_bundled_file,
     is_safe_portable_relative_path,
-    is_submodule_contents_entry,
     load_acquisition_manifest,
     load_learning_priors,
     logger,
@@ -58,9 +56,7 @@ from sync_pipeline_support import (
     save_acquisition_manifest,
     save_learning_priors,
     select_shard_skills,
-    should_recurse_bundled_dir,
     skill_key,
-    skill_source_dir,
     to_utc_iso,
     utc_now,
     validate_existing_archive_sources,
@@ -332,50 +328,13 @@ async def download_skills(
         branch: str,
         resolved_skill_path: str,
     ) -> tuple[list[dict], bool]:
-        source_dir = skill_source_dir(resolved_skill_path)
-        queue = [source_dir]
-        seen_dirs = set()
-        candidates: list[dict] = []
-        while queue:
-            current_dir = queue.pop(0)
-            if current_dir in seen_dirs:
-                continue
-            seen_dirs.add(current_dir)
-
-            for entry in await fetch_contents_listing(session, repo, branch, current_dir):
-                entry_type = entry.get("type")
-                if is_submodule_contents_entry(entry):
-                    continue
-
-                repo_path = str(entry.get("path") or "").strip("/")
-                rel_path = bundled_relative_path(source_dir, repo_path)
-                if not rel_path:
-                    continue
-
-                if entry_type == "dir":
-                    if should_recurse_bundled_dir(rel_path):
-                        queue.append(repo_path)
-                    continue
-
-                if entry_type != "file":
-                    continue
-
-                try:
-                    size = int(entry.get("size") or 0)
-                except (TypeError, ValueError):
-                    size = -1
-                if is_safe_bundled_file(rel_path, size, reject_nonportable=True):
-                    candidates.append(
-                        {
-                            "repo_path": repo_path,
-                            "relative_path": rel_path,
-                            "download_url": entry.get("download_url") or "",
-                            "size": size,
-                            "sha": entry.get("sha") or "",
-                        }
-                    )
-
-        return select_bundled_file_entries(candidates)
+        return await collect_contents_bundled_file_entries(
+            session,
+            repo,
+            branch,
+            resolved_skill_path,
+            listing_fetcher=fetch_contents_listing,
+        )
 
     async def try_download(session: aiohttp.ClientSession, skill: dict) -> bool:
         name = (skill.get("name") or "").strip() or "unknown"
@@ -521,6 +480,18 @@ async def download_skills(
                                     require_complete_archive = requires_complete_bundled_archive(
                                         content
                                     ) or (exact_paths_only and pin_commit_sha)
+                                    redistribution_approved = asset_redistribution_approved(skill)
+                                    if require_complete_archive and not redistribution_approved:
+                                        failure_reason = "asset_redistribution_not_approved"
+                                        failures[failure_reason].append(name)
+                                        stats["url_attempts"] += attempts
+                                        add_observation(
+                                            skill,
+                                            outcome="failed",
+                                            failure_reason=failure_reason,
+                                            attempts=attempts,
+                                        )
+                                        return False
                                     category_dir = output_dir / category
                                     category_dir.mkdir(parents=True, exist_ok=True)
                                     key = build_skill_key(repo, path, name=name, category=category)
@@ -530,24 +501,29 @@ async def download_skills(
                                     skill_dir.mkdir(parents=True, exist_ok=True)
                                     (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
                                     resolved_path = path or relative_path
+                                    bundle_result = (
+                                        await download_bundled_files_to_directory(
+                                            session,
+                                            repo,
+                                            download_ref,
+                                            relative_path,
+                                            skill_dir,
+                                            require_complete_archive,
+                                            pin_commit_sha=pin_commit_sha,
+                                            timeout=request_timeout,
+                                            tree_cache=tree_cache,
+                                            contents_collector=collect_bundled_file_entries,
+                                            pinned_tree_result=pinned_tree_result,
+                                        )
+                                        if redistribution_approved
+                                        else ([], [], "", {})
+                                    )
                                     (
                                         bundled_files,
                                         bundled_failures,
                                         bundled_failure_reason,
                                         bundled_file_blobs,
-                                    ) = await download_bundled_files_to_directory(
-                                        session,
-                                        repo,
-                                        download_ref,
-                                        relative_path,
-                                        skill_dir,
-                                        require_complete_archive,
-                                        pin_commit_sha=pin_commit_sha,
-                                        timeout=request_timeout,
-                                        tree_cache=tree_cache,
-                                        contents_collector=collect_bundled_file_entries,
-                                        pinned_tree_result=pinned_tree_result,
-                                    )
+                                    ) = bundle_result
                                     if bundled_failures:
                                         failure_reason = (
                                             bundled_failure_reason or "bundled_download_failed"

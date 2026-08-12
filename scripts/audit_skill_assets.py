@@ -31,7 +31,6 @@ from portable_paths import is_safe_portable_relative_path
 from skill_asset_audit import (
     classify_files,
     classify_skill_text,
-    iter_archived_skills,
     verdict_from_counts,
 )
 from sync_pipeline_support import (
@@ -100,14 +99,6 @@ def run_targets(root: str, min_stars: int) -> None:
         )
 
 
-def _is_canonical_archive_skill(dirpath: str, root: str | Path) -> bool:
-    try:
-        relative = Path(dirpath).resolve().relative_to(Path(root).resolve())
-    except ValueError:
-        return False
-    return len(relative.parts) == 2
-
-
 def _iter_canonical_archive_paths(root: str | Path):
     """Yield canonical archive paths without parsing their metadata."""
     root_path = Path(root)
@@ -145,18 +136,26 @@ def _iter_canonical_archive_paths(root: str | Path):
         yield relative_path
 
 
-def _assert_unique_canonical_archive_paths(root: str | Path) -> None:
-    if has_case_conflicting_paths(_iter_canonical_archive_paths(root)):
+def _assert_unique_canonical_archive_paths(paths: list[str], root: str | Path) -> None:
+    if has_case_conflicting_paths(paths):
         raise ValueError(f"archive contains case-conflicting skill roots: {root}")
 
 
 def _canonical_archive_rows(root: str | Path):
-    """Stream canonical archive rows after a lightweight path-only preflight."""
+    """Stream canonical rows from the single fail-closed archive preflight."""
     archive_root = Path(root).resolve()
-    _assert_unique_canonical_archive_paths(root)
-    for dirpath, metadata in iter_archived_skills(str(root)):
-        if _is_canonical_archive_skill(dirpath, archive_root):
-            yield dirpath, metadata
+    paths = list(_iter_canonical_archive_paths(root))
+    _assert_unique_canonical_archive_paths(paths, root)
+    for relative in paths:
+        dirpath = archive_root / relative
+        metadata_path = dirpath / "metadata.json"
+        metadata = None
+        if metadata_path.exists():
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ValueError(f"invalid metadata object: {metadata_path}: {exc}") from exc
+        yield str(dirpath), metadata
 
 
 def canonical_source_identity(
@@ -210,7 +209,7 @@ def _metadata_source_path(field: str, value: object) -> object:
     normalized = source_path.replace("\\", "/")
     if normalized.rsplit("/", 1)[-1].casefold() == "skill.md":
         return source_path
-    if PurePosixPath(normalized).suffix:
+    if normalized.rsplit("/", 1)[-1].casefold() in {"metadata.json", "readme.md"}:
         return source_path
     return f"{source_path}/SKILL.md"
 

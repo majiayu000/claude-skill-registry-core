@@ -521,6 +521,8 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(
                         "path": "skills/demo folder/skill.md",
                         "category": "development",
                         "github_branch": source_ref,
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -638,6 +640,8 @@ def test_exact_download_fails_closed_when_commit_cannot_be_resolved(tmp_path, mo
                         "path": "skills/demo/SKILL.md",
                         "category": "development",
                         "github_branch": "main",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -676,6 +680,8 @@ def test_exact_download_rejects_redirected_repository_identity(tmp_path, monkeyp
                         "path": "skills/demo/SKILL.md",
                         "category": "development",
                         "github_branch": "main",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -719,6 +725,8 @@ def test_exact_download_does_not_probe_name_fallbacks(tmp_path, monkeypatch):
                         "path": "missing/SKILL.md",
                         "category": "development",
                         "github_branch": "main",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -769,6 +777,8 @@ def test_exact_download_fails_when_bundle_limits_truncate(tmp_path, monkeypatch)
                         "path": "skills/demo/SKILL.md",
                         "category": "development",
                         "github_branch": "main",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -842,6 +852,8 @@ def test_exact_download_fails_when_an_eligible_asset_exceeds_per_file_limit(tmp_
                         "path": "skills/demo/SKILL.md",
                         "category": "development",
                         "github_branch": "main",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -1140,6 +1152,8 @@ def test_exact_download_rejects_truncated_asset_response(tmp_path, monkeypatch):
                         "path": "skills/demo/SKILL.md",
                         "category": "development",
                         "github_branch": "main",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -1351,7 +1365,9 @@ description: Stale file left by the core checkout.
     )
     assert subprocess_result.returncode == 0
 
-    stats = asyncio.run(module.download_skills(registry_path, output_dir))
+    stats = asyncio.run(
+        module.download_skills(registry_path, output_dir, manifest_path=None)
+    )
 
     assert stats["ci_untracked_files_removed"] == 2
     assert not stale_dir.exists()
@@ -1705,6 +1721,8 @@ def test_bundles_root_helpers_src_and_design_subskills(tmp_path, monkeypatch):
                         "repo": "acme/media-design",
                         "path": "",
                         "category": "development",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -1843,6 +1861,8 @@ def test_bundled_download_failure_does_not_publish_partial_archive(tmp_path, mon
                         "repo": "acme/demo",
                         "path": "skills/demo",
                         "category": "development",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -1920,6 +1940,8 @@ def test_bundled_listing_failure_does_not_publish_skill_md_only(tmp_path, monkey
                         "repo": "acme/demo",
                         "path": "skills/demo",
                         "category": "development",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -1975,6 +1997,8 @@ def test_non_portable_required_bundle_path_fails_instead_of_degrading(tmp_path, 
                         "repo": "acme/demo",
                         "path": "skills/demo",
                         "category": "development",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -2040,6 +2064,8 @@ def test_case_conflicting_required_bundle_paths_fail_before_download(tmp_path, m
                         "repo": "acme/demo",
                         "path": "skills/demo",
                         "category": "development",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -2176,6 +2202,8 @@ def test_optional_bundled_download_failure_degrades_to_skill_md(
                         "repo": "acme/demo",
                         "path": "SKILL.md",
                         "category": "development",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -2253,6 +2281,8 @@ def test_bundled_references_rules_and_knowledge_are_archived_with_directory_mode
                         "repo": "acme/demo",
                         "path": "SKILL.md",
                         "category": "development",
+                        "license": "MIT",
+                        "distribution": "compatible",
                     }
                 ]
             }
@@ -2411,6 +2441,110 @@ def test_bundled_collection_skips_github_submodule_entries(tmp_path, monkeypatch
     assert metadata["archive_mode"] == "skill-md"
     assert metadata["bundled_files"] == []
     assert not (skill_dir / "scripts" / "tool.py").exists()
+
+
+def test_required_bundle_rejects_unapproved_redistribution_before_listing(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "SKILL.md",
+                        "category": "development",
+                        "license": "GPL-3.0",
+                        "distribution": "restricted",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            "https://raw.githubusercontent.com/acme/demo/main/SKILL.md": FakeResponse(
+                200,
+                text=(
+                    "---\nname: demo\ndescription: Restricted required bundle.\n---\n"
+                    "# Demo\nRun scripts/tool.py.\n"
+                ),
+            )
+        },
+    )
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            failure_report_path=failure_report_path,
+        )
+    )
+
+    assert stats["downloaded"] == 0
+    assert stats["failed"] == 1
+    report = json.loads(failure_report_path.read_text(encoding="utf-8"))
+    assert report["failure_reasons"]["asset_redistribution_not_approved"] == 1
+    assert not list(output_dir.rglob("SKILL.md"))
+
+
+def test_optional_unapproved_bundle_is_not_redistributed(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "SKILL.md",
+                        "category": "development",
+                        "license": "GPL-3.0",
+                        "distribution": "restricted",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            "https://raw.githubusercontent.com/acme/demo/main/SKILL.md": FakeResponse(
+                200,
+                text="---\nname: demo\ndescription: Restricted standalone skill.\n---\n# Demo\n",
+            ),
+            "https://api.github.com/repos/acme/demo/contents?ref=main": FakeResponse(
+                200,
+                json_payload=[
+                    {"type": "file", "path": "SKILL.md", "size": 80},
+                    {
+                        "type": "file",
+                        "path": "setup.py",
+                        "size": 8,
+                        "download_url": "https://download.example/setup.py",
+                    },
+                ],
+            ),
+            "https://download.example/setup.py": FakeResponse(200, body=b"print(1)"),
+        },
+    )
+
+    stats = asyncio.run(module.download_skills(registry_path, output_dir))
+
+    assert stats["downloaded"] == 1
+    skill_dir = next(output_dir.glob("development/*"))
+    metadata = json.loads((skill_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["archive_mode"] == "skill-md"
+    assert metadata["bundled_files"] == []
+    assert not (skill_dir / "setup.py").exists()
 
 
 def test_select_shard_skills_is_deterministic():
