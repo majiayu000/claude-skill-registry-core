@@ -21,6 +21,7 @@ from pathlib import Path, PurePosixPath
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from audit_skill_assets import canonical_source_identity_from_metadata
 from sync_download_support import exact_source_branch
+from sync_pipeline_support import is_safe_portable_relative_path
 
 SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
 LIVENESS_STATUSES = {"live", "partial", "moved", "gone"}
@@ -121,15 +122,11 @@ def _metadata_hash(raw: bytes) -> str:
 
 
 def _safe_bundle_path(value: object) -> str:
-    if not isinstance(value, str) or not value or value != value.strip():
+    if not is_safe_portable_relative_path(value):
         return ""
-    normalized = value.replace("\\", "/")
-    path = PurePosixPath(normalized)
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+    if value in {"SKILL.md", "metadata.json"}:
         return ""
-    if normalized in {"SKILL.md", "metadata.json"}:
-        return ""
-    return normalized
+    return value
 
 
 def _actual_bundled_files(skill_dir: Path) -> list[str]:

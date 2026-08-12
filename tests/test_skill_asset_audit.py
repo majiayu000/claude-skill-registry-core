@@ -513,6 +513,7 @@ class TestAssetLiveness:
         [
             ({"bundled_files": []}, "non-empty"),
             ({"bundled_files": ["../run.py"]}, "invalid or duplicate"),
+            ({"bundled_files": ["C:scripts/run.py"]}, "invalid or duplicate"),
             ({"github_commit_sha": "not-a-sha"}, "immutable"),
             ({"github_branch": ""}, "github_branch must be a non-empty string"),
             ({"github_branch": "d" * 40}, "raw commit SHA"),
