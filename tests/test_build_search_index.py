@@ -834,6 +834,58 @@ def test_registry_fallback_preserves_validated_asset_fields(tmp_path):
     assert shard["s"][0]["a"] == "verified"
 
 
+@pytest.mark.parametrize("missing_field", ["repo", "path", "branch"])
+def test_registry_fallback_requires_complete_source_identity_for_assets(tmp_path, missing_field):
+    record = {
+        "name": "invalid-source",
+        "repo": "acme/source",
+        "path": "skills/demo/SKILL.md",
+        "branch": "main",
+        "asset_state": "verified",
+        "asset_liveness": "live",
+        "bundled_file_count": 1,
+        "github_commit_sha": "a" * 40,
+        "assets_verified_at": "2026-08-01T00:00:00Z",
+        "assets_liveness_checked_at": "2026-08-11T00:00:00Z",
+        "assets_liveness_sha": "b" * 40,
+    }
+    record.pop(missing_field)
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text(json.dumps({"skills": [record]}), encoding="utf-8")
+
+    [loaded] = load_from_registry(registry_path)
+
+    assert "asset_state" not in loaded
+    assert "asset_liveness" not in loaded
+
+
+@pytest.mark.parametrize(
+    "conflict",
+    [
+        {"github_path": "skills/other/SKILL.md"},
+        {"github_branch": "release/v2"},
+    ],
+)
+def test_registry_fallback_rejects_conflicting_source_aliases(tmp_path, conflict):
+    record = {
+        "name": "conflicting-source",
+        "repo": "acme/source",
+        "path": "skills/demo/SKILL.md",
+        "branch": "main",
+        "asset_state": "verified",
+        "bundled_file_count": 1,
+        "github_commit_sha": "a" * 40,
+        "assets_verified_at": "2026-08-01T00:00:00Z",
+        **conflict,
+    }
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text(json.dumps({"skills": [record]}), encoding="utf-8")
+
+    [loaded] = load_from_registry(registry_path)
+
+    assert "asset_state" not in loaded
+
+
 def test_unvalidated_asset_claims_are_removed_from_registry_fallback_and_build(tmp_path):
     invalid_claim = {
         "name": "unvalidated",
