@@ -276,6 +276,29 @@ class TestStrictBackfillInventory:
 
         assert target["github_branch"] == "release/v1"
 
+    def test_directory_form_path_emits_exact_backfill_identity(self, tmp_path):
+        skill = tmp_path / "data" / "dev" / "demo"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("Run scripts/setup.py.", encoding="utf-8")
+        (skill / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "repo": "acme/tools",
+                    "path": "skills/demo",
+                    "github_branch": "main",
+                    "stars": 100,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        [target] = audit_skill_assets.build_backfill_targets(
+            str(tmp_path / "data"), min_stars=100
+        )
+
+        assert target["source_path"] == "skills/demo/SKILL.md"
+        assert target["stable_key"] == "acme/tools:skills/demo/SKILL.md"
+
 
 class TestResolveSkillDir:
     DIRS = ["skills/alpha", "skills/beta", ""]
