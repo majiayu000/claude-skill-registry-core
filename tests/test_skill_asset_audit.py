@@ -142,6 +142,7 @@ class TestStrictBackfillInventory:
     @pytest.mark.parametrize(
         ("metadata", "expected_path"),
         [
+            ({"repo": "acme/tools", "path": "skills/demo"}, "skills/demo/SKILL.md"),
             ({"repo": "acme/tools", "github_path": "skills/demo"}, "skills/demo/SKILL.md"),
             ({"repo": "acme/tools", "github_path": ""}, "SKILL.md"),
             (
@@ -154,12 +155,19 @@ class TestStrictBackfillInventory:
             ),
         ],
     )
-    def test_normalizes_legacy_directory_form_github_path(self, metadata, expected_path):
+    def test_normalizes_repository_directory_form_metadata_paths(
+        self, metadata, expected_path
+    ):
         assert audit_skill_assets.canonical_source_identity_from_metadata(metadata) == (
             "acme/tools",
             expected_path,
             "",
         )
+
+    def test_direct_canonical_source_still_requires_exact_skill_path(self):
+        assert audit_skill_assets.canonical_source_identity(
+            "acme/tools", "skills/demo"
+        ) == ("acme/tools", "skills/demo", "source_path_not_skill_md")
 
     def test_conflicting_aliases_contribute_every_normalized_identity_key(self):
         keys = audit_skill_assets._identity_keys(
