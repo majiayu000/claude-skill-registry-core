@@ -8,7 +8,7 @@ from pathlib import Path
 from portable_paths import is_safe_portable_relative_path
 
 
-def iter_canonical_archive_paths(root: str | Path):
+def iter_canonical_archive_paths(root: str | Path, *, strict_registry: bool = False):
     """Yield portable <category>/<skill> paths with an exact regular SKILL.md."""
     root_path = Path(root)
     if root_path.is_symlink():
@@ -18,6 +18,8 @@ def iter_canonical_archive_paths(root: str | Path):
     def raise_walk_error(error: OSError) -> None:
         raise ValueError(f"unable to inspect archive tree {root}: {error}") from error
 
+    seen_categories: dict[str, str] = {}
+    seen_skill_paths: dict[str, str] = {}
     for dirpath, dirnames, filenames in os.walk(root, onerror=raise_walk_error):
         for dirname in dirnames:
             candidate = Path(dirpath, dirname)
@@ -55,7 +57,7 @@ def iter_canonical_archive_paths(root: str | Path):
                 f"(regular non-symlink file required): {relative / 'SKILL.md'}"
             )
         metadata_variants = [
-            name for name in filenames if name.casefold() == "metadata.json"
+            name for name in [*filenames, *dirnames] if name.casefold() == "metadata.json"
         ]
         if len(metadata_variants) > 1:
             raise ValueError(
@@ -63,10 +65,34 @@ def iter_canonical_archive_paths(root: str | Path):
             )
         if metadata_variants and metadata_variants[0] != "metadata.json":
             raise ValueError(
-                f"canonical metadata.json has invalid casing: "
-                f"{relative / metadata_variants[0]}"
+                f"canonical metadata.json has invalid casing: {relative / metadata_variants[0]}"
             )
+        if strict_registry and "metadata.json" in metadata_variants:
+            metadata_path = Path(dirpath, "metadata.json")
+            if metadata_path.is_symlink() or not metadata_path.is_file():
+                raise ValueError(
+                    "canonical metadata.json must be a regular file "
+                    f"(regular non-symlink file required): {relative / 'metadata.json'}"
+                )
         relative_path = relative.as_posix()
         if not is_safe_portable_relative_path(relative_path):
             raise ValueError(f"non-portable canonical archive path: {relative_path}")
+        if strict_registry:
+            category = relative.parts[0]
+            category_key = category.casefold()
+            previous_category = seen_categories.get(category_key)
+            if previous_category is not None and previous_category != category:
+                raise ValueError(
+                    "canonical archive contains case-conflicting category paths: "
+                    f"{previous_category}, {category}"
+                )
+            seen_categories[category_key] = category
+            path_key = relative_path.casefold()
+            previous_path = seen_skill_paths.get(path_key)
+            if previous_path is not None and previous_path != relative_path:
+                raise ValueError(
+                    "canonical archive contains case-conflicting skill paths: "
+                    f"{previous_path}, {relative_path}"
+                )
+            seen_skill_paths[path_key] = relative_path
         yield relative_path

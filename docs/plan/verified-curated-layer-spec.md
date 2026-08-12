@@ -113,6 +113,17 @@ retained as the `asset-liveness-report` workflow artifact.
    otherwise equal unverified records.
 3. Down-rank only; do not hide or remove pure-markdown skills.
 
+Registry records and the full/lite search records publish `asset_state`,
+`asset_liveness`, `bundled_file_count`, immutable verification SHA/time, and
+latest liveness SHA/time only when the declared bundle exactly matches regular
+files in the canonical archive directory. Invalid or incomplete claims publish
+no asset fields. Compact search shards use `a` for `asset_state` and `l` for
+`asset_liveness`.
+
+Ranking applies no bonus: verified-live records have a zero asset penalty,
+while otherwise equal records without live evidence receive a small down-rank.
+Pure-markdown and decayed skills remain present in every generated catalog.
+
 ## Failure Behavior
 
 - Missing or invalid repo/path/branch metadata fails closed.
