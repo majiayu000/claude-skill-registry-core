@@ -158,7 +158,7 @@ def validated_published_asset_fields(record: dict) -> dict:
 
 
 def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -> dict:
-    """Return publishable asset facets only when canonical local evidence validates."""
+    """Return verified asset facets bound to their canonical source identity."""
     root = archive_root.absolute()
     candidate = skill_dir.absolute()
     if root.is_symlink():
@@ -180,10 +180,11 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
     declared = metadata.get("bundled_files")
     pinned_sha = metadata.get("github_commit_sha")
     verified_at = metadata.get("assets_verified_at")
-    _repo, _source_path, source_error = canonical_source_identity_from_metadata(metadata)
+    repo, source_path, source_error = canonical_source_identity_from_metadata(metadata)
+    source_branch = exact_source_branch(metadata)
     if (
         source_error
-        or not exact_source_branch(metadata)
+        or not source_branch
         or metadata.get("archive_mode") != "directory"
         or not isinstance(declared, list)
         or not declared
@@ -212,10 +213,10 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
                 return {}
             archive_paths.append(relative)
             first_component = PurePosixPath(relative).parts[0].casefold()
-            if (
-                first_component in RESERVED_ARCHIVE_FILES
-                and relative not in {"SKILL.md", "metadata.json"}
-            ):
+            if first_component in RESERVED_ARCHIVE_FILES and relative not in {
+                "SKILL.md",
+                "metadata.json",
+            }:
                 return {}
             if path.is_file():
                 if relative in {"SKILL.md", "metadata.json"}:
@@ -247,7 +248,15 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
             if key in metadata
         }
     )
-    return validated_published_asset_fields(fields)
+    published = validated_published_asset_fields(fields)
+    if not published:
+        return {}
+    return {
+        **published,
+        "repo": repo,
+        "path": source_path,
+        "branch": source_branch,
+    }
 
 
 def scan_skills_v2(skills_dir: Path) -> List[Dict]:
@@ -291,6 +300,11 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
         repo = metadata.get("repo", "")
         github_path = metadata.get("github_path") or metadata.get("path") or "/".join(rel_parts)
         github_branch = metadata.get("github_branch") or metadata.get("branch") or "main"
+        asset_fields = verified_asset_fields(metadata, skill_dir, skills_dir)
+        if asset_fields:
+            repo = asset_fields["repo"]
+            github_path = asset_fields["path"]
+            github_branch = asset_fields["branch"]
 
         if github_path and repo:
             install = f"{repo}/{github_path}"
@@ -322,7 +336,7 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
             "stars": stars,
             "source": metadata.get("source", "downloaded"),
             "install": install,
-            **verified_asset_fields(metadata, skill_dir, skills_dir),
+            **asset_fields,
         }
 
         skills.append(skill_entry)

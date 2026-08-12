@@ -460,6 +460,38 @@ def test_registry_and_search_publish_only_locally_validated_asset_facets(tmp_pat
         assert "asset_state" not in record
 
 
+def test_registry_and_search_bind_verified_assets_to_canonical_source_identity(tmp_path):
+    skills_dir = tmp_path / "skills"
+    skill_dir = skills_dir / "development" / "identity-demo"
+    (skill_dir / "scripts").mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Identity demo", encoding="utf-8")
+    support_file = skill_dir / "scripts" / "run.py"
+    support_file.write_text("asset", encoding="utf-8")
+    metadata = {
+        "name": "identity-demo",
+        "repo": " acme/assets ",
+        "path": " skills\\identity-demo\\SKILL.md ",
+        "github_branch": " release/v2 ",
+        "category": "development",
+        "archive_mode": "directory",
+        "bundled_files": ["scripts/run.py"],
+        "bundled_file_blobs": {"scripts/run.py": git_blob_sha(b"asset")},
+        "github_commit_sha": "a" * 40,
+        "assets_verified_at": "2026-08-01T00:00:00Z",
+    }
+    (skill_dir / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+
+    [search_record] = scan_skills_v2(skills_dir)
+    [registry_record] = scan_registry_skills(skills_dir)
+
+    for record in (search_record, registry_record):
+        assert record["repo"] == "acme/assets"
+        assert record["path"] == "skills/identity-demo/SKILL.md"
+        assert record["branch"] == "release/v2"
+        assert record["asset_state"] == "verified"
+    assert search_record["install"] == "acme/assets/skills/identity-demo/SKILL.md"
+
+
 def test_registry_and_search_keep_legacy_github_path_install_identity(tmp_path):
     skills_dir = tmp_path / "skills"
     skill_dir = skills_dir / "development" / "identity-demo"
@@ -825,9 +857,7 @@ def test_registry_scanners_reject_symlinked_canonical_skill(tmp_path, scanner):
 
 
 @pytest.mark.parametrize("scanner", [scan_skills_v2, scan_registry_skills])
-def test_registry_scanners_reject_coexisting_skill_case_variants(
-    tmp_path, monkeypatch, scanner
-):
+def test_registry_scanners_reject_coexisting_skill_case_variants(tmp_path, monkeypatch, scanner):
     skills_dir = tmp_path / "skills"
     skill_dir = skills_dir / "dev" / "demo"
     skill_dir.mkdir(parents=True)
@@ -835,9 +865,7 @@ def test_registry_scanners_reject_coexisting_skill_case_variants(
     monkeypatch.setattr(
         archive_preflight.os,
         "walk",
-        lambda _root, *, onerror: iter(
-            [(str(skill_dir), [], ["SKILL.md", "skill.md"])]
-        ),
+        lambda _root, *, onerror: iter([(str(skill_dir), [], ["SKILL.md", "skill.md"])]),
     )
 
     with pytest.raises(ValueError, match="case-conflicting SKILL.md files"):
