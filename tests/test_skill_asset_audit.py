@@ -97,6 +97,18 @@ class TestStrictBackfillInventory:
         with pytest.raises(ValueError, match="case-conflicting skill roots"):
             list(audit_skill_assets._canonical_archive_rows(root))
 
+    def test_archive_path_preflight_fails_closed_on_walk_error(self, tmp_path, monkeypatch):
+        root = tmp_path / "data"
+
+        def failed_walk(_root, *, onerror):
+            onerror(PermissionError("denied"))
+            yield from ()
+
+        monkeypatch.setattr(audit_skill_assets.os, "walk", failed_walk)
+
+        with pytest.raises(ValueError, match="unable to inspect archive tree.*denied"):
+            list(audit_skill_assets._canonical_archive_rows(root))
+
     def test_canonical_archive_rows_stream_metadata_after_lightweight_preflight(
         self, tmp_path, monkeypatch
     ):
@@ -501,6 +513,7 @@ class TestAssetLiveness:
         [
             ({"bundled_files": []}, "non-empty"),
             ({"bundled_files": ["../run.py"]}, "invalid or duplicate"),
+            ({"bundled_files": ["C:scripts/run.py"]}, "invalid or duplicate"),
             ({"github_commit_sha": "not-a-sha"}, "immutable"),
             ({"github_branch": ""}, "github_branch must be a non-empty string"),
             ({"github_branch": "d" * 40}, "raw commit SHA"),
