@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import types
@@ -545,7 +546,7 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(
                     {
                         "path": "skills/demo folder/scripts/setup.py",
                         "type": "blob",
-                        "mode": "100644",
+                        "mode": "100755",
                         "size": len(script_body),
                         "sha": git_blob_sha(script_body),
                     },
@@ -576,7 +577,10 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(
 
     assert stats["downloaded"] == 1
     skill_dir = next(output_dir.glob("development/*"))
-    assert (skill_dir / "scripts" / "setup.py").read_text() == "print('ok')\n"
+    setup_path = skill_dir / "scripts" / "setup.py"
+    assert setup_path.read_text() == "print('ok')\n"
+    if os.name != "nt":
+        assert setup_path.stat().st_mode & 0o111
     metadata = json.loads((skill_dir / "metadata.json").read_text())
     assert metadata["github_branch"] == source_ref
     assert metadata["github_commit_sha"] == sha
@@ -801,6 +805,77 @@ def test_exact_download_fails_when_bundle_limits_truncate(tmp_path, monkeypatch)
             f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo/SKILL.md": FakeResponse(
                 200,
                 body=skill_body,
+            ),
+        },
+    )
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            manifest_path=None,
+            failure_report_path=failure_report_path,
+            cleanup_ci_untracked=False,
+            exact_paths_only=True,
+            pin_commit_sha=True,
+        )
+    )
+
+    assert stats["downloaded"] == 0
+    assert stats["failed"] == 1
+    report = json.loads(failure_report_path.read_text())
+    assert report["failure_reasons"]["bundled_limits_exceeded"] == 1
+    assert not list(output_dir.rglob("SKILL.md"))
+
+
+def test_exact_download_fails_when_an_eligible_asset_exceeds_per_file_limit(tmp_path, monkeypatch):
+    module = load_module()
+    support = load_support_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "skills/demo/SKILL.md",
+                        "category": "development",
+                        "github_branch": "main",
+                    }
+                ]
+            }
+        )
+    )
+    sha = "d" * 40
+    skill_body = (
+        b"---\nname: demo\ndescription: Oversized asset demo.\n---\n"
+        b"# Demo\nRun scripts/huge.py and read references/small.md.\n"
+    )
+    small_body = b"small\n"
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            **exact_repo_routes(
+                "acme/demo",
+                "main",
+                sha,
+                [
+                    git_blob_entry("skills/demo/SKILL.md", skill_body),
+                    {
+                        "path": "skills/demo/scripts/huge.py",
+                        "type": "blob",
+                        "mode": "100644",
+                        "size": support.MAX_BUNDLED_FILE_BYTES + 1,
+                        "sha": "e" * 40,
+                    },
+                    git_blob_entry("skills/demo/references/small.md", small_body),
+                ],
+            ),
+            f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo/SKILL.md": (
+                FakeResponse(200, body=skill_body)
             ),
         },
     )
@@ -1458,6 +1533,20 @@ def test_bundled_file_allowlist_is_scoped_and_size_limited():
     support = load_support_module()
 
     assert module.bundled_relative_path("", "package.json") == "package.json"
+    assert support.is_safe_portable_relative_path("references/guide.md") is True
+    for invalid_path in (
+        "CON",
+        "references/aux.txt",
+        "references/name.",
+        "references/name ",
+        "references/a:b.md",
+        "references/a?b.md",
+        "references/a*b.md",
+        "references/a|b.md",
+        "references/a<b.md",
+        "references/a>b.md",
+    ):
+        assert support.is_safe_portable_relative_path(invalid_path) is False
     assert (
         module.bundled_relative_path("skills/demo", "skills/demo/scripts/run.sh")
         == "scripts/run.sh"
