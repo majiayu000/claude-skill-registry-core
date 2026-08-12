@@ -56,7 +56,9 @@ def iter_canonical_archive_paths(root: str | Path, *, strict_registry: bool = Fa
                 "canonical SKILL.md must be a regular file "
                 f"(regular non-symlink file required): {relative / 'SKILL.md'}"
             )
-        metadata_variants = [name for name in filenames if name.casefold() == "metadata.json"]
+        metadata_variants = [
+            name for name in [*filenames, *dirnames] if name.casefold() == "metadata.json"
+        ]
         if len(metadata_variants) > 1:
             raise ValueError(
                 f"canonical archive contains case-conflicting metadata.json files: {relative}"
@@ -65,7 +67,7 @@ def iter_canonical_archive_paths(root: str | Path, *, strict_registry: bool = Fa
             raise ValueError(
                 f"canonical metadata.json has invalid casing: {relative / metadata_variants[0]}"
             )
-        if strict_registry and "metadata.json" in filenames:
+        if strict_registry and "metadata.json" in metadata_variants:
             metadata_path = Path(dirpath, "metadata.json")
             if metadata_path.is_symlink() or not metadata_path.is_file():
                 raise ValueError(

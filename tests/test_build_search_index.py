@@ -857,14 +857,19 @@ def test_registry_scanners_reject_symlinked_canonical_skill(tmp_path, scanner):
 
 
 @pytest.mark.parametrize("scanner", [scan_skills_v2, scan_registry_skills])
-def test_registry_scanners_reject_symlinked_canonical_metadata(tmp_path, scanner):
+@pytest.mark.parametrize("metadata_kind", ["symlink", "directory"])
+def test_registry_scanners_reject_nonregular_canonical_metadata(tmp_path, scanner, metadata_kind):
     skills_dir = tmp_path / "skills"
     skill_dir = skills_dir / "dev" / "demo"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("# Demo", encoding="utf-8")
-    external = tmp_path / "outside.json"
-    external.write_text(json.dumps({"repo": "attacker/repo"}), encoding="utf-8")
-    (skill_dir / "metadata.json").symlink_to(external)
+    metadata_path = skill_dir / "metadata.json"
+    if metadata_kind == "symlink":
+        external = tmp_path / "outside.json"
+        external.write_text(json.dumps({"repo": "attacker/repo"}), encoding="utf-8")
+        metadata_path.symlink_to(external)
+    else:
+        metadata_path.mkdir()
 
     with pytest.raises(ValueError, match="canonical metadata.json must be a regular file"):
         scanner(skills_dir)
