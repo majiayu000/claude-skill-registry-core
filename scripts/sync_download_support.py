@@ -102,6 +102,9 @@ async def collect_contents_bundled_file_entries(
                 size = int(entry.get("size") or 0)
             except (TypeError, ValueError):
                 size = -1
+            eligible_file = is_safe_bundled_file(
+                rel_path, 0, reject_nonportable=True
+            )
             if is_safe_bundled_file(rel_path, size, reject_nonportable=True):
                 candidates.append(
                     {
@@ -112,7 +115,7 @@ async def collect_contents_bundled_file_entries(
                         "sha": entry.get("sha") or "",
                     }
                 )
-            elif support_scope:
+            elif eligible_file:
                 incomplete = True
 
     selected, truncated = select_bundled_file_entries(candidates)
