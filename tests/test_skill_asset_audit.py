@@ -144,6 +144,7 @@ class TestStrictBackfillInventory:
     @pytest.mark.parametrize(
         ("metadata", "expected_path"),
         [
+            ({"repo": "acme/tools", "path": "skills/demo"}, "skills/demo/SKILL.md"),
             ({"repo": "acme/tools", "github_path": "skills/demo"}, "skills/demo/SKILL.md"),
             ({"repo": "acme/tools", "github_path": ""}, "SKILL.md"),
             (
@@ -156,12 +157,19 @@ class TestStrictBackfillInventory:
             ),
         ],
     )
-    def test_normalizes_legacy_directory_form_github_path(self, metadata, expected_path):
+    def test_normalizes_repository_directory_form_metadata_paths(
+        self, metadata, expected_path
+    ):
         assert audit_skill_assets.canonical_source_identity_from_metadata(metadata) == (
             "acme/tools",
             expected_path,
             "",
         )
+
+    def test_direct_canonical_source_still_requires_exact_skill_path(self):
+        assert audit_skill_assets.canonical_source_identity(
+            "acme/tools", "skills/demo"
+        ) == ("acme/tools", "skills/demo", "source_path_not_skill_md")
 
     def test_conflicting_aliases_contribute_every_normalized_identity_key(self):
         keys = audit_skill_assets._identity_keys(
@@ -269,6 +277,29 @@ class TestStrictBackfillInventory:
         )
 
         assert target["github_branch"] == "release/v1"
+
+    def test_directory_form_path_emits_exact_backfill_identity(self, tmp_path):
+        skill = tmp_path / "data" / "dev" / "demo"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("Run scripts/setup.py.", encoding="utf-8")
+        (skill / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "repo": "acme/tools",
+                    "path": "skills/demo",
+                    "github_branch": "main",
+                    "stars": 100,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        [target] = audit_skill_assets.build_backfill_targets(
+            str(tmp_path / "data"), min_stars=100
+        )
+
+        assert target["source_path"] == "skills/demo/SKILL.md"
+        assert target["stable_key"] == "acme/tools:skills/demo/SKILL.md"
 
 
 class TestIterArchivedSkills:
