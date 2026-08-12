@@ -2483,6 +2483,7 @@ def test_required_bundle_rejects_unapproved_redistribution_before_listing(tmp_pa
             registry_path,
             output_dir,
             failure_report_path=failure_report_path,
+            manifest_path=None,
         )
     )
 
@@ -2537,7 +2538,9 @@ def test_optional_unapproved_bundle_is_not_redistributed(tmp_path, monkeypatch):
         },
     )
 
-    stats = asyncio.run(module.download_skills(registry_path, output_dir))
+    stats = asyncio.run(
+        module.download_skills(registry_path, output_dir, manifest_path=None)
+    )
 
     assert stats["downloaded"] == 1
     skill_dir = next(output_dir.glob("development/*"))

@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from archive_preflight import iter_canonical_archive_paths
 from audit_skill_assets import canonical_source_identity_from_metadata
 from skill_asset_audit import classify_files, fetch_repo_tree, verdict_from_counts
 from sync_download_support import bundled_file_blobs_match, exact_source_branch
@@ -255,6 +256,10 @@ def load_targets(skills_dir: Path) -> tuple[list[Target], list[dict]]:
     errors = []
     seen = set()
     metadata_paths = []
+    try:
+        list(iter_canonical_archive_paths(skills_dir))
+    except ValueError as exc:
+        return [], [{"stable_key": str(skills_dir), "status": "local_error", "error": str(exc)}]
     try:
         category_paths = sorted(root.iterdir())
     except OSError as exc:

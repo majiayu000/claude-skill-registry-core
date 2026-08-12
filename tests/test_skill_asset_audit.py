@@ -797,6 +797,37 @@ class TestAssetLiveness:
         assert targets == []
         assert "cannot be a symlink" in errors[0]["error"]
 
+    @pytest.mark.parametrize(
+        ("category", "name"),
+        [("CON", "alpha"), ("dev", "alpha.")],
+    )
+    def test_nonportable_canonical_roots_are_liveness_errors(
+        self, tmp_path, category, name
+    ):
+        skills = tmp_path / "skills"
+        make_verified_asset(skills, name)
+        if category != "dev":
+            (skills / "dev").rename(skills / category)
+
+        targets, errors = liveness.load_targets(skills)
+
+        assert targets == []
+        assert "non-portable canonical archive path" in errors[0]["error"]
+
+    def test_miscased_canonical_skill_file_is_a_liveness_error(self, tmp_path):
+        skills = tmp_path / "skills"
+        metadata_path = make_verified_asset(skills, "alpha")
+        skill_path = metadata_path.parent / "SKILL.md"
+        miscased_path = metadata_path.parent / "skill.md"
+        skill_path.rename(miscased_path)
+        if not any(path.name == "skill.md" for path in metadata_path.parent.iterdir()):
+            pytest.skip("case-insensitive filesystem cannot represent the fixture")
+
+        targets, errors = liveness.load_targets(skills)
+
+        assert targets == []
+        assert "canonical SKILL.md has invalid casing" in errors[0]["error"]
+
     def test_case_conflicting_skill_roots_are_rejected(self, tmp_path):
         skills = tmp_path / "skills"
         make_verified_asset(skills, "Alpha")
