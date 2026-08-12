@@ -181,6 +181,7 @@ async def collect_pinned_tree_entries(
 
     source_dir = skill_source_dir(resolved_skill_path)
     candidates = []
+    omitted_eligible_file = False
     for entry in entries:
         repo_path = entry.get("path")
         if not isinstance(repo_path, str) or repo_path == resolved_skill_path:
@@ -205,6 +206,8 @@ async def collect_pinned_tree_entries(
                 raise BundledListingError(repo_path, f"unsupported Git object mode {mode}")
             continue
         if not is_safe_bundled_file(rel_path, size):
+            if is_safe_bundled_file(rel_path, 0):
+                omitted_eligible_file = True
             continue
         blob_sha = entry.get("sha")
         if not isinstance(blob_sha, str) or not SHA_PATTERN.fullmatch(blob_sha):
@@ -216,10 +219,11 @@ async def collect_pinned_tree_entries(
                 "download_url": "",
                 "size": size,
                 "sha": blob_sha.lower(),
+                "mode": mode,
             }
         )
     selected, truncated = select_bundled_file_entries(candidates)
-    return selected, truncated, source_blob
+    return selected, truncated or omitted_eligible_file, source_blob
 
 
 async def read_response_bytes_limited(response: Any, max_bytes: int) -> bytes:
@@ -324,6 +328,7 @@ async def download_bundled_files_to_directory(
             continue
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_bytes(content)
+        target_path.chmod(0o755 if entry.get("mode") == "100755" else 0o644)
         archived.append(rel_path)
         if pin_commit_sha:
             blob_ids[rel_path] = entry["sha"]
