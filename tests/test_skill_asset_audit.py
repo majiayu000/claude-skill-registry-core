@@ -401,6 +401,34 @@ class FakeLivenessClient:
 
 
 class TestAssetLiveness:
+    def test_legacy_jsonl_verifier_interface_remains_supported(self, tmp_path, monkeypatch, capsys):
+        targets_path = tmp_path / "targets.jsonl"
+        output_path = tmp_path / "verified.jsonl"
+        targets_path.write_text(
+            json.dumps(
+                {
+                    "repo": "acme/tools",
+                    "dir": "skills/demo",
+                    "name": "demo",
+                    "stars": 100,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(
+            liveness,
+            "fetch_repo_tree",
+            lambda _repo: ["skills/demo/SKILL.md", "skills/demo/scripts/run.py"],
+        )
+
+        assert liveness.main([str(targets_path), str(output_path)]) == 0
+
+        [row] = [json.loads(line) for line in output_path.read_text().splitlines()]
+        assert row["resolved_dir"] == "skills/demo"
+        assert row["status"] == "EXEC"
+        assert json.loads(capsys.readouterr().err) == {"EXEC": 1}
+
     def test_skips_ordinary_directory_archives_without_verification_evidence(self, tmp_path):
         skills = tmp_path / "skills"
         metadata_path = make_verified_asset(skills, "ordinary")
