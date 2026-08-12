@@ -392,14 +392,23 @@ def load_registry_manifest_shards(registry_path: Path, registry: Dict) -> List[D
 def add_registry_install_fields(skills: List[Dict]) -> List[Dict]:
     """Populate install fields for registry fallback rows."""
     for skill in skills:
-        _repo, _source_path, source_error = canonical_source_identity_from_metadata(skill)
+        canonical_repo, canonical_path, source_error = canonical_source_identity_from_metadata(
+            skill
+        )
+        canonical_branch = exact_source_branch(skill)
         validated_assets = (
-            validated_published_asset_fields(skill)
-            if not source_error and exact_source_branch(skill)
-            else {}
+            validated_published_asset_fields(skill) if not source_error and canonical_branch else {}
         )
         for field in ASSET_FIELDS:
             skill.pop(field, None)
+        if validated_assets:
+            skill.update(
+                {
+                    "repo": canonical_repo,
+                    "path": canonical_path,
+                    "branch": canonical_branch,
+                }
+            )
         skill.update(validated_assets)
         repo = skill.get("repo", "")
         path = skill.get("path", "")

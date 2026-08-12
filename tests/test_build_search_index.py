@@ -886,6 +886,29 @@ def test_registry_fallback_rejects_conflicting_source_aliases(tmp_path, conflict
     assert "asset_state" not in loaded
 
 
+def test_registry_fallback_canonicalizes_alias_only_asset_source(tmp_path):
+    record = {
+        "name": "alias-source",
+        "repo": " acme/source ",
+        "github_path": " skills/demo ",
+        "github_branch": " release/v2 ",
+        "asset_state": "verified",
+        "bundled_file_count": 1,
+        "github_commit_sha": "a" * 40,
+        "assets_verified_at": "2026-08-01T00:00:00Z",
+    }
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text(json.dumps({"skills": [record]}), encoding="utf-8")
+
+    [loaded] = load_from_registry(registry_path)
+
+    assert loaded["asset_state"] == "verified"
+    assert loaded["repo"] == "acme/source"
+    assert loaded["path"] == "skills/demo/SKILL.md"
+    assert loaded["branch"] == "release/v2"
+    assert loaded["install"] == "acme/source/skills/demo/SKILL.md"
+
+
 def test_unvalidated_asset_claims_are_removed_from_registry_fallback_and_build(tmp_path):
     invalid_claim = {
         "name": "unvalidated",
