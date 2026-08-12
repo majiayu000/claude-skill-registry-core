@@ -39,6 +39,7 @@ ROOT_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from portable_paths import is_safe_portable_relative_path as _is_safe_portable_relative_path
 from security_blocklist import blocked_metadata_source
 from skill_frontmatter import normalize_skill_frontmatter
 from utils import (
@@ -63,13 +64,11 @@ def skill_key(skill: dict) -> str:
     category = sanitize_category(skill.get("category") or "other")
     return f"{category}:{name}"
 
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('sync_and_download.log'),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("sync_and_download.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 ACQUISITION_MANIFEST_VERSION = 1
@@ -214,19 +213,12 @@ def bundled_relative_path(source_dir: str, repo_path: str) -> str:
         return ""
     if not repo_path.startswith(prefix):
         return ""
-    return repo_path[len(prefix):]
+    return repo_path[len(prefix) :]
 
 
 def is_safe_portable_relative_path(value: object) -> bool:
-    """Return whether value is a strict POSIX relative path on every platform."""
-    if not isinstance(value, str) or not value or value != value.strip() or "\\" in value:
-        return False
-    if re.match(r"^[A-Za-z]:", value):
-        return False
-    parts = value.split("/")
-    if any(part in {"", ".", ".."} for part in parts):
-        return False
-    return not PurePosixPath(value).is_absolute()
+    """Expose the side-effect-free portable path validator to pipeline callers."""
+    return _is_safe_portable_relative_path(value)
 
 
 def should_recurse_bundled_dir(relative_path: str) -> bool:
@@ -532,8 +524,7 @@ def validate_existing_archive_sources(
     if metadata_errors:
         sample = "\n".join(metadata_errors[:20])
         raise RuntimeError(
-            "Cannot validate existing archive metadata for security blocklist:\n"
-            f"{sample}"
+            f"Cannot validate existing archive metadata for security blocklist:\n{sample}"
         )
 
     if blocked_archives:
@@ -548,8 +539,7 @@ def validate_existing_archive_sources(
                     resolved_archive_dir.relative_to(output_root)
                 except ValueError as exc:
                     raise RuntimeError(
-                        "Refusing to remove blocked archive outside output dir: "
-                        f"{archive_dir}"
+                        f"Refusing to remove blocked archive outside output dir: {archive_dir}"
                     ) from exc
                 if resolved_archive_dir in removed_dirs:
                     continue
@@ -564,10 +554,7 @@ def validate_existing_archive_sources(
             )
             return removed_archives
 
-        raise RuntimeError(
-            "Existing archive contains blocked source repos:\n"
-            f"{sample}"
-        )
+        raise RuntimeError(f"Existing archive contains blocked source repos:\n{sample}")
 
     return []
 
@@ -607,7 +594,9 @@ def remove_ci_untracked_archive_files(output_dir: Path) -> int:
         try:
             target.relative_to(output_root)
         except ValueError as exc:
-            raise RuntimeError(f"Refusing untracked archive path outside output dir: {target}") from exc
+            raise RuntimeError(
+                f"Refusing untracked archive path outside output dir: {target}"
+            ) from exc
         if target.is_dir():
             shutil.rmtree(target)
         elif target.exists() or target.is_symlink():
@@ -648,7 +637,9 @@ def build_branch_probe_order(
     return _ordered_unique(candidates)
 
 
-def build_relative_probe_order(relative_candidates: list[str], manifest_entry: dict | None) -> list[str]:
+def build_relative_probe_order(
+    relative_candidates: list[str], manifest_entry: dict | None
+) -> list[str]:
     """Build relative-path probe order with manifest hint first."""
     candidates = []
     if manifest_entry and manifest_entry.get("relative_path"):

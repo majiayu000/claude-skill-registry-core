@@ -698,6 +698,20 @@ def test_bundled_file_allowlist_is_scoped_and_size_limited():
     support = load_support_module()
 
     assert module.bundled_relative_path("", "package.json") == "package.json"
+    assert support.is_safe_portable_relative_path("references/guide.md") is True
+    for invalid_path in (
+        "CON",
+        "references/aux.txt",
+        "references/name.",
+        "references/name ",
+        "references/a:b.md",
+        "references/a?b.md",
+        "references/a*b.md",
+        "references/a|b.md",
+        "references/a<b.md",
+        "references/a>b.md",
+    ):
+        assert support.is_safe_portable_relative_path(invalid_path) is False
     assert (
         module.bundled_relative_path("skills/demo", "skills/demo/scripts/run.sh")
         == "scripts/run.sh"
@@ -868,7 +882,7 @@ def test_bundles_root_helpers_src_and_design_subskills(tmp_path, monkeypatch):
                 )
             ),
             "https://download.example/webmedia.py": FakeResponse(200, text="print('media')\n"),
-            "https://download.example/sck-record.swift": FakeResponse(200, text="print(\"rec\")\n"),
+            "https://download.example/sck-record.swift": FakeResponse(200, text='print("rec")\n'),
             "https://download.example/polish.py": FakeResponse(200, text="print('polish')\n"),
             "https://download.example/design-spatial-skill": FakeResponse(
                 200,
@@ -877,7 +891,9 @@ def test_bundles_root_helpers_src_and_design_subskills(tmp_path, monkeypatch):
                     "description: Demo nested design subskill.\n---\n# Design Spatial\n"
                 ),
             ),
-            "https://download.example/layout-audit.js": FakeResponse(200, text="console.log('ok')\n"),
+            "https://download.example/layout-audit.js": FakeResponse(
+                200, text="console.log('ok')\n"
+            ),
         },
     )
 
@@ -1284,9 +1300,7 @@ def test_bundled_references_rules_and_knowledge_are_archived_with_directory_mode
         "references/guide.md",
         "rules/rule.md",
     ]
-    assert (skill_dir / "knowledge" / "framework.md").read_text(
-        encoding="utf-8"
-    ) == "# Framework\n"
+    assert (skill_dir / "knowledge" / "framework.md").read_text(encoding="utf-8") == "# Framework\n"
     assert (skill_dir / "references" / "guide.md").read_text(encoding="utf-8") == "# Guide\n"
     assert (skill_dir / "rules" / "rule.md").read_text(encoding="utf-8") == "# Rule\n"
 
@@ -1318,8 +1332,7 @@ def test_bundled_collection_skips_github_submodule_entries(tmp_path, monkeypatch
             "https://raw.githubusercontent.com/acme/demo/main/SKILL.md": FakeResponse(
                 200,
                 text=(
-                    "---\nname: demo\n"
-                    "description: Demo skill with a submodule path.\n---\n# Demo\n"
+                    "---\nname: demo\ndescription: Demo skill with a submodule path.\n---\n# Demo\n"
                 ),
             ),
             "https://api.github.com/repos/acme/demo/contents?ref=main": FakeResponse(
