@@ -857,6 +857,49 @@ def test_registry_scanners_reject_symlinked_canonical_skill(tmp_path, scanner):
 
 
 @pytest.mark.parametrize("scanner", [scan_skills_v2, scan_registry_skills])
+def test_registry_scanners_reject_symlinked_canonical_metadata(tmp_path, scanner):
+    skills_dir = tmp_path / "skills"
+    skill_dir = skills_dir / "dev" / "demo"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Demo", encoding="utf-8")
+    external = tmp_path / "outside.json"
+    external.write_text(json.dumps({"repo": "attacker/repo"}), encoding="utf-8")
+    (skill_dir / "metadata.json").symlink_to(external)
+
+    with pytest.raises(ValueError, match="canonical metadata.json must be a regular file"):
+        scanner(skills_dir)
+
+
+@pytest.mark.parametrize("scanner", [scan_skills_v2, scan_registry_skills])
+@pytest.mark.parametrize(
+    ("first_relative", "second_relative", "error"),
+    [
+        (Path("Dev/demo"), Path("dev/other"), "case-conflicting category paths"),
+        (Path("dev/Demo"), Path("dev/demo"), "case-conflicting skill paths"),
+    ],
+)
+def test_registry_scanners_reject_case_conflicting_canonical_roots(
+    tmp_path, scanner, first_relative, second_relative, error
+):
+    skills_dir = tmp_path / "skills"
+    first = skills_dir / first_relative
+    second = skills_dir / second_relative
+    first.mkdir(parents=True)
+    second.mkdir(parents=True, exist_ok=True)
+    first_category = skills_dir / first_relative.parts[0]
+    second_category = skills_dir / second_relative.parts[0]
+    if first.samefile(second) or (
+        first_category != second_category and first_category.samefile(second_category)
+    ):
+        pytest.skip("case-insensitive filesystem cannot represent conflicting roots")
+    (first / "SKILL.md").write_text("# First", encoding="utf-8")
+    (second / "SKILL.md").write_text("# Second", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=error):
+        scanner(skills_dir)
+
+
+@pytest.mark.parametrize("scanner", [scan_skills_v2, scan_registry_skills])
 def test_registry_scanners_reject_coexisting_skill_case_variants(tmp_path, monkeypatch, scanner):
     skills_dir = tmp_path / "skills"
     skill_dir = skills_dir / "dev" / "demo"
