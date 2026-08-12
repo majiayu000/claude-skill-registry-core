@@ -310,6 +310,64 @@ class TestStrictBackfillInventory:
         with pytest.raises(ValueError, match="canonical SKILL.md has invalid casing"):
             audit_skill_assets.run_current_state(str(root))
 
+    @pytest.mark.parametrize(
+        ("filename", "error"),
+        [
+            ("Metadata.json", "canonical metadata.json has invalid casing"),
+            ("METADATA.JSON", "canonical metadata.json has invalid casing"),
+        ],
+    )
+    def test_rejects_miscased_canonical_metadata_filename(
+        self, tmp_path, filename, error
+    ):
+        root = tmp_path / "data"
+        skill = root / "dev" / "demo"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("body", encoding="utf-8")
+        (skill / filename).write_text("{}", encoding="utf-8")
+
+        with pytest.raises(ValueError, match=error):
+            audit_skill_assets.run_current_state(str(root))
+
+    def test_rejects_coexisting_canonical_skill_case_variants(
+        self, tmp_path, monkeypatch
+    ):
+        root = tmp_path / "data"
+        skill = root / "dev" / "demo"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("body", encoding="utf-8")
+        monkeypatch.setattr(
+            audit_skill_assets.os,
+            "walk",
+            lambda _root, *, onerror: iter(
+                [(str(skill), [], ["SKILL.md", "skill.md"])]
+            ),
+        )
+
+        with pytest.raises(ValueError, match="case-conflicting SKILL.md files"):
+            audit_skill_assets.run_current_state(str(root))
+
+    @pytest.mark.parametrize(
+        ("filename", "error"),
+        [
+            ("SKILL.md", "canonical SKILL.md must be a regular file"),
+            ("metadata.json", "canonical metadata.json must be a regular file"),
+        ],
+    )
+    def test_rejects_symlinked_canonical_files(self, tmp_path, filename, error):
+        root = tmp_path / "data"
+        skill = root / "dev" / "demo"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("body", encoding="utf-8")
+        target = tmp_path / f"outside-{filename}"
+        target.write_text("{}" if filename == "metadata.json" else "body", encoding="utf-8")
+        canonical = skill / filename
+        canonical.unlink(missing_ok=True)
+        canonical.symlink_to(target)
+
+        with pytest.raises(ValueError, match=error):
+            audit_skill_assets.run_current_state(str(root))
+
     def test_conflicting_alias_record_makes_valid_candidate_ambiguous(self, tmp_path):
         root = tmp_path / "data"
         for name, metadata in (
@@ -420,6 +478,33 @@ class TestStrictBackfillInventory:
         )
 
         assert target["stable_key"] == "acme/tools:skills/demo/SKILL.md"
+
+    def test_remote_asset_url_is_not_a_backfill_claim(self, tmp_path):
+        skill = tmp_path / "data" / "dev" / "demo"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(
+            "Read https://example.com/references/guide.md.", encoding="utf-8"
+        )
+        (skill / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "repo": "acme/tools",
+                    "path": "skills/demo/SKILL.md",
+                    "github_branch": "main",
+                    "stars": 100,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert audit_skill_assets.build_backfill_targets(
+            str(tmp_path / "data"), min_stars=100
+        ) == []
+
+
+@pytest.mark.parametrize("path", ["references/CONIN$.md", "references/CONOUT$.txt"])
+def test_windows_console_device_names_are_not_portable(path):
+    assert audit_skill_assets.is_safe_portable_relative_path(path) is False
 
 
 class TestIterArchivedSkills:
