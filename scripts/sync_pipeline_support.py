@@ -292,19 +292,6 @@ def bundled_relative_path(source_dir: str, repo_path: str) -> str:
     if not repo_path.startswith(prefix):
         return ""
     return repo_path[len(prefix) :]
-def has_case_conflicting_paths(paths: Iterable[str]) -> bool:
-    """Detect case-only conflicts in complete paths or any directory prefix."""
-    seen: dict[str, str] = {}
-    for relative in paths:
-        parts = relative.split("/")
-        for length in range(1, len(parts) + 1):
-            prefix = "/".join(parts[:length])
-            folded = prefix.casefold()
-            previous = seen.get(folded)
-            if previous is not None and previous != prefix:
-                return True
-            seen[folded] = prefix
-    return False
 
 
 def is_valid_git_source_ref(ref: str) -> bool:
@@ -323,6 +310,21 @@ def is_valid_git_source_ref(ref: str) -> bool:
         component and not component.startswith(".") and not component.endswith(".lock")
         for component in ref.split("/")
     )
+
+
+def has_case_conflicting_paths(paths: Iterable[str]) -> bool:
+    """Detect case-only conflicts in complete paths or any directory prefix."""
+    seen: dict[str, str] = {}
+    for relative in paths:
+        parts = relative.split("/")
+        for length in range(1, len(parts) + 1):
+            prefix = "/".join(parts[:length])
+            folded = prefix.casefold()
+            previous = seen.get(folded)
+            if previous is not None and previous != prefix:
+                return True
+            seen[folded] = prefix
+    return False
 
 
 def is_safe_portable_relative_path(value: object) -> bool:

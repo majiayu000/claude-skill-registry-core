@@ -336,7 +336,6 @@ async def download_skills(
         queue = [source_dir]
         seen_dirs = set()
         candidates: list[dict] = []
-
         while queue:
             current_dir = queue.pop(0)
             if current_dir in seen_dirs:
