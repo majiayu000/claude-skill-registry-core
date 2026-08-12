@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify canonical bundled assets against their recorded GitHub sources."""
+"""Verify canonical bundled assets and preserve the legacy JSONL verifier."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from audit_skill_assets import canonical_source_identity_from_metadata
+from skill_asset_audit import classify_files, fetch_repo_tree, verdict_from_counts
 from sync_download_support import exact_source_branch
 from sync_pipeline_support import (
     has_case_conflicting_paths,
@@ -483,6 +484,66 @@ def summarize(rows: list[dict]) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
+def _legacy_resolve_skill_dir(target: dict, skill_dirs: list[str]) -> str | None:
+    """Resolve one inventory target using the historical JSONL verifier rules."""
+    declared = target.get("dir") or ""
+    if declared and declared in skill_dirs:
+        return declared
+    name = target.get("name") or ""
+    candidates = [directory for directory in skill_dirs if os.path.basename(directory) == name]
+    if not candidates and name:
+        candidates = [directory for directory in skill_dirs if name in directory]
+    return candidates[0] if candidates else None
+
+
+def _legacy_verify_repo(repo: str, targets: list[dict]) -> list[dict]:
+    """Verify legacy inventory targets with one upstream tree fetch per repository."""
+    try:
+        paths = fetch_repo_tree(repo)
+    except Exception as exc:  # noqa: BLE001 -- legacy rows record repository failures
+        return [{**target, "status": "repo_error", "error": str(exc)[:200]} for target in targets]
+    skill_dirs = [os.path.dirname(path) for path in paths if os.path.basename(path) == "SKILL.md"]
+    rows = []
+    for target in targets:
+        resolved = _legacy_resolve_skill_dir(target, skill_dirs)
+        if resolved is None:
+            rows.append({**target, "status": "not_found"})
+            continue
+        if resolved == "":
+            rows.append({**target, "status": "root_ambiguous"})
+            continue
+        siblings = [path for path in paths if path.startswith(f"{resolved}/")]
+        counts = classify_files(siblings)
+        rows.append(
+            {
+                **target,
+                "resolved_dir": resolved,
+                "status": verdict_from_counts(counts),
+                **counts,
+            }
+        )
+    return rows
+
+
+def _legacy_verify_jsonl(targets_path: Path, output_path: Path) -> int:
+    """Run the historical ``<targets.jsonl> <out.jsonl>`` interface."""
+    targets = [json.loads(line) for line in targets_path.read_text(encoding="utf-8").splitlines()]
+    by_repo: dict[str, list[dict]] = collections.defaultdict(list)
+    for target in targets:
+        by_repo[target["repo"]].append(target)
+
+    summary: collections.Counter = collections.Counter()
+    with output_path.open("w", encoding="utf-8") as output:
+        for index, (repo, repo_targets) in enumerate(sorted(by_repo.items()), 1):
+            for row in _legacy_verify_repo(repo, repo_targets):
+                summary[row["status"]] += 1
+                output.write(json.dumps(row) + "\n")
+            if index % 25 == 0:
+                print(f"[{index}/{len(by_repo)}] verified", file=sys.stderr)
+    print(json.dumps(dict(summary), indent=2), file=sys.stderr)
+    return 0
+
+
 def gate_errors(
     report: dict,
     *,
@@ -547,7 +608,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None, *, client: GitHubClient | None = None) -> int:
-    args = parse_args(argv)
+    effective_argv = list(sys.argv[1:] if argv is None else argv)
+    if len(effective_argv) == 2 and all(not value.startswith("-") for value in effective_argv):
+        return _legacy_verify_jsonl(Path(effective_argv[0]), Path(effective_argv[1]))
+    args = parse_args(effective_argv)
     checked_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     targets, local_errors = load_targets(args.skills_dir)
     api_client = client or GitHubClient(os.environ.get("GITHUB_TOKEN", ""))
