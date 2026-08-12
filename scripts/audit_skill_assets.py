@@ -107,12 +107,20 @@ def _is_canonical_archive_skill(dirpath: str, root: str | Path) -> bool:
 
 def _iter_canonical_archive_paths(root: str | Path):
     """Yield canonical archive paths without parsing their metadata."""
-    archive_root = Path(root).resolve()
+    root_path = Path(root)
+    if root_path.is_symlink():
+        raise ValueError(f"archive root must not be a symbolic link: {root}")
+    archive_root = root_path.resolve()
 
     def raise_walk_error(error: OSError) -> None:
         raise ValueError(f"unable to inspect archive tree {root}: {error}") from error
 
     for dirpath, dirnames, filenames in os.walk(root, onerror=raise_walk_error):
+        for dirname in dirnames:
+            candidate = Path(dirpath, dirname)
+            if candidate.is_symlink():
+                relative = candidate.relative_to(root_path).as_posix()
+                raise ValueError(f"symbolic link is not allowed in archive tree: {relative}")
         if ".git" in dirnames:
             dirnames.remove(".git")
         if "SKILL.md" not in filenames:
@@ -302,6 +310,8 @@ def _actual_bundled_files(dirpath: str) -> list[str]:
         archive_paths.append(relative)
         if path.is_symlink():
             raise ValueError(f"symbolic link is not allowed in archive skill: {relative}")
+        if not is_safe_portable_relative_path(relative):
+            raise ValueError(f"non-portable path is not allowed in archive skill: {relative}")
         try:
             mode = path.lstat().st_mode
         except OSError as exc:

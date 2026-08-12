@@ -752,6 +752,13 @@ def test_bundled_file_allowlist_is_scoped_and_size_limited():
     assert module.is_safe_bundled_file("examples/SKILL.md", 1024) is False
     assert module.is_safe_bundled_file("docs/helper.py", 1024) is False
     assert module.is_safe_bundled_file("references/.env", 10) is False
+    for non_portable in (
+        "references/a:b.md",
+        "references/CON.txt",
+        "/references/guide.md",
+        "references/guide.md/",
+    ):
+        assert module.is_safe_bundled_file(non_portable, 10) is False
     assert (
         module.is_safe_bundled_file(
             "references/huge.py",

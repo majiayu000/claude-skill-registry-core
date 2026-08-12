@@ -3,6 +3,7 @@
 Network access is stubbed at the `gh` subprocess boundary so the census,
 verification, and fetch stages run against real files in tmp_path.
 """
+
 import json
 import os
 import subprocess
@@ -38,28 +39,56 @@ def make_skill(root, category, name, body, meta=None):
 def archive(tmp_path):
     root = tmp_path / "data"
     make_skill(
-        root, "dev", "with-script",
+        root,
+        "dev",
+        "with-script",
         "Run scripts/setup.py first.",
-        {"stars": 500, "repo": "acme/tools", "path": "skills/with-script/SKILL.md",
-         "github_branch": "main", "name": "with-script"},
+        {
+            "stars": 500,
+            "repo": "acme/tools",
+            "path": "skills/with-script/SKILL.md",
+            "github_branch": "main",
+            "name": "with-script",
+        },
     )
     make_skill(
-        root, "dev", "with-docs",
+        root,
+        "dev",
+        "with-docs",
         "See references/guide.md for details.",
-        {"stars": 300, "repo": "acme/docs", "path": "skills/with-docs/SKILL.md",
-         "github_branch": "main", "name": "with-docs"},
+        {
+            "stars": 300,
+            "repo": "acme/docs",
+            "path": "skills/with-docs/SKILL.md",
+            "github_branch": "main",
+            "name": "with-docs",
+        },
     )
     make_skill(
-        root, "dev", "plain",
+        root,
+        "dev",
+        "plain",
         "Just prose, no local files.",
-        {"stars": 900, "repo": "acme/plain", "path": "skills/plain/SKILL.md",
-         "github_branch": "main", "name": "plain"},
+        {
+            "stars": 900,
+            "repo": "acme/plain",
+            "path": "skills/plain/SKILL.md",
+            "github_branch": "main",
+            "name": "plain",
+        },
     )
     make_skill(
-        root, "dev", "low-stars",
+        root,
+        "dev",
+        "low-stars",
         "Run scripts/other.py first.",
-        {"stars": 3, "repo": "acme/small", "path": "skills/low-stars/SKILL.md",
-         "github_branch": "main", "name": "low-stars"},
+        {
+            "stars": 3,
+            "repo": "acme/small",
+            "path": "skills/low-stars/SKILL.md",
+            "github_branch": "main",
+            "name": "low-stars",
+        },
     )
     return root
 
@@ -67,14 +96,16 @@ def archive(tmp_path):
 class TestFetchRepoTree:
     def test_returns_blob_paths(self, monkeypatch):
         monkeypatch.setattr(
-            skill_asset_audit.subprocess, "run",
+            skill_asset_audit.subprocess,
+            "run",
             lambda *a, **k: FakeCompleted(stdout='["a/SKILL.md", "a/run.py"]'),
         )
         assert skill_asset_audit.fetch_repo_tree("acme/tools") == ["a/SKILL.md", "a/run.py"]
 
     def test_raises_on_gh_failure(self, monkeypatch):
         monkeypatch.setattr(
-            skill_asset_audit.subprocess, "run",
+            skill_asset_audit.subprocess,
+            "run",
             lambda *a, **k: FakeCompleted(returncode=1, stderr="Not Found"),
         )
         with pytest.raises(RuntimeError, match="Not Found"):
@@ -99,8 +130,12 @@ class TestTargets:
         audit_skill_assets.run_targets(str(archive), 100)
         rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
         assert [r["name"] for r in rows] == ["with-script"]
-        assert rows[0] == {"repo": "acme/tools", "dir": "skills/with-script",
-                           "stars": 500, "name": "with-script"}
+        assert rows[0] == {
+            "repo": "acme/tools",
+            "dir": "skills/with-script",
+            "stars": 500,
+            "name": "with-script",
+        }
 
     def test_lower_threshold_includes_small_repos(self, archive, capsys):
         audit_skill_assets.run_targets(str(archive), 1)
@@ -258,11 +293,13 @@ class TestCurrentStateInventory:
         report = audit_skill_assets.run_current_state(str(root), min_stars=100)
 
         assert report["source_identity_error_count"] == 1
-        assert report["source_identity_errors"] == [{
-            "archive_path": "dev/missing-path",
-            "error": "missing_source_path",
-            "eligible_for_backfill": True,
-        }]
+        assert report["source_identity_errors"] == [
+            {
+                "archive_path": "dev/missing-path",
+                "error": "missing_source_path",
+                "eligible_for_backfill": True,
+            }
+        ]
         with pytest.raises(ValueError, match="dev/missing-path.*missing_source_path"):
             audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
 
@@ -280,9 +317,11 @@ class TestCurrentStateInventory:
         assert audit_skill_assets._canonical_source(repo, source_path)[2] == error
 
     def test_canonicalizes_backslashes_and_preserves_root_identity(self):
-        assert audit_skill_assets._canonical_source(
-            "acme/tools", "skills\\a\\SKILL.md"
-        ) == ("acme/tools", "skills/a/SKILL.md", "")
+        assert audit_skill_assets._canonical_source("acme/tools", "skills\\a\\SKILL.md") == (
+            "acme/tools",
+            "skills/a/SKILL.md",
+            "",
+        )
         assert audit_skill_assets._canonical_source("acme/tools", "SKILL.md") == (
             "acme/tools",
             "SKILL.md",
@@ -290,16 +329,23 @@ class TestCurrentStateInventory:
         )
 
     def test_accepts_case_insensitive_skill_filename(self):
-        assert audit_skill_assets.canonical_source_identity(
-            "acme/tools", "skills/a/skill.md"
-        ) == ("acme/tools", "skills/a/skill.md", "")
+        assert audit_skill_assets.canonical_source_identity("acme/tools", "skills/a/skill.md") == (
+            "acme/tools",
+            "skills/a/skill.md",
+            "",
+        )
 
     def test_rejects_conflicting_source_path_aliases(self):
-        assert audit_skill_assets.canonical_source_identity_from_metadata({
-            "repo": "acme/tools",
-            "path": "skills/old/SKILL.md",
-            "github_path": "skills/new/SKILL.md",
-        })[2] == "conflicting_source_path_aliases"
+        assert (
+            audit_skill_assets.canonical_source_identity_from_metadata(
+                {
+                    "repo": "acme/tools",
+                    "path": "skills/old/SKILL.md",
+                    "github_path": "skills/new/SKILL.md",
+                }
+            )[2]
+            == "conflicting_source_path_aliases"
+        )
 
     def test_nested_declared_skill_is_counted_only_as_support_file(self, tmp_path):
         root = tmp_path / "data"
@@ -410,6 +456,31 @@ class TestCurrentStateInventory:
         with pytest.raises(ValueError, match="symbolic link"):
             audit_skill_assets.run_current_state(str(root))
 
+    def test_rejects_non_portable_existing_asset_paths(self, tmp_path):
+        root = tmp_path / "data"
+        skill = make_skill(
+            root,
+            "dev",
+            "non-portable",
+            "Read references/a:b.md.",
+            {"repo": "acme/tools", "path": "skills/non-portable/SKILL.md"},
+        )
+        (skill / "references").mkdir()
+        (skill / "references" / "a:b.md").write_text("body")
+
+        with pytest.raises(ValueError, match="non-portable path"):
+            audit_skill_assets.run_current_state(str(root))
+
+    def test_rejects_symlinked_archive_directories(self, tmp_path):
+        root = tmp_path / "data"
+        make_skill(root, "dev", "valid", "body")
+        outside = tmp_path / "outside-category"
+        make_skill(outside, "external", "linked", "body")
+        (root / "linked-category").symlink_to(outside / "external", target_is_directory=True)
+
+        with pytest.raises(ValueError, match="symbolic link"):
+            audit_skill_assets.run_current_state(str(root))
+
     @pytest.mark.parametrize("metadata_text", ["{broken", "[]"])
     def test_rejects_invalid_metadata(self, tmp_path, metadata_text):
         root = tmp_path / "data"
@@ -488,11 +559,14 @@ class TestVerifyRepo:
 
     def test_classifies_each_verdict(self, monkeypatch):
         self._patch_tree(monkeypatch)
-        rows = verify_upstream_assets.verify_repo("acme/tools", [
-            {"repo": "acme/tools", "dir": "skills/alpha", "name": "alpha"},
-            {"repo": "acme/tools", "dir": "skills/beta", "name": "beta"},
-            {"repo": "acme/tools", "dir": "skills/gamma", "name": "gamma"},
-        ])
+        rows = verify_upstream_assets.verify_repo(
+            "acme/tools",
+            [
+                {"repo": "acme/tools", "dir": "skills/alpha", "name": "alpha"},
+                {"repo": "acme/tools", "dir": "skills/beta", "name": "beta"},
+                {"repo": "acme/tools", "dir": "skills/gamma", "name": "gamma"},
+            ],
+        )
         assert [r["status"] for r in rows] == ["EXEC", "REF_ASSET", "BARE"]
         assert rows[0]["exec"] == 1
 
@@ -524,10 +598,13 @@ class TestVerifyRepo:
             raise RuntimeError("gh api tree failed: 404")
 
         monkeypatch.setattr(verify_upstream_assets, "fetch_repo_tree", boom)
-        rows = verify_upstream_assets.verify_repo("acme/gone", [
-            {"repo": "acme/gone", "dir": "a", "name": "a"},
-            {"repo": "acme/gone", "dir": "b", "name": "b"},
-        ])
+        rows = verify_upstream_assets.verify_repo(
+            "acme/gone",
+            [
+                {"repo": "acme/gone", "dir": "a", "name": "a"},
+                {"repo": "acme/gone", "dir": "b", "name": "b"},
+            ],
+        )
         assert [r["status"] for r in rows] == ["repo_error", "repo_error"]
         assert "404" in rows[0]["error"]
 
@@ -536,8 +613,10 @@ class TestVerifyMain:
     def test_writes_rows_and_summary(self, tmp_path, monkeypatch, capsys):
         targets = tmp_path / "targets.jsonl"
         targets.write_text(
-            json.dumps({"repo": "acme/tools", "dir": "skills/alpha", "name": "alpha"}) + "\n"
-            + json.dumps({"repo": "acme/gone", "dir": "skills/x", "name": "x"}) + "\n",
+            json.dumps({"repo": "acme/tools", "dir": "skills/alpha", "name": "alpha"})
+            + "\n"
+            + json.dumps({"repo": "acme/gone", "dir": "skills/x", "name": "x"})
+            + "\n",
             encoding="utf-8",
         )
         out = tmp_path / "verified.jsonl"
@@ -565,7 +644,8 @@ class TestVerifyMain:
 class TestFetchFile:
     def test_writes_bytes(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            fetch_curated_skills.subprocess, "run",
+            fetch_curated_skills.subprocess,
+            "run",
             lambda *a, **k: FakeCompleted(stdout=b"print('hi')"),
         )
         local = tmp_path / "nested" / "run.py"
@@ -574,7 +654,8 @@ class TestFetchFile:
 
     def test_raises_on_gh_failure(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            fetch_curated_skills.subprocess, "run",
+            fetch_curated_skills.subprocess,
+            "run",
             lambda *a, **k: FakeCompleted(returncode=1, stderr=b"Not Found"),
         )
         with pytest.raises(RuntimeError, match="Not Found"):
@@ -582,14 +663,22 @@ class TestFetchFile:
 
 
 class TestFetchSkill:
-    TARGET = {"repo": "acme/tools", "resolved_dir": "skills/alpha", "stars": 500,
-              "status": "EXEC", "_tree": ["skills/alpha/SKILL.md", "skills/alpha/run.py"]}
+    TARGET = {
+        "repo": "acme/tools",
+        "resolved_dir": "skills/alpha",
+        "stars": 500,
+        "status": "EXEC",
+        "_tree": ["skills/alpha/SKILL.md", "skills/alpha/run.py"],
+    }
 
     def test_fetches_files_and_writes_provenance(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            fetch_curated_skills, "fetch_file",
-            lambda repo, path, local: (os.makedirs(os.path.dirname(local), exist_ok=True),
-                                       open(local, "wb").write(b"x")),
+            fetch_curated_skills,
+            "fetch_file",
+            lambda repo, path, local: (
+                os.makedirs(os.path.dirname(local), exist_ok=True),
+                open(local, "wb").write(b"x"),
+            ),
         )
         row = fetch_curated_skills.fetch_skill("acme/tools", dict(self.TARGET), str(tmp_path))
         assert row["fetch"] == "ok"
@@ -622,11 +711,18 @@ class TestFetchSkill:
 class TestFetchMain:
     def test_skips_unverified_rows_and_writes_report(self, tmp_path, monkeypatch):
         verified = tmp_path / "verified.jsonl"
-        verified.write_text("\n".join(json.dumps(r) for r in [
-            {"repo": "acme/tools", "resolved_dir": "skills/alpha", "status": "EXEC"},
-            {"repo": "acme/tools", "resolved_dir": "skills/beta", "status": "BARE"},
-            {"repo": "acme/gone", "resolved_dir": "skills/x", "status": "REF_ASSET"},
-        ]) + "\n", encoding="utf-8")
+        verified.write_text(
+            "\n".join(
+                json.dumps(r)
+                for r in [
+                    {"repo": "acme/tools", "resolved_dir": "skills/alpha", "status": "EXEC"},
+                    {"repo": "acme/tools", "resolved_dir": "skills/beta", "status": "BARE"},
+                    {"repo": "acme/gone", "resolved_dir": "skills/x", "status": "REF_ASSET"},
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         report_path = tmp_path / "report.json"
 
         def fake_tree(repo):
@@ -636,9 +732,12 @@ class TestFetchMain:
 
         monkeypatch.setattr(fetch_curated_skills, "fetch_repo_tree", fake_tree)
         monkeypatch.setattr(
-            fetch_curated_skills, "fetch_file",
-            lambda repo, path, local: (os.makedirs(os.path.dirname(local), exist_ok=True),
-                                       open(local, "wb").write(b"x")),
+            fetch_curated_skills,
+            "fetch_file",
+            lambda repo, path, local: (
+                os.makedirs(os.path.dirname(local), exist_ok=True),
+                open(local, "wb").write(b"x"),
+            ),
         )
         monkeypatch.setattr(
             sys, "argv", ["fetch", str(verified), str(tmp_path / "out"), str(report_path)]
