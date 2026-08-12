@@ -351,11 +351,8 @@ def is_safe_bundled_file(
     reject_nonportable: bool = False,
 ) -> bool:
     """Return True when a bundled support file should be archived."""
-    if not is_safe_portable_relative_path(relative_path):
-        if reject_nonportable:
-            raise BundledListingError(relative_path, "non-portable bundled path")
-        return False
-    normalized = relative_path
+    portable = is_safe_portable_relative_path(relative_path)
+    normalized = relative_path if isinstance(relative_path, str) else ""
     if not normalized or normalized == "SKILL.md":
         return False
     if size < 0:
@@ -371,29 +368,32 @@ def is_safe_bundled_file(
     if len(parts) == 1:
         if size > MAX_BUNDLED_FILE_BYTES:
             return False
-        return (
+        eligible = (
             filename in BUNDLED_ROOT_FILE_ALLOWLIST
             or BUNDLED_ROOT_CODE_FILE_PATTERN.fullmatch(filename) is not None
         )
-
-    if filename.lower() == "skill.md":
-        return DESIGN_BUNDLED_DIR_PATTERN.fullmatch(parts[0]) is not None
-
-    if parts[0] not in BUNDLED_DIR_ALLOWLIST and (
+    elif filename.lower() == "skill.md":
+        eligible = DESIGN_BUNDLED_DIR_PATTERN.fullmatch(parts[0]) is not None
+    elif parts[0] not in BUNDLED_DIR_ALLOWLIST and (
         DESIGN_BUNDLED_DIR_PATTERN.fullmatch(parts[0]) is None
     ):
         return False
-    if parts[0] == "bin":
-        return (
+    elif parts[0] == "bin":
+        eligible = (
             len(parts) == 2
             and size <= MAX_BUNDLED_BIN_FILE_BYTES
             and SAFE_BUNDLED_BIN_FILENAMES.fullmatch(filename) is not None
         )
-    if size > MAX_BUNDLED_FILE_BYTES:
+    elif size > MAX_BUNDLED_FILE_BYTES:
         return False
-    if filename in BUNDLED_ROOT_FILE_ALLOWLIST:
-        return True
-    return PurePosixPath(filename).suffix.lower() in BUNDLED_FILE_EXTENSIONS
+    else:
+        eligible = (
+            filename in BUNDLED_ROOT_FILE_ALLOWLIST
+            or PurePosixPath(filename).suffix.lower() in BUNDLED_FILE_EXTENSIONS
+        )
+    if eligible and not portable and reject_nonportable:
+        raise BundledListingError(relative_path, "non-portable bundled path")
+    return eligible and portable
 
 
 def is_submodule_contents_entry(entry: dict) -> bool:

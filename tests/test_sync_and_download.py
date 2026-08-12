@@ -1595,6 +1595,12 @@ def test_bundled_file_allowlist_is_scoped_and_size_limited():
     ):
         assert module.is_safe_bundled_file(non_portable, 10) is False
     assert (
+        support.is_safe_bundled_file("scripts/unrelated:name.bin", 10, reject_nonportable=True)
+        is False
+    )
+    with pytest.raises(support.BundledListingError, match="non-portable bundled path"):
+        support.is_safe_bundled_file("scripts/bad:name.py", 10, reject_nonportable=True)
+    assert (
         module.is_safe_bundled_file(
             "references/huge.py",
             module.MAX_BUNDLED_FILE_BYTES + 1,
