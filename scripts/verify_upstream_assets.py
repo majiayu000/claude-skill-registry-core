@@ -21,11 +21,22 @@ from pathlib import Path, PurePosixPath
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from audit_skill_assets import canonical_source_identity_from_metadata
 from sync_download_support import exact_source_branch
-from sync_pipeline_support import is_safe_portable_relative_path
+from sync_pipeline_support import (
+    has_case_conflicting_paths,
+    is_safe_portable_relative_path,
+)
 
 SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
 LIVENESS_STATUSES = {"live", "partial", "moved", "gone"}
 ERROR_STATUSES = {"verification_error", "local_error", "apply_error"}
+VERIFICATION_EVIDENCE_FIELDS = {
+    "github_commit_sha",
+    "assets_verified_at",
+    "bundled_file_blobs",
+    "asset_liveness",
+    "assets_liveness_checked_at",
+    "assets_liveness_sha",
+}
 
 
 class GitHubApiError(RuntimeError):
@@ -131,6 +142,7 @@ def _safe_bundle_path(value: object) -> str:
 
 def _actual_bundled_files(skill_dir: Path) -> list[str]:
     files = []
+
     def raise_walk_error(error: OSError) -> None:
         raise error
 
@@ -143,17 +155,14 @@ def _actual_bundled_files(skill_dir: Path) -> list[str]:
                 raise ValueError(f"archive contains a symbolic link: {relative}")
             if path.is_file() and relative not in {"SKILL.md", "metadata.json"}:
                 files.append(relative)
+    if has_case_conflicting_paths(files):
+        raise ValueError("archive contains case-conflicting bundled paths")
     return sorted(files)
 
 
 def _looks_like_target(metadata: object, skill_dir: Path) -> bool:
-    if isinstance(metadata, dict) and (
-        metadata.get("archive_mode") == "directory"
-        or bool(metadata.get("bundled_files"))
-        or bool(metadata.get("github_commit_sha"))
-        or bool(metadata.get("assets_verified_at"))
-    ):
-        return True
+    if isinstance(metadata, dict):
+        return any(field in metadata for field in VERIFICATION_EVIDENCE_FIELDS)
     return any(
         path.is_file() and path.name not in {"SKILL.md", "metadata.json"}
         for path in skill_dir.rglob("*")
@@ -196,11 +205,7 @@ def _target_from_metadata(metadata_path: Path, skills_dir: Path) -> Target:
     for field, value in (("github_branch", canonical_branch), ("branch", legacy_branch)):
         if field in metadata and (not isinstance(value, str) or not value.strip()):
             raise ValueError(f"{field} must be a non-empty string")
-    if (
-        "github_branch" in metadata
-        and "branch" in metadata
-        and canonical_branch != legacy_branch
-    ):
+    if "github_branch" in metadata and "branch" in metadata and canonical_branch != legacy_branch:
         raise ValueError("conflicting github_branch and branch identities")
     if any(
         isinstance(value, str) and SHA_PATTERN.fullmatch(value.strip())
@@ -222,6 +227,8 @@ def _target_from_metadata(metadata_path: Path, skills_dir: Path) -> Target:
     normalized = [_safe_bundle_path(value) for value in declared]
     if any(not value for value in normalized) or len(set(normalized)) != len(normalized):
         raise ValueError("bundled_files contains an invalid or duplicate path")
+    if has_case_conflicting_paths(normalized):
+        raise ValueError("bundled_files contains case-conflicting paths")
     actual = _actual_bundled_files(skill_dir)
     if sorted(normalized) != actual:
         raise ValueError(f"bundled_files mismatch: declared={sorted(normalized)}, actual={actual}")
@@ -251,30 +258,36 @@ def load_targets(skills_dir: Path) -> tuple[list[Target], list[dict]]:
         return [], [{"stable_key": str(skills_dir), "status": "local_error", "error": str(exc)}]
     for category_path in category_paths:
         if category_path.is_symlink():
-            errors.append({
-                "stable_key": relative_path(category_path, root),
-                "status": "local_error",
-                "error": "canonical archive category directory cannot be a symlink",
-            })
+            errors.append(
+                {
+                    "stable_key": relative_path(category_path, root),
+                    "status": "local_error",
+                    "error": "canonical archive category directory cannot be a symlink",
+                }
+            )
             continue
         if not category_path.is_dir():
             continue
         try:
             skill_paths = sorted(category_path.iterdir())
         except OSError as exc:
-            errors.append({
-                "stable_key": relative_path(category_path, root),
-                "status": "local_error",
-                "error": str(exc)[:500],
-            })
+            errors.append(
+                {
+                    "stable_key": relative_path(category_path, root),
+                    "status": "local_error",
+                    "error": str(exc)[:500],
+                }
+            )
             continue
         for skill_path in skill_paths:
             if skill_path.is_symlink():
-                errors.append({
-                    "stable_key": relative_path(skill_path, root),
-                    "status": "local_error",
-                    "error": "canonical archive skill directory cannot be a symlink",
-                })
+                errors.append(
+                    {
+                        "stable_key": relative_path(skill_path, root),
+                        "status": "local_error",
+                        "error": "canonical archive skill directory cannot be a symlink",
+                    }
+                )
             elif skill_path.is_dir():
                 metadata_path = skill_path / "metadata.json"
                 if (
@@ -283,11 +296,13 @@ def load_targets(skills_dir: Path) -> tuple[list[Target], list[dict]]:
                     or not metadata_path.is_file()
                 ):
                     if _looks_like_target(None, skill_path):
-                        errors.append({
-                            "stable_key": relative_path(skill_path, root),
-                            "status": "local_error",
-                            "error": "metadata.json must be a regular file",
-                        })
+                        errors.append(
+                            {
+                                "stable_key": relative_path(skill_path, root),
+                                "status": "local_error",
+                                "error": "metadata.json must be a regular file",
+                            }
+                        )
                     continue
                 metadata_paths.append(metadata_path)
     for metadata_path in metadata_paths:
@@ -305,11 +320,13 @@ def load_targets(skills_dir: Path) -> tuple[list[Target], list[dict]]:
             seen.add(target.stable_key)
             targets.append(target)
         except (OSError, ValueError) as exc:
-            errors.append({
-                "stable_key": relative_path(metadata_path, root),
-                "status": "local_error",
-                "error": str(exc)[:500],
-            })
+            errors.append(
+                {
+                    "stable_key": relative_path(metadata_path, root),
+                    "status": "local_error",
+                    "error": str(exc)[:500],
+                }
+            )
     return targets, errors
 
 
@@ -348,7 +365,13 @@ def verify_targets(targets: list[Target], client: GitHubClient, checked_at: str)
             if full_name.casefold() != repo.casefold():
                 raise GitHubApiError(301, "GitHub repository identity moved or mismatched")
         except GitHubApiError as exc:
-            status = "gone" if exc.status == 404 else "moved" if exc.status == 301 else "verification_error"
+            status = (
+                "gone"
+                if exc.status == 404
+                else "moved"
+                if exc.status == 301
+                else "verification_error"
+            )
             rows.extend(_error_rows(repo_targets, status, exc))
             continue
         by_branch: dict[str, list[Target]] = collections.defaultdict(list)
@@ -369,8 +392,7 @@ def verify_targets(targets: list[Target], client: GitHubClient, checked_at: str)
             for target in branch_targets:
                 source_dir = PurePosixPath(target.source_path).parent
                 expected_assets = {
-                    (source_dir / bundled_file).as_posix()
-                    for bundled_file in target.bundled_files
+                    (source_dir / bundled_file).as_posix() for bundled_file in target.bundled_files
                 }
                 missing_assets = sorted(expected_assets - upstream_paths)
                 if target.source_path not in upstream_paths:
@@ -379,19 +401,21 @@ def verify_targets(targets: list[Target], client: GitHubClient, checked_at: str)
                     status = "partial"
                 else:
                     status = "live"
-                rows.append({
-                    "stable_key": target.stable_key,
-                    "repo": repo,
-                    "source_path": target.source_path,
-                    "branch": branch,
-                    "status": status,
-                    "pinned_source_sha": target.pinned_sha,
-                    "current_source_sha": current_sha,
-                    "checked_at": checked_at,
-                    "missing_assets": missing_assets,
-                    "metadata_path": str(target.metadata_path),
-                    "metadata_hash": target.metadata_hash,
-                })
+                rows.append(
+                    {
+                        "stable_key": target.stable_key,
+                        "repo": repo,
+                        "source_path": target.source_path,
+                        "branch": branch,
+                        "status": status,
+                        "pinned_source_sha": target.pinned_sha,
+                        "current_source_sha": current_sha,
+                        "checked_at": checked_at,
+                        "missing_assets": missing_assets,
+                        "metadata_path": str(target.metadata_path),
+                        "metadata_hash": target.metadata_hash,
+                    }
+                )
     return rows
 
 
@@ -529,7 +553,9 @@ def main(argv: list[str] | None = None, *, client: GitHubClient | None = None) -
     api_client = client or GitHubClient(os.environ.get("GITHUB_TOKEN", ""))
     rows = local_errors + verify_targets(targets, api_client, checked_at)
     apply_errors = apply_updates(targets, rows, checked_at) if args.apply else []
-    rows.extend({"stable_key": "apply", "status": "apply_error", "error": error} for error in apply_errors)
+    rows.extend(
+        {"stable_key": "apply", "status": "apply_error", "error": error} for error in apply_errors
+    )
     report = {
         "schema_version": 1,
         "checked_at": checked_at,
