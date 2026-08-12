@@ -76,8 +76,13 @@ def archive(tmp_path):
         "dev",
         "plain",
         "Just prose, no local files.",
-        {"stars": 900, "repo": "acme/plain", "path": "skills/plain/SKILL.md",
-         "github_branch": "main", "name": "plain"},
+        {
+            "stars": 900,
+            "repo": "acme/plain",
+            "path": "skills/plain/SKILL.md",
+            "github_branch": "main",
+            "name": "plain",
+        },
     )
     make_skill(
         root,
@@ -453,6 +458,31 @@ class TestCurrentStateInventory:
         outside = tmp_path / "outside.py"
         outside.write_text("print('outside')")
         (skill / "linked.py").symlink_to(outside)
+
+        with pytest.raises(ValueError, match="symbolic link"):
+            audit_skill_assets.run_current_state(str(root))
+
+    def test_rejects_non_portable_existing_asset_paths(self, tmp_path):
+        root = tmp_path / "data"
+        skill = make_skill(
+            root,
+            "dev",
+            "non-portable",
+            "Read references/a:b.md.",
+            {"repo": "acme/tools", "path": "skills/non-portable/SKILL.md"},
+        )
+        (skill / "references").mkdir()
+        (skill / "references" / "a:b.md").write_text("body")
+
+        with pytest.raises(ValueError, match="non-portable path"):
+            audit_skill_assets.run_current_state(str(root))
+
+    def test_rejects_symlinked_archive_directories(self, tmp_path):
+        root = tmp_path / "data"
+        make_skill(root, "dev", "valid", "body")
+        outside = tmp_path / "outside-category"
+        make_skill(outside, "external", "linked", "body")
+        (root / "linked-category").symlink_to(outside / "external", target_is_directory=True)
 
         with pytest.raises(ValueError, match="symbolic link"):
             audit_skill_assets.run_current_state(str(root))
