@@ -407,7 +407,7 @@ async def download_skills(
                     size = int(entry.get("size") or 0)
                 except (TypeError, ValueError):
                     size = -1
-                if is_safe_bundled_file(rel_path, size):
+                if is_safe_bundled_file(rel_path, size, reject_nonportable=True):
                     candidates.append(
                         {
                             "repo_path": repo_path,

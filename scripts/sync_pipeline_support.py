@@ -235,9 +235,16 @@ def should_recurse_bundled_dir(relative_path: str) -> bool:
     )
 
 
-def is_safe_bundled_file(relative_path: str, size: int) -> bool:
+def is_safe_bundled_file(
+    relative_path: str,
+    size: int,
+    *,
+    reject_nonportable: bool = False,
+) -> bool:
     """Return True when a bundled support file should be archived."""
     if not is_safe_portable_relative_path(relative_path):
+        if reject_nonportable:
+            raise BundledListingError(relative_path, "non-portable bundled path")
         return False
     normalized = relative_path
     if not normalized or normalized == "SKILL.md":
