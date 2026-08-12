@@ -196,7 +196,7 @@ class TestStrictBackfillInventory:
         ],
     )
     def test_detects_case_conflicts_in_files_and_directory_prefixes(self, paths):
-        assert audit_skill_assets._has_case_conflict(paths) is True
+        assert audit_skill_assets.has_case_conflicting_paths(paths) is True
 
     @pytest.mark.parametrize(
         "declared",
@@ -369,6 +369,8 @@ class TestStrictBackfillInventory:
                 "path": "skills/demo/SKILL.md",
                 "github_branch": "release/v1",
                 "stars": 100,
+                "license": "MIT",
+                "distribution": "compatible",
             }),
             encoding="utf-8",
         )
@@ -390,6 +392,8 @@ class TestStrictBackfillInventory:
                     "path": "skills/demo",
                     "github_branch": "main",
                     "stars": 100,
+                    "license": "MIT",
+                    "distribution": "compatible",
                 }
             ),
             encoding="utf-8",
@@ -420,6 +424,8 @@ class TestStrictBackfillInventory:
             "path": "skills/demo/SKILL.md",
             "github_branch": "main",
             "stars": 100,
+            "license": "MIT",
+            "distribution": "compatible",
         }
         if bundled_files is not None:
             metadata.update(

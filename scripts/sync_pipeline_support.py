@@ -73,16 +73,24 @@ def skill_key(skill: dict) -> str:
     return f"{category}:{name}"
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("sync_and_download.log"), logging.StreamHandler()],
-)
 logger = logging.getLogger(__name__)
 ACQUISITION_MANIFEST_VERSION = 1
 DEFAULT_MANIFEST_PATH = ROOT_DIR / "sources" / "acquisition_manifest.json"
 DEFAULT_LEARNING_PRIORS_PATH = ROOT_DIR / "sources" / "learning" / "discovery_priors.json"
 GITHUB_API_BASE = "https://api.github.com"
+
+def configure_sync_logging(log_path: str = "sync_and_download.log") -> None:
+    """Configure CLI logging explicitly, never as a shared-module import side effect."""
+    if getattr(configure_sync_logging, "_configured", False):
+        return
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler(log_path), logging.StreamHandler()],
+        force=True,
+    )
+    configure_sync_logging._configured = True
+
 
 DESIGN_BUNDLED_DIR_PATTERN = re.compile(r"^design-[a-z0-9-]+$")
 SAFE_BUNDLED_BIN_FILENAMES = re.compile(r"^jq(?:-[A-Za-z0-9_.-]+|\.LICENSE)$")
@@ -128,6 +136,8 @@ MAX_BUNDLED_FILE_BYTES = 1_000_000
 MAX_BUNDLED_BIN_FILE_BYTES = 3_000_000
 MAX_BUNDLED_TOTAL_BYTES = 8_000_000
 MAX_BUNDLED_FILES_PER_SKILL = 100
+GIT_COMMIT_SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
+INVALID_GIT_REF_CHARACTERS = frozenset("~^:?*[\\")
 
 
 class BundledListingError(Exception):
@@ -177,6 +187,72 @@ def skill_source_dir(relative_path: str) -> str:
     return "" if parent == "." else parent
 
 
+def normalize_download_repo(repo: str) -> str:
+    """Normalize source repo values used by the downloader."""
+    repo = (repo or "").strip()
+    if repo.startswith("https://github.com/"):
+        repo = repo[len("https://github.com/") :]
+    repo = repo.split("/tree/")[0]
+    repo = repo.split("/blob/")[0]
+    return repo.rstrip("/")
+
+
+def normalize_repo_path(path: str, repo: str) -> str:
+    """Normalize a source path or GitHub blob/tree URL to a repo-relative path."""
+    path = (path or "").strip().replace("\\", "/").strip("/")
+    if not path:
+        return ""
+
+    if path.startswith("https://github.com/") and repo:
+        prefix = f"https://github.com/{repo}/"
+        if path.startswith(prefix):
+            rest = path[len(prefix) :]
+            parts = rest.split("/", 2)
+            if len(parts) >= 3 and parts[0] in {"blob", "tree"}:
+                return parts[2].strip("/")
+
+    parts = path.split("/", 2)
+    if len(parts) >= 3 and parts[0] in {"blob", "tree"}:
+        return parts[2].strip("/")
+    return path
+
+
+def build_relative_candidates(path: str, name: str, normalized_name: str) -> list[str]:
+    """Build the ordered source path probes for ordinary acquisition."""
+    ordered = []
+    seen = set()
+
+    def add(candidate: str) -> None:
+        candidate = (candidate or "").strip().strip("/")
+        if not candidate or candidate in seen:
+            return
+        seen.add(candidate)
+        ordered.append(candidate)
+
+    if path:
+        if path.lower().endswith("skill.md"):
+            add(path)
+        else:
+            add(f"{path}/SKILL.md")
+            add(path)
+
+    name_variants = []
+    for raw_name in (name, normalized_name):
+        candidate = (raw_name or "").strip().strip("/")
+        if candidate and candidate not in name_variants:
+            name_variants.append(candidate)
+
+    for variant in name_variants:
+        add(f".claude/skills/{variant}/SKILL.md")
+        add(f".claude/{variant}/SKILL.md")
+        add(f"skills/{variant}/SKILL.md")
+        add(f"{variant}/SKILL.md")
+
+    add("SKILL.md")
+    add(".claude/SKILL.md")
+    return ordered
+
+
 def bundled_relative_path(source_dir: str, repo_path: str) -> str:
     """Return repo_path relative to source_dir using POSIX separators."""
     source_dir = (source_dir or "").strip().strip("/")
@@ -189,6 +265,24 @@ def bundled_relative_path(source_dir: str, repo_path: str) -> str:
     if not repo_path.startswith(prefix):
         return ""
     return repo_path[len(prefix) :]
+
+
+def is_valid_git_source_ref(ref: str) -> bool:
+    """Validate a Git branch-like ref while explicitly allowing commit SHAs."""
+    if GIT_COMMIT_SHA_PATTERN.fullmatch(ref):
+        return True
+    if not ref or len(ref) > 255 or ref.startswith(("/", "-")):
+        return False
+    if ref.endswith(("/", ".")) or "//" in ref or ".." in ref or "@{" in ref:
+        return False
+    if any(ord(character) < 33 or ord(character) == 127 for character in ref):
+        return False
+    if any(character in INVALID_GIT_REF_CHARACTERS for character in ref):
+        return False
+    return all(
+        component and not component.startswith(".") and not component.endswith(".lock")
+        for component in ref.split("/")
+    )
 
 
 def has_case_conflicting_paths(paths: Iterable[str]) -> bool:
@@ -204,12 +298,6 @@ def has_case_conflicting_paths(paths: Iterable[str]) -> bool:
                 return True
             seen[folded] = prefix
     return False
-
-
-def reject_case_conflicting_paths(paths: Iterable[str], directory_path: str) -> None:
-    """Reject a bundled listing that cannot be represented cross-platform."""
-    if has_case_conflicting_paths(paths):
-        raise BundledListingError(directory_path, "case-conflicting bundled paths")
 
 
 def is_safe_portable_relative_path(value: object) -> bool:

@@ -33,11 +33,13 @@ from skill_asset_audit import (
     classify_skill_text,
     verdict_from_counts,
 )
-from utils import build_skill_key
+from sync_pipeline_support import (
+    has_case_conflicting_paths,
+    is_valid_git_source_ref,
+)
+from utils import build_skill_key, classify_license, normalize_license
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-COMMIT_SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
-INVALID_GIT_REF_CHARACTERS = frozenset("~^:?*[\\")
 
 
 def _read_skill(dirpath: str) -> str:
@@ -170,16 +172,8 @@ def _iter_canonical_archive_paths(root: str | Path):
 
 
 def _assert_unique_canonical_archive_paths(paths: list[str], root: str | Path) -> None:
-    seen: dict[str, str] = {}
-    for relative in paths:
-        parts = relative.split("/")
-        for length in range(1, len(parts) + 1):
-            prefix = "/".join(parts[:length])
-            folded = prefix.casefold()
-            previous = seen.get(folded)
-            if previous is not None and previous != prefix:
-                raise ValueError(f"archive contains case-conflicting skill roots: {root}")
-            seen[folded] = prefix
+    if has_case_conflicting_paths(paths):
+        raise ValueError(f"archive contains case-conflicting skill roots: {root}")
 
 
 def _canonical_archive_rows(root: str | Path):
@@ -275,24 +269,6 @@ def canonical_source_branch_from_metadata(metadata: dict) -> tuple[str, str]:
     return branches[0], ""
 
 
-def is_valid_git_source_ref(ref: str) -> bool:
-    """Validate a Git branch-like ref while explicitly allowing commit SHAs."""
-    if COMMIT_SHA_PATTERN.fullmatch(ref):
-        return True
-    if not ref or len(ref) > 255 or ref.startswith(("/", "-")):
-        return False
-    if ref.endswith(("/", ".")) or "//" in ref or ".." in ref or "@{" in ref:
-        return False
-    if any(ord(character) < 33 or ord(character) == 127 for character in ref):
-        return False
-    if any(character in INVALID_GIT_REF_CHARACTERS for character in ref):
-        return False
-    return all(
-        component and not component.startswith(".") and not component.endswith(".lock")
-        for component in ref.split("/")
-    )
-
-
 # Preserve the private helper used by existing callers while the strict public
 # parser is shared by later pipeline phases.
 _canonical_source = canonical_source_identity
@@ -332,21 +308,6 @@ def _identity_keys(metadata: dict, *, name: str, category: str) -> set[str]:
     return keys
 
 
-def _has_case_conflict(paths: list[str]) -> bool:
-    """Detect case-only conflicts in complete paths or any directory prefix."""
-    seen: dict[str, str] = {}
-    for relative in paths:
-        parts = relative.split("/")
-        for length in range(1, len(parts) + 1):
-            prefix = "/".join(parts[:length])
-            folded = prefix.casefold()
-            previous = seen.get(folded)
-            if previous is not None and previous != prefix:
-                return True
-            seen[folded] = prefix
-    return False
-
-
 def _actual_bundled_files(dirpath: str) -> list[str]:
     root = Path(dirpath)
     files = []
@@ -373,7 +334,7 @@ def _actual_bundled_files(dirpath: str) -> list[str]:
             if not stat.S_ISREG(mode) or relative in {"SKILL.md", "metadata.json"}:
                 continue
             files.append(relative)
-    if _has_case_conflict(archive_paths):
+    if has_case_conflicting_paths(archive_paths):
         raise ValueError(f"case-conflicting paths are not allowed in archive skill: {dirpath}")
     return sorted(files)
 
@@ -413,7 +374,7 @@ def _declared_bundled_files(metadata: dict) -> tuple[list[str], bool]:
         ):
             return [], False
         normalized.append(normalized_path)
-    if _has_case_conflict(normalized):
+    if has_case_conflicting_paths(normalized):
         return [], False
     return sorted(normalized), True
 
@@ -483,6 +444,13 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
 
         stars = _parse_stars(metadata.get("stars"), metadata_path)
         provenance_error = source_error or branch_error
+        license_name = normalize_license(metadata.get("license", ""))
+        distribution = str(metadata.get("distribution") or "").strip()
+        distribution_error = (
+            "asset_redistribution_not_approved"
+            if classify_license(license_name) != "compatible" or distribution != "compatible"
+            else ""
+        )
         if (
             asset_state == "missing_claimed_assets"
             and stars >= min_stars
@@ -510,6 +478,21 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
             and stars >= min_stars
             and not provenance_error
             and declared_files_valid
+            and distribution_error
+        ):
+            metadata_errors.append(
+                {
+                    "archive_path": relative_dir,
+                    "error": distribution_error,
+                    "eligible_for_backfill": True,
+                }
+            )
+        if (
+            asset_state == "missing_claimed_assets"
+            and stars >= min_stars
+            and not provenance_error
+            and declared_files_valid
+            and not distribution_error
         ):
             candidates.append(
                 {
@@ -523,6 +506,8 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
                     "category": category,
                     "stars": stars,
                     "claim": claim,
+                    "license": license_name,
+                    "distribution": distribution,
                 }
             )
 
