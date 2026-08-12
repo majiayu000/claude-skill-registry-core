@@ -217,6 +217,18 @@ def bundled_relative_path(source_dir: str, repo_path: str) -> str:
     return repo_path[len(prefix):]
 
 
+def is_safe_portable_relative_path(value: object) -> bool:
+    """Return whether value is a strict POSIX relative path on every platform."""
+    if not isinstance(value, str) or not value or value != value.strip() or "\\" in value:
+        return False
+    if re.match(r"^[A-Za-z]:", value):
+        return False
+    parts = value.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        return False
+    return not PurePosixPath(value).is_absolute()
+
+
 def should_recurse_bundled_dir(relative_path: str) -> bool:
     """Return True when a support subdirectory is safe to inspect."""
     parts = [part for part in relative_path.strip("/").split("/") if part]

@@ -31,6 +31,7 @@ from skill_asset_audit import (
     iter_archived_skills,
     verdict_from_counts,
 )
+from sync_pipeline_support import is_safe_portable_relative_path
 from utils import build_skill_key
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -102,7 +103,11 @@ def _is_canonical_archive_skill(dirpath: str, root: str | Path) -> bool:
 def _iter_canonical_archive_paths(root: str | Path):
     """Yield canonical archive paths without parsing their metadata."""
     archive_root = Path(root).resolve()
-    for dirpath, dirnames, filenames in os.walk(root):
+
+    def raise_walk_error(error: OSError) -> None:
+        raise ValueError(f"unable to inspect archive tree {root}: {error}") from error
+
+    for dirpath, dirnames, filenames in os.walk(root, onerror=raise_walk_error):
         if ".git" in dirnames:
             dirnames.remove(".git")
         if "SKILL.md" not in filenames:
@@ -152,9 +157,9 @@ def canonical_source_identity(
     source_path = path_value.strip().replace("\\", "/")
     if source_path.startswith("/") or re.match(r"^[A-Za-z]:", source_path):
         return repo, source_path, "absolute_source_path"
-    parts = source_path.split("/")
-    if any(part in {"", ".", ".."} for part in parts):
+    if not is_safe_portable_relative_path(source_path):
         return repo, source_path, "invalid_source_path"
+    parts = source_path.split("/")
     if parts[-1].casefold() != "skill.md":
         return repo, source_path, "source_path_not_skill_md"
     return repo, "/".join(parts), ""
@@ -331,11 +336,7 @@ def _declared_bundled_files(metadata: dict) -> tuple[list[str], bool]:
         return [], False
     normalized = []
     for value in declared:
-        if not isinstance(value, str) or not value or value != value.strip() or "\\" in value:
-            return [], False
-        if re.match(r"^[A-Za-z]:", value) or any(
-            part in {"", ".", ".."} for part in value.split("/")
-        ):
+        if not is_safe_portable_relative_path(value):
             return [], False
         path = PurePosixPath(value)
         if path.is_absolute():
