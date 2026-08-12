@@ -186,12 +186,12 @@ def canonical_source_identity_from_metadata(metadata: dict) -> tuple[str, str, s
 
 
 def _metadata_source_path(field: str, value: object) -> object:
-    """Expand the legacy directory-form github_path into an exact SKILL.md path."""
-    if field != "github_path" or not isinstance(value, str):
+    """Expand repository-written directory aliases into exact SKILL.md paths."""
+    if field not in {"path", "github_path"} or not isinstance(value, str):
         return value
     source_path = value.strip()
     if not source_path:
-        return "SKILL.md"
+        return "SKILL.md" if field == "github_path" else value
     normalized = source_path.replace("\\", "/")
     if normalized.rsplit("/", 1)[-1].casefold() == "skill.md":
         return source_path
