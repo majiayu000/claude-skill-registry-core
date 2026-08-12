@@ -194,7 +194,9 @@ async def collect_pinned_tree_entries(
         except (TypeError, ValueError):
             size = -1
         parts = PurePosixPath(rel_path).parts
-        in_support_scope = is_safe_bundled_file(rel_path, size) or (
+        eligible_at_size = is_safe_bundled_file(rel_path, size, reject_nonportable=True)
+        eligible_without_size_limit = is_safe_bundled_file(rel_path, 0, reject_nonportable=True)
+        in_support_scope = eligible_at_size or (
             bool(parts) and should_recurse_bundled_dir(parts[0])
         )
         entry_type = entry.get("type")
@@ -205,8 +207,8 @@ async def collect_pinned_tree_entries(
             if in_support_scope:
                 raise BundledListingError(repo_path, f"unsupported Git object mode {mode}")
             continue
-        if not is_safe_bundled_file(rel_path, size):
-            if is_safe_bundled_file(rel_path, 0):
+        if not eligible_at_size:
+            if eligible_without_size_limit:
                 omitted_eligible_file = True
             continue
         blob_sha = entry.get("sha")

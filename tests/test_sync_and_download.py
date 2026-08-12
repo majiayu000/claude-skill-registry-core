@@ -412,9 +412,7 @@ def test_download_blocks_security_listed_source_path_alias(tmp_path, monkeypatch
 
 
 @pytest.mark.parametrize("exact_paths_only", [False, True])
-def test_download_rejects_drive_relative_source_path(
-    tmp_path, monkeypatch, exact_paths_only
-):
+def test_download_rejects_drive_relative_source_path(tmp_path, monkeypatch, exact_paths_only):
     module = load_module()
     registry_path = tmp_path / "registry.json"
     output_dir = tmp_path / "skills"
@@ -947,6 +945,59 @@ def test_exact_download_requires_explicit_complete_git_tree(tmp_path, monkeypatc
     assert stats["downloaded"] == 0
     report = json.loads(failure_report_path.read_text())
     assert report["failure_reasons"]["bundled_listing_failed"] == 1
+    assert not list(output_dir.rglob("SKILL.md"))
+
+
+def test_exact_download_rejects_non_portable_file_in_support_scope(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "skills/demo/SKILL.md",
+                        "category": "development",
+                        "github_branch": "main",
+                    }
+                ]
+            }
+        )
+    )
+    sha = "7" * 40
+    skill_body = b"---\nname: demo\ndescription: Exact demo.\n---\nRun scripts/good.py.\n"
+    routes = exact_repo_routes(
+        "acme/demo",
+        "main",
+        sha,
+        [
+            git_blob_entry("skills/demo/SKILL.md", skill_body),
+            git_blob_entry("skills/demo/scripts/good.py", b"print('good')"),
+            git_blob_entry("skills/demo/scripts/bad:name.py", b"print('bad')"),
+        ],
+    )
+    install_fake_aiohttp(monkeypatch, routes)
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            manifest_path=None,
+            failure_report_path=failure_report_path,
+            cleanup_ci_untracked=False,
+            exact_paths_only=True,
+            pin_commit_sha=True,
+        )
+    )
+
+    assert stats["downloaded"] == 0
+    report = json.loads(failure_report_path.read_text())
+    assert report["failure_reasons"]["bundled_listing_failed"] == 1
+    assert "non-portable bundled path" in report["failures"]["bundled_listing_failed"][0]
     assert not list(output_dir.rglob("SKILL.md"))
 
 
@@ -1594,6 +1645,12 @@ def test_bundled_file_allowlist_is_scoped_and_size_limited():
         "references/guide.md/",
     ):
         assert module.is_safe_bundled_file(non_portable, 10) is False
+    assert (
+        support.is_safe_bundled_file("scripts/unrelated:name.bin", 10, reject_nonportable=True)
+        is False
+    )
+    with pytest.raises(support.BundledListingError, match="non-portable bundled path"):
+        support.is_safe_bundled_file("scripts/bad:name.py", 10, reject_nonportable=True)
     assert (
         module.is_safe_bundled_file(
             "references/huge.py",

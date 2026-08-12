@@ -393,7 +393,6 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
         if (
             asset_state == "missing_claimed_assets"
             and stars >= min_stars
-            and not provenance_error
             and not declared_files_valid
         ):
             metadata_errors.append(
@@ -409,9 +408,7 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
                     "archive_path": relative_dir,
                     "error": provenance_error,
                     "eligible_for_backfill": (
-                        asset_state == "missing_claimed_assets"
-                        and stars >= min_stars
-                        and declared_files_valid
+                        asset_state == "missing_claimed_assets" and stars >= min_stars
                     ),
                 }
             )

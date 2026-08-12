@@ -386,6 +386,27 @@ class TestCurrentStateInventory:
         with pytest.raises(ValueError, match="dev/invalid-bundle.*invalid_bundled_files"):
             audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
 
+    def test_invalid_identity_and_bundle_declaration_both_block_targets(self, tmp_path):
+        root = tmp_path / "data"
+        make_skill(
+            root,
+            "dev",
+            "invalid-both",
+            "Run scripts/build.py.",
+            {
+                "stars": 900,
+                "repo": "acme/tools",
+                "bundled_files": ["references/a:b.md"],
+            },
+        )
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=100)
+
+        assert report["source_identity_errors"][0]["eligible_for_backfill"] is True
+        assert report["metadata_errors"][0]["eligible_for_backfill"] is True
+        with pytest.raises(ValueError, match="missing_source_path"):
+            audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
+
     @pytest.mark.parametrize(
         ("repo", "source_path", "error"),
         [
