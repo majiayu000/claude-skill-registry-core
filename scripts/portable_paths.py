@@ -7,7 +7,7 @@ from pathlib import PurePosixPath
 
 _WINDOWS_INVALID_CHARACTERS = frozenset('<>:"\\|?*')
 _WINDOWS_RESERVED_NAMES = frozenset(
-    {"CON", "PRN", "AUX", "NUL"}
+    {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
     | {f"COM{index}" for index in range(1, 10)}
     | {f"LPT{index}" for index in range(1, 10)}
     | {f"{prefix}{index}" for prefix in ("COM", "LPT") for index in "¹²³"}

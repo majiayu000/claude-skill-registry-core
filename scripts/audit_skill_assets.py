@@ -124,12 +124,47 @@ def _iter_canonical_archive_paths(root: str | Path):
         if len(relative.parts) != 2:
             continue
         skill_variants = [name for name in filenames if name.casefold() == "skill.md"]
-        if skill_variants and "SKILL.md" not in skill_variants:
+        if len(skill_variants) > 1:
+            raise ValueError(
+                f"canonical archive contains case-conflicting SKILL.md files: {relative}"
+            )
+        if skill_variants and skill_variants[0] != "SKILL.md":
             raise ValueError(
                 f"canonical SKILL.md has invalid casing: {relative / skill_variants[0]}"
             )
         if "SKILL.md" not in filenames:
             continue
+        skill_path = Path(dirpath, "SKILL.md")
+        try:
+            skill_mode = skill_path.lstat().st_mode
+        except OSError as exc:
+            raise ValueError(f"unable to inspect canonical SKILL.md: {skill_path}") from exc
+        if not stat.S_ISREG(skill_mode):
+            raise ValueError(f"canonical SKILL.md must be a regular file: {relative}")
+        metadata_variants = [
+            name for name in filenames if name.casefold() == "metadata.json"
+        ]
+        if len(metadata_variants) > 1:
+            raise ValueError(
+                f"canonical archive contains case-conflicting metadata.json files: {relative}"
+            )
+        if metadata_variants and metadata_variants[0] != "metadata.json":
+            raise ValueError(
+                f"canonical metadata.json has invalid casing: "
+                f"{relative / metadata_variants[0]}"
+            )
+        if "metadata.json" in filenames:
+            metadata_path = Path(dirpath, "metadata.json")
+            try:
+                metadata_mode = metadata_path.lstat().st_mode
+            except OSError as exc:
+                raise ValueError(
+                    f"unable to inspect canonical metadata.json: {metadata_path}"
+                ) from exc
+            if not stat.S_ISREG(metadata_mode):
+                raise ValueError(
+                    f"canonical metadata.json must be a regular file: {relative}"
+                )
         relative_path = relative.as_posix()
         if not is_safe_portable_relative_path(relative_path):
             raise ValueError(f"non-portable canonical archive path: {relative_path}")
