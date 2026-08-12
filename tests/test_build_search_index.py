@@ -662,6 +662,8 @@ def test_verified_asset_fields_omit_malformed_claims_and_incomplete_liveness(tmp
         {"bundled_files": ["/run.py"]},
         {"bundled_files": ["C:scripts/run.py"]},
         {"bundled_files": ["SKILL.md"]},
+        {"bundled_files": ["skill.md"]},
+        {"bundled_files": ["Metadata.json"]},
         {"bundled_files": ["scripts/run.py", "scripts/run.py"]},
         {
             "bundled_files": ["scripts/run.py", "Scripts/run.py"],

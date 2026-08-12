@@ -30,6 +30,7 @@ ASSET_FIELDS = {
     "assets_liveness_checked_at",
     "assets_liveness_sha",
 }
+RESERVED_ARCHIVE_FILES = {"skill.md", "metadata.json"}
 
 
 def legacy_asset_free_record(record: dict) -> dict:
@@ -195,7 +196,7 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
     for value in declared:
         if not is_safe_portable_relative_path(value):
             return {}
-        if value in {"SKILL.md", "metadata.json"} or value in normalized:
+        if value.casefold() in RESERVED_ARCHIVE_FILES or value in normalized:
             return {}
         normalized.append(value)
     if has_case_conflicting_paths(normalized):
@@ -206,7 +207,11 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
             relative = path.relative_to(skill_dir).as_posix()
             if path.is_symlink():
                 return {}
-            if path.is_file() and relative not in {"SKILL.md", "metadata.json"}:
+            if path.is_file():
+                if relative in {"SKILL.md", "metadata.json"}:
+                    continue
+                if relative.casefold() in RESERVED_ARCHIVE_FILES:
+                    return {}
                 actual.append(relative)
     except OSError:
         return {}
