@@ -16,15 +16,24 @@ from sync_pipeline_support import (
     bundled_relative_path,
     has_case_conflicting_paths,
     is_safe_bundled_file,
+    is_submodule_contents_entry,
     is_valid_git_source_ref,
     should_recurse_bundled_dir,
     skill_source_dir,
 )
-from utils import build_legal_metadata
+from sync_pipeline_support import MAX_BUNDLED_FILE_BYTES as MAX_BUNDLED_FILE_BYTES
+from utils import build_legal_metadata, classify_license, normalize_license
 
 SHA_PATTERN = re.compile(r"[0-9a-fA-F]{40}")
 MAX_SKILL_FILE_BYTES = 1_000_000
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com"
+
+
+def asset_redistribution_approved(skill: dict) -> bool:
+    """Return whether metadata explicitly permits bundled-asset redistribution."""
+    license_name = normalize_license(str(skill.get("license") or ""))
+    distribution = str(skill.get("distribution") or "").strip()
+    return classify_license(license_name) == "compatible" and distribution == "compatible"
 
 
 def select_bundled_file_entries(candidates: list[dict]) -> tuple[list[dict], bool]:
@@ -45,6 +54,69 @@ def select_bundled_file_entries(candidates: list[dict]) -> tuple[list[dict], boo
         selected.append(entry)
         total_size += entry["size"]
     return selected, truncated
+
+
+async def collect_contents_bundled_file_entries(
+    session: Any,
+    repo: str,
+    branch: str,
+    resolved_skill_path: str,
+    *,
+    listing_fetcher: Any,
+) -> tuple[list[dict], bool]:
+    """Collect ordinary Contents API entries and report any support-scope omission."""
+    source_dir = skill_source_dir(resolved_skill_path)
+    queue = [source_dir]
+    seen_dirs = set()
+    candidates: list[dict] = []
+    incomplete = False
+    while queue:
+        current_dir = queue.pop(0)
+        if current_dir in seen_dirs:
+            continue
+        seen_dirs.add(current_dir)
+
+        for entry in await listing_fetcher(session, repo, branch, current_dir):
+            entry_type = entry.get("type")
+            repo_path = str(entry.get("path") or "").strip("/")
+            rel_path = bundled_relative_path(source_dir, repo_path)
+            if not rel_path:
+                continue
+            root_component = rel_path.split("/", 1)[0]
+            support_scope = should_recurse_bundled_dir(root_component) or is_safe_bundled_file(
+                rel_path, 0, reject_nonportable=True
+            )
+            if is_submodule_contents_entry(entry):
+                incomplete = incomplete or support_scope
+                continue
+            if entry_type == "dir":
+                if should_recurse_bundled_dir(rel_path):
+                    queue.append(repo_path)
+                elif support_scope:
+                    incomplete = True
+                continue
+            if entry_type != "file":
+                incomplete = incomplete or support_scope
+                continue
+            try:
+                size = int(entry.get("size") or 0)
+            except (TypeError, ValueError):
+                size = -1
+            if is_safe_bundled_file(rel_path, size, reject_nonportable=True):
+                candidates.append(
+                    {
+                        "repo_path": repo_path,
+                        "relative_path": rel_path,
+                        "download_url": entry.get("download_url") or "",
+                        "size": size,
+                        "sha": entry.get("sha") or "",
+                    }
+                )
+            elif support_scope:
+                incomplete = True
+
+    selected, truncated = select_bundled_file_entries(candidates)
+    return selected, truncated or incomplete
 
 
 def exact_source_branch(skill: dict) -> str:
@@ -295,6 +367,13 @@ async def download_bundled_files_to_directory(
         message = "eligible bundled files exceed per-skill count or byte limits"
         return archived, [message], "bundled_limits_exceeded", blob_ids
     if not entries:
+        if require_complete_archive:
+            return (
+                archived,
+                ["required bundled archive contains no eligible support files"],
+                "bundled_listing_incomplete",
+                blob_ids,
+            )
         return archived, failed, "", blob_ids
 
     skill_root = skill_dir.resolve()

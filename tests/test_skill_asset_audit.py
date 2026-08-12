@@ -127,37 +127,30 @@ class TestStrictBackfillInventory:
         with pytest.raises(ValueError, match="unable to inspect archive tree.*denied"):
             list(audit_skill_assets._canonical_archive_rows(root))
 
-    def test_canonical_archive_rows_stream_metadata_after_lightweight_preflight(
-        self, tmp_path, monkeypatch
-    ):
+    def test_canonical_archive_rows_reuse_fail_closed_preflight_paths(self, tmp_path, monkeypatch):
         root = tmp_path / "data"
         first = root / "dev" / "one"
         second = root / "dev" / "two"
         first.mkdir(parents=True)
         second.mkdir(parents=True)
-        calls = []
+        (first / "metadata.json").write_text('{"name":"one"}', encoding="utf-8")
+        (second / "metadata.json").write_text('{"name":"two"}', encoding="utf-8")
+        calls = 0
 
-        monkeypatch.setattr(
-            audit_skill_assets,
-            "_iter_canonical_archive_paths",
-            lambda _root: iter(["dev/one", "dev/two"]),
-        )
+        def canonical_paths(_root):
+            nonlocal calls
+            calls += 1
+            yield "dev/one"
+            yield "dev/two"
 
-        def metadata_rows(_root):
-            calls.append("metadata")
-            yield str(first), {"name": "one"}
-            yield str(second), {"name": "two"}
+        monkeypatch.setattr(audit_skill_assets, "_iter_canonical_archive_paths", canonical_paths)
 
-        monkeypatch.setattr(audit_skill_assets, "iter_archived_skills", metadata_rows)
-
-        rows = audit_skill_assets._canonical_archive_rows(root)
-
-        assert calls == []
+        rows = iter(audit_skill_assets._canonical_archive_rows(root))
         assert next(rows) == (str(first), {"name": "one"})
-        assert calls == ["metadata"]
         assert next(rows) == (str(second), {"name": "two"})
         with pytest.raises(StopIteration):
             next(rows)
+        assert calls == 1
 
     @pytest.mark.parametrize(
         ("metadata", "expected_path"),
@@ -194,6 +187,11 @@ class TestStrictBackfillInventory:
         assert audit_skill_assets.canonical_source_identity_from_metadata(
             {"repo": "acme/tools", field: "README.md"}
         ) == ("acme/tools", "README.md", "source_path_not_skill_md")
+
+    def test_dotted_directory_metadata_path_is_preserved(self):
+        assert audit_skill_assets.canonical_source_identity_from_metadata(
+            {"repo": "acme/tools", "path": "skills/v1.0"}
+        ) == ("acme/tools", "skills/v1.0/SKILL.md", "")
 
     def test_conflicting_aliases_contribute_every_normalized_identity_key(self):
         keys = audit_skill_assets._identity_keys(
@@ -798,6 +796,37 @@ class TestAssetLiveness:
         targets, errors = liveness.load_targets(skills)
         assert targets == []
         assert "cannot be a symlink" in errors[0]["error"]
+
+    @pytest.mark.parametrize(
+        ("category", "name"),
+        [("CON", "alpha"), ("dev", "alpha.")],
+    )
+    def test_nonportable_canonical_roots_are_liveness_errors(
+        self, tmp_path, category, name
+    ):
+        skills = tmp_path / "skills"
+        make_verified_asset(skills, name)
+        if category != "dev":
+            (skills / "dev").rename(skills / category)
+
+        targets, errors = liveness.load_targets(skills)
+
+        assert targets == []
+        assert "non-portable canonical archive path" in errors[0]["error"]
+
+    def test_miscased_canonical_skill_file_is_a_liveness_error(self, tmp_path):
+        skills = tmp_path / "skills"
+        metadata_path = make_verified_asset(skills, "alpha")
+        skill_path = metadata_path.parent / "SKILL.md"
+        miscased_path = metadata_path.parent / "skill.md"
+        skill_path.rename(miscased_path)
+        if not any(path.name == "skill.md" for path in metadata_path.parent.iterdir()):
+            pytest.skip("case-insensitive filesystem cannot represent the fixture")
+
+        targets, errors = liveness.load_targets(skills)
+
+        assert targets == []
+        assert "canonical SKILL.md has invalid casing" in errors[0]["error"]
 
     def test_case_conflicting_skill_roots_are_rejected(self, tmp_path):
         skills = tmp_path / "skills"

@@ -26,12 +26,12 @@ import sys
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from archive_preflight import iter_canonical_archive_paths as _iter_canonical_archive_paths
 from asset_claims import requires_complete_bundled_archive
 from portable_paths import is_safe_portable_relative_path
 from skill_asset_audit import (
     classify_files,
     classify_skill_text,
-    iter_archived_skills,
     verdict_from_counts,
 )
 from sync_pipeline_support import (
@@ -100,63 +100,26 @@ def run_targets(root: str, min_stars: int) -> None:
         )
 
 
-def _is_canonical_archive_skill(dirpath: str, root: str | Path) -> bool:
-    try:
-        relative = Path(dirpath).resolve().relative_to(Path(root).resolve())
-    except ValueError:
-        return False
-    return len(relative.parts) == 2
-
-
-def _iter_canonical_archive_paths(root: str | Path):
-    """Yield canonical archive paths without parsing their metadata."""
-    root_path = Path(root)
-    if root_path.is_symlink():
-        raise ValueError(f"archive root must not be a symbolic link: {root}")
-    archive_root = root_path.resolve()
-
-    def raise_walk_error(error: OSError) -> None:
-        raise ValueError(f"unable to inspect archive tree {root}: {error}") from error
-
-    for dirpath, dirnames, filenames in os.walk(root, onerror=raise_walk_error):
-        for dirname in dirnames:
-            candidate = Path(dirpath, dirname)
-            if candidate.is_symlink():
-                relative = candidate.relative_to(root_path).as_posix()
-                raise ValueError(f"symbolic link is not allowed in archive tree: {relative}")
-        if ".git" in dirnames:
-            dirnames.remove(".git")
-        try:
-            relative = Path(dirpath).resolve().relative_to(archive_root)
-        except ValueError:
-            continue
-        if len(relative.parts) != 2:
-            continue
-        skill_variants = [name for name in filenames if name.casefold() == "skill.md"]
-        if skill_variants and "SKILL.md" not in skill_variants:
-            raise ValueError(
-                f"canonical SKILL.md has invalid casing: {relative / skill_variants[0]}"
-            )
-        if "SKILL.md" not in filenames:
-            continue
-        relative_path = relative.as_posix()
-        if not is_safe_portable_relative_path(relative_path):
-            raise ValueError(f"non-portable canonical archive path: {relative_path}")
-        yield relative_path
-
-
-def _assert_unique_canonical_archive_paths(root: str | Path) -> None:
-    if has_case_conflicting_paths(_iter_canonical_archive_paths(root)):
+def _assert_unique_canonical_archive_paths(paths: list[str], root: str | Path) -> None:
+    if has_case_conflicting_paths(paths):
         raise ValueError(f"archive contains case-conflicting skill roots: {root}")
 
 
 def _canonical_archive_rows(root: str | Path):
-    """Stream canonical archive rows after a lightweight path-only preflight."""
+    """Stream canonical rows from the single fail-closed archive preflight."""
     archive_root = Path(root).resolve()
-    _assert_unique_canonical_archive_paths(root)
-    for dirpath, metadata in iter_archived_skills(str(root)):
-        if _is_canonical_archive_skill(dirpath, archive_root):
-            yield dirpath, metadata
+    paths = list(_iter_canonical_archive_paths(root))
+    _assert_unique_canonical_archive_paths(paths, root)
+    for relative in paths:
+        dirpath = archive_root / relative
+        metadata_path = dirpath / "metadata.json"
+        metadata = None
+        if metadata_path.exists():
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ValueError(f"invalid metadata object: {metadata_path}: {exc}") from exc
+        yield str(dirpath), metadata
 
 
 def canonical_source_identity(
@@ -210,7 +173,7 @@ def _metadata_source_path(field: str, value: object) -> object:
     normalized = source_path.replace("\\", "/")
     if normalized.rsplit("/", 1)[-1].casefold() == "skill.md":
         return source_path
-    if PurePosixPath(normalized).suffix:
+    if normalized.rsplit("/", 1)[-1].casefold() in {"metadata.json", "readme.md"}:
         return source_path
     return f"{source_path}/SKILL.md"
 

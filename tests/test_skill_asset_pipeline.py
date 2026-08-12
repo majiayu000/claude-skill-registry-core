@@ -682,6 +682,75 @@ def make_backfill_target(
 
 class TestBackfillTargets:
     @pytest.mark.parametrize(
+        ("metadata", "approved"),
+        [
+            ({"license": "MIT", "distribution": "compatible"}, True),
+            ({"license": "MIT", "distribution": "restricted"}, False),
+            ({"license": "GPL-3.0", "distribution": "compatible"}, False),
+            ({}, False),
+        ],
+    )
+    def test_ordinary_asset_redistribution_requires_explicit_approval(
+        self, metadata, approved
+    ):
+        assert sync_download_support.asset_redistribution_approved(metadata) is approved
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            {
+                "type": "file",
+                "path": "scripts/tool.py",
+                "size": 0,
+                "submodule_git_url": "https://github.com/acme/tool.git",
+            },
+            {
+                "type": "file",
+                "path": "scripts/huge.py",
+                "size": sync_download_support.MAX_BUNDLED_FILE_BYTES + 1,
+            },
+        ],
+    )
+    def test_ordinary_collection_reports_support_scope_omissions(self, entry):
+        async def listing_fetcher(_session, _repo, _branch, _directory):
+            return [entry]
+
+        entries, incomplete = asyncio.run(
+            sync_download_support.collect_contents_bundled_file_entries(
+                object(),
+                "acme/tools",
+                "main",
+                "SKILL.md",
+                listing_fetcher=listing_fetcher,
+            )
+        )
+
+        assert entries == []
+        assert incomplete is True
+
+    def test_required_ordinary_bundle_rejects_empty_listing(self, tmp_path):
+        async def empty_collector(*_args):
+            return [], False
+
+        result = asyncio.run(
+            sync_download_support.download_bundled_files_to_directory(
+                object(),
+                "acme/tools",
+                "main",
+                "SKILL.md",
+                tmp_path,
+                True,
+                pin_commit_sha=False,
+                timeout=None,
+                tree_cache={},
+                contents_collector=empty_collector,
+            )
+        )
+
+        assert result[1] == ["required bundled archive contains no eligible support files"]
+        assert result[2] == "bundled_listing_incomplete"
+
+    @pytest.mark.parametrize(
         "paths",
         [
             ["references/Guide.md", "references/guide.md"],
