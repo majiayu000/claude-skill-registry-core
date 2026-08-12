@@ -710,6 +710,8 @@ def test_bundled_file_allowlist_is_scoped_and_size_limited():
         "references/a|b.md",
         "references/a<b.md",
         "references/a>b.md",
+        "references/COM¹.txt",
+        "references/lpt³.log",
     ):
         assert support.is_safe_portable_relative_path(invalid_path) is False
     assert (
@@ -728,6 +730,7 @@ def test_bundled_file_allowlist_is_scoped_and_size_limited():
     assert module.should_recurse_bundled_dir("src") is True
     assert module.should_recurse_bundled_dir("design-spatial") is True
     assert module.should_recurse_bundled_dir("docs") is False
+    assert support.has_case_conflicting_paths(["references/Guide.md", "references/guide.md"])
     assert module.is_safe_bundled_file("references/helper.py", 1024) is True
     assert module.is_safe_bundled_file("reference/environment.md", 1024) is True
     assert module.is_safe_bundled_file("connectors/slack.md", 1024) is True
@@ -1135,6 +1138,77 @@ def test_non_portable_required_bundle_path_fails_instead_of_degrading(tmp_path, 
     failure_report = json.loads(failure_report_path.read_text())
     assert failure_report["failure_reasons"]["bundled_listing_failed"] == 1
     assert "non-portable bundled path" in failure_report["failures"]["bundled_listing_failed"][0]
+
+
+def test_case_conflicting_required_bundle_paths_fail_before_download(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure_report.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "skills/demo",
+                        "category": "development",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            "https://raw.githubusercontent.com/acme/demo/main/skills/demo/SKILL.md": FakeResponse(
+                200,
+                text=(
+                    "---\nname: demo\ndescription: Demo with required assets.\n---\n"
+                    "# Demo\nRead references/Guide.md before use.\n"
+                ),
+            ),
+            "https://api.github.com/repos/acme/demo/contents/skills/demo?ref=main": FakeResponse(
+                200,
+                json_payload=[{"type": "dir", "path": "skills/demo/references", "size": 0}],
+            ),
+            "https://api.github.com/repos/acme/demo/contents/skills/demo/references?ref=main": (
+                FakeResponse(
+                    200,
+                    json_payload=[
+                        {
+                            "type": "file",
+                            "path": "skills/demo/references/Guide.md",
+                            "size": 10,
+                        },
+                        {
+                            "type": "file",
+                            "path": "skills/demo/references/guide.md",
+                            "size": 10,
+                        },
+                    ],
+                )
+            ),
+        },
+    )
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            failure_report_path=failure_report_path,
+        )
+    )
+
+    assert stats["downloaded"] == 0
+    failure_report = json.loads(failure_report_path.read_text())
+    assert failure_report["failure_reasons"]["bundled_listing_failed"] == 1
+    assert (
+        "case-conflicting bundled paths" in failure_report["failures"]["bundled_listing_failed"][0]
+    )
+    assert not list(output_dir.rglob("SKILL.md"))
 
 
 def test_bundled_listing_failure_degrades_when_skill_has_no_support_refs(

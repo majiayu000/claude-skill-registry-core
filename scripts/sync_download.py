@@ -39,6 +39,7 @@ from sync_pipeline_support import (
     normalize_skill_frontmatter_description,
     not_found_cooldown_hours,
     prune_negative_cache,
+    reject_case_conflicting_paths,
     remove_ci_untracked_archive_files,
     requires_complete_bundled_archive,
     sanitize_category,
@@ -378,7 +379,6 @@ async def download_skills(
         queue = [source_dir]
         seen_dirs = set()
         candidates: list[dict] = []
-
         while queue:
             current_dir = queue.pop(0)
             if current_dir in seen_dirs:
@@ -417,7 +417,7 @@ async def download_skills(
                         }
                     )
 
-        selected: list[dict] = []
+        selected: list[dict] = reject_case_conflicting_paths((entry["relative_path"] for entry in candidates), source_dir) or []
         total_size = 0
         for entry in sorted(candidates, key=lambda item: item["relative_path"]):
             if len(selected) >= MAX_BUNDLED_FILES_PER_SKILL:

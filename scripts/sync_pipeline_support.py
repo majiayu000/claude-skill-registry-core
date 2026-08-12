@@ -30,6 +30,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 
@@ -214,6 +215,27 @@ def bundled_relative_path(source_dir: str, repo_path: str) -> str:
     if not repo_path.startswith(prefix):
         return ""
     return repo_path[len(prefix) :]
+
+
+def has_case_conflicting_paths(paths: Iterable[str]) -> bool:
+    """Detect case-only conflicts in complete paths or any directory prefix."""
+    seen: dict[str, str] = {}
+    for relative in paths:
+        parts = relative.split("/")
+        for length in range(1, len(parts) + 1):
+            prefix = "/".join(parts[:length])
+            folded = prefix.casefold()
+            previous = seen.get(folded)
+            if previous is not None and previous != prefix:
+                return True
+            seen[folded] = prefix
+    return False
+
+
+def reject_case_conflicting_paths(paths: Iterable[str], directory_path: str) -> None:
+    """Reject a bundled listing that cannot be represented cross-platform."""
+    if has_case_conflicting_paths(paths):
+        raise BundledListingError(directory_path, "case-conflicting bundled paths")
 
 
 def is_safe_portable_relative_path(value: object) -> bool:
