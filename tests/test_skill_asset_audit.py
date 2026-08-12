@@ -38,9 +38,15 @@ class TestClassifySkillText:
 
 class TestClassifyFiles:
     def test_counts_and_ignores_skill_md(self):
-        counts = classify_files([
-            "s/SKILL.md", "s/metadata.json", "s/run.py", "s/notes.md", "s/logo.png",
-        ])
+        counts = classify_files(
+            [
+                "s/SKILL.md",
+                "s/metadata.json",
+                "s/run.py",
+                "s/notes.md",
+                "s/logo.png",
+            ]
+        )
         assert counts == {"exec": 1, "doc": 1, "asset": 1}
 
     def test_verdicts(self):
@@ -52,39 +58,50 @@ class TestClassifyFiles:
 class TestStrictBackfillInventory:
     @pytest.mark.parametrize("repo", ["../tools", "owner/..", "./repo", "owner/."])
     def test_rejects_dot_segment_repository_components(self, repo):
-        assert audit_skill_assets.canonical_source_identity(
-            repo, "skills/demo/SKILL.md"
-        )[2] == "invalid_repo"
+        assert (
+            audit_skill_assets.canonical_source_identity(repo, "skills/demo/SKILL.md")[2]
+            == "invalid_repo"
+        )
 
     def test_requires_one_exact_source_branch(self):
         assert audit_skill_assets.canonical_source_branch_from_metadata({}) == (
             "",
             "missing_source_branch",
         )
-        assert audit_skill_assets.canonical_source_branch_from_metadata({
-            "github_branch": "main",
-            "branch": "release",
-        }) == ("", "conflicting_source_branch_aliases")
-        assert audit_skill_assets.canonical_source_branch_from_metadata({
-            "github_branch": " release/v1 ",
-            "branch": "release/v1",
-        }) == ("release/v1", "")
+        assert audit_skill_assets.canonical_source_branch_from_metadata(
+            {
+                "github_branch": "main",
+                "branch": "release",
+            }
+        ) == ("", "conflicting_source_branch_aliases")
+        assert audit_skill_assets.canonical_source_branch_from_metadata(
+            {
+                "github_branch": " release/v1 ",
+                "branch": "release/v1",
+            }
+        ) == ("release/v1", "")
         pinned_ref = "a" * 40
-        assert audit_skill_assets.canonical_source_branch_from_metadata({
-            "github_branch": pinned_ref,
-        }) == (pinned_ref, "")
-        assert audit_skill_assets.canonical_source_branch_from_metadata({
-            "github_branch": "@",
-        }) == ("@", "")
+        assert audit_skill_assets.canonical_source_branch_from_metadata(
+            {
+                "github_branch": pinned_ref,
+            }
+        ) == (pinned_ref, "")
+        assert audit_skill_assets.canonical_source_branch_from_metadata(
+            {
+                "github_branch": "@",
+            }
+        ) == ("@", "")
 
     @pytest.mark.parametrize(
         "source_ref",
         ["main..evil", "main@{x}", "main.lock", ".hidden", "main/", "-main", "main?"],
     )
     def test_rejects_invalid_git_source_refs(self, source_ref):
-        assert audit_skill_assets.canonical_source_branch_from_metadata({
-            "github_branch": source_ref,
-        }) == ("", "invalid_source_branch")
+        assert audit_skill_assets.canonical_source_branch_from_metadata(
+            {
+                "github_branch": source_ref,
+            }
+        ) == ("", "invalid_source_branch")
 
     def test_rejects_case_colliding_archive_roots(self, tmp_path, monkeypatch):
         root = tmp_path / "data"
@@ -157,9 +174,7 @@ class TestStrictBackfillInventory:
             ),
         ],
     )
-    def test_normalizes_repository_directory_form_metadata_paths(
-        self, metadata, expected_path
-    ):
+    def test_normalizes_repository_directory_form_metadata_paths(self, metadata, expected_path):
         assert audit_skill_assets.canonical_source_identity_from_metadata(metadata) == (
             "acme/tools",
             expected_path,
@@ -167,9 +182,11 @@ class TestStrictBackfillInventory:
         )
 
     def test_direct_canonical_source_still_requires_exact_skill_path(self):
-        assert audit_skill_assets.canonical_source_identity(
-            "acme/tools", "skills/demo"
-        ) == ("acme/tools", "skills/demo", "source_path_not_skill_md")
+        assert audit_skill_assets.canonical_source_identity("acme/tools", "skills/demo") == (
+            "acme/tools",
+            "skills/demo",
+            "source_path_not_skill_md",
+        )
 
     def test_conflicting_aliases_contribute_every_normalized_identity_key(self):
         keys = audit_skill_assets._identity_keys(
@@ -207,9 +224,11 @@ class TestStrictBackfillInventory:
         ],
     )
     def test_rejects_non_portable_bundled_file_declarations(self, declared):
-        assert audit_skill_assets._declared_bundled_files({
-            "bundled_files": declared,
-        }) == ([], False)
+        assert audit_skill_assets._declared_bundled_files(
+            {
+                "bundled_files": declared,
+            }
+        ) == ([], False)
 
     def test_nested_metadata_is_a_bundled_asset(self):
         assert audit_skill_assets._local_verdict(["references/metadata.json"]) == "REF_ASSET"
@@ -263,18 +282,18 @@ class TestStrictBackfillInventory:
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("Run scripts/setup.py.", encoding="utf-8")
         (skill / "metadata.json").write_text(
-            json.dumps({
-                "repo": "acme/tools",
-                "path": "skills/demo/SKILL.md",
-                "github_branch": "release/v1",
-                "stars": 100,
-            }),
+            json.dumps(
+                {
+                    "repo": "acme/tools",
+                    "path": "skills/demo/SKILL.md",
+                    "github_branch": "release/v1",
+                    "stars": 100,
+                }
+            ),
             encoding="utf-8",
         )
 
-        [target] = audit_skill_assets.build_backfill_targets(
-            str(tmp_path / "data"), min_stars=100
-        )
+        [target] = audit_skill_assets.build_backfill_targets(str(tmp_path / "data"), min_stars=100)
 
         assert target["github_branch"] == "release/v1"
 
@@ -294,9 +313,7 @@ class TestStrictBackfillInventory:
             encoding="utf-8",
         )
 
-        [target] = audit_skill_assets.build_backfill_targets(
-            str(tmp_path / "data"), min_stars=100
-        )
+        [target] = audit_skill_assets.build_backfill_targets(str(tmp_path / "data"), min_stars=100)
 
         assert target["source_path"] == "skills/demo/SKILL.md"
         assert target["stable_key"] == "acme/tools:skills/demo/SKILL.md"
@@ -384,23 +401,44 @@ class FakeLivenessClient:
 
 
 class TestAssetLiveness:
+    def test_skips_ordinary_directory_archives_without_verification_evidence(self, tmp_path):
+        skills = tmp_path / "skills"
+        metadata_path = make_verified_asset(skills, "ordinary")
+        metadata = json.loads(metadata_path.read_text())
+        for field in liveness.VERIFICATION_EVIDENCE_FIELDS:
+            metadata.pop(field, None)
+        metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+        targets, errors = liveness.load_targets(skills)
+
+        assert targets == []
+        assert errors == []
+
     def test_groups_repository_and_branch_then_applies_live_and_partial(self, tmp_path):
         skills = tmp_path / "skills"
         first = make_verified_asset(skills, "alpha")
         second = make_verified_asset(skills, "beta")
-        client = FakeLivenessClient({
-            "skills/alpha/SKILL.md",
-            "skills/alpha/scripts/run.py",
-            "skills/beta/SKILL.md",
-        })
+        client = FakeLivenessClient(
+            {
+                "skills/alpha/SKILL.md",
+                "skills/alpha/scripts/run.py",
+                "skills/beta/SKILL.md",
+            }
+        )
         report_path = tmp_path / "report.json"
 
-        result = liveness.main([
-            "--skills-dir", str(skills),
-            "--report", str(report_path),
-            "--apply",
-            "--max-decayed-percent", "100",
-        ], client=client)
+        result = liveness.main(
+            [
+                "--skills-dir",
+                str(skills),
+                "--report",
+                str(report_path),
+                "--apply",
+                "--max-decayed-percent",
+                "100",
+            ],
+            client=client,
+        )
 
         assert result == 0
         assert [call[0] for call in client.calls] == ["repo", "branch", "tree"]
@@ -420,23 +458,29 @@ class TestAssetLiveness:
         skills = tmp_path / "skills"
         metadata_path = make_verified_asset(skills, "alpha")
         metadata = json.loads(metadata_path.read_text())
-        metadata.update({
-            "asset_liveness": "live",
-            "assets_liveness_checked_at": "2026-08-02T00:00:00Z",
-            "assets_liveness_sha": "c" * 40,
-        })
+        metadata.update(
+            {
+                "asset_liveness": "live",
+                "assets_liveness_checked_at": "2026-08-02T00:00:00Z",
+                "assets_liveness_sha": "c" * 40,
+            }
+        )
         metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
         before = metadata_path.read_bytes()
-        client = FakeLivenessClient(
-            repo_error=liveness.GitHubApiError(503, "service unavailable")
-        )
+        client = FakeLivenessClient(repo_error=liveness.GitHubApiError(503, "service unavailable"))
 
-        result = liveness.main([
-            "--skills-dir", str(skills),
-            "--report", str(tmp_path / "report.json"),
-            "--apply",
-            "--max-error-percent", "100",
-        ], client=client)
+        result = liveness.main(
+            [
+                "--skills-dir",
+                str(skills),
+                "--report",
+                str(tmp_path / "report.json"),
+                "--apply",
+                "--max-error-percent",
+                "100",
+            ],
+            client=client,
+        )
 
         assert result == 0
         assert metadata_path.read_bytes() == before
@@ -451,12 +495,18 @@ class TestAssetLiveness:
         metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
         client = FakeLivenessClient(repo_error=liveness.GitHubApiError(404, "not found"))
 
-        result = liveness.main([
-            "--skills-dir", str(skills),
-            "--report", str(tmp_path / "report.json"),
-            "--apply",
-            "--max-decayed-percent", "100",
-        ], client=client)
+        result = liveness.main(
+            [
+                "--skills-dir",
+                str(skills),
+                "--report",
+                str(tmp_path / "report.json"),
+                "--apply",
+                "--max-decayed-percent",
+                "100",
+            ],
+            client=client,
+        )
 
         assert result == 0
         updated = json.loads(metadata_path.read_text())
@@ -484,9 +534,7 @@ class TestAssetLiveness:
         make_verified_asset(skills, "alpha")
         targets, errors = liveness.load_targets(skills)
         assert not errors
-        client = FakeLivenessClient(
-            tree_error=liveness.GitHubApiError(404, "tree unavailable")
-        )
+        client = FakeLivenessClient(tree_error=liveness.GitHubApiError(404, "tree unavailable"))
         [row] = liveness.verify_targets(targets, client, "now")
         assert row["status"] == "verification_error"
         assert [call[0] for call in client.calls] == ["repo", "branch", "tree"]
@@ -507,12 +555,18 @@ class TestAssetLiveness:
         client = FakeLivenessClient()
         before = metadata_path.read_bytes()
 
-        result = liveness.main([
-            "--skills-dir", str(skills),
-            "--report", str(tmp_path / "report.json"),
-            "--apply",
-            "--max-error-percent", "100",
-        ], client=client)
+        result = liveness.main(
+            [
+                "--skills-dir",
+                str(skills),
+                "--report",
+                str(tmp_path / "report.json"),
+                "--apply",
+                "--max-error-percent",
+                "100",
+            ],
+            client=client,
+        )
 
         assert result == 1
         assert client.calls == []
@@ -533,11 +587,13 @@ class TestAssetLiveness:
         targets, errors = liveness.load_targets(skills)
 
         assert targets == []
-        assert errors == [{
-            "stable_key": "dev/alpha",
-            "status": "local_error",
-            "error": "metadata.json must be a regular file",
-        }]
+        assert errors == [
+            {
+                "stable_key": "dev/alpha",
+                "status": "local_error",
+                "error": "metadata.json must be a regular file",
+            }
+        ]
 
     @pytest.mark.parametrize(
         "change,error",
@@ -545,6 +601,11 @@ class TestAssetLiveness:
             ({"bundled_files": []}, "non-empty"),
             ({"bundled_files": ["../run.py"]}, "invalid or duplicate"),
             ({"bundled_files": ["C:scripts/run.py"]}, "invalid or duplicate"),
+            (
+                {"bundled_files": ["scripts/Run.py", "scripts/run.py"]},
+                "case-conflicting",
+            ),
+            ({"github_commit_sha": None}, "immutable"),
             ({"github_commit_sha": "not-a-sha"}, "immutable"),
             ({"github_branch": ""}, "github_branch must be a non-empty string"),
             ({"github_branch": "d" * 40}, "raw commit SHA"),
@@ -577,9 +638,7 @@ class TestAssetLiveness:
             (skills / "dev").symlink_to(external / "dev", target_is_directory=True)
         else:
             (skills / "dev").mkdir()
-            (skills / "dev" / "alpha").symlink_to(
-                metadata_path.parent, target_is_directory=True
-            )
+            (skills / "dev" / "alpha").symlink_to(metadata_path.parent, target_is_directory=True)
         targets, errors = liveness.load_targets(skills)
         assert targets == []
         assert "cannot be a symlink" in errors[0]["error"]
@@ -590,7 +649,9 @@ class TestAssetLiveness:
         targets, errors = liveness.load_targets(skills)
         assert not errors
         metadata_path.write_text(metadata_path.read_text() + "\n", encoding="utf-8")
-        rows = [{"stable_key": targets[0].stable_key, "status": "live", "current_source_sha": "b" * 40}]
+        rows = [
+            {"stable_key": targets[0].stable_key, "status": "live", "current_source_sha": "b" * 40}
+        ]
         apply_errors = liveness.apply_updates(targets, rows, "now")
         assert "changed after verification" in apply_errors[0]
 
@@ -609,9 +670,12 @@ class TestAssetLiveness:
         )
         assert len(errors) == 3
         report["summary"] = {"live": 3}
-        assert "summary mismatch" in liveness.gate_errors(
-            report, max_decayed_percent=100, max_error_percent=100, min_targets=1
-        )[0]
+        assert (
+            "summary mismatch"
+            in liveness.gate_errors(
+                report, max_decayed_percent=100, max_error_percent=100, min_targets=1
+            )[0]
+        )
         malformed = liveness.gate_errors(
             {"rows": None, "summary": {}, "target_count": 0},
             max_decayed_percent=100,
@@ -647,15 +711,27 @@ class TestAssetLiveness:
             real_write(path, content)
 
         monkeypatch.setattr(liveness, "_write_atomic", fail_second_update)
-        client = FakeLivenessClient({
-            "skills/alpha/SKILL.md", "skills/alpha/scripts/run.py",
-            "skills/beta/SKILL.md", "skills/beta/scripts/run.py",
-        })
+        client = FakeLivenessClient(
+            {
+                "skills/alpha/SKILL.md",
+                "skills/alpha/scripts/run.py",
+                "skills/beta/SKILL.md",
+                "skills/beta/scripts/run.py",
+            }
+        )
         report_path = tmp_path / "report.json"
-        result = liveness.main([
-            "--skills-dir", str(skills), "--report", str(report_path), "--apply",
-            "--max-error-percent", "100",
-        ], client=client)
+        result = liveness.main(
+            [
+                "--skills-dir",
+                str(skills),
+                "--report",
+                str(report_path),
+                "--apply",
+                "--max-error-percent",
+                "100",
+            ],
+            client=client,
+        )
         assert result == 1
         assert {path: path.read_bytes() for path in (first, second)} == originals
         report = json.loads(report_path.read_text())
@@ -666,9 +742,12 @@ class TestAssetLiveness:
         skills = tmp_path / "skills"
         metadata_path = make_verified_asset(skills, "alpha")
         original = metadata_path.read_bytes()
-        client = FakeLivenessClient({
-            "skills/alpha/SKILL.md", "skills/alpha/scripts/run.py",
-        })
+        client = FakeLivenessClient(
+            {
+                "skills/alpha/SKILL.md",
+                "skills/alpha/scripts/run.py",
+            }
+        )
         real_tree = client.tree
 
         def mutate_then_list(repo, sha):
@@ -677,10 +756,18 @@ class TestAssetLiveness:
 
         client.tree = mutate_then_list
         report_path = tmp_path / "report.json"
-        result = liveness.main([
-            "--skills-dir", str(skills), "--report", str(report_path), "--apply",
-            "--max-error-percent", "100",
-        ], client=client)
+        result = liveness.main(
+            [
+                "--skills-dir",
+                str(skills),
+                "--report",
+                str(report_path),
+                "--apply",
+                "--max-error-percent",
+                "100",
+            ],
+            client=client,
+        )
         assert result == 1
         assert metadata_path.read_bytes() == original + b"\n"
         report = json.loads(report_path.read_text())
@@ -745,14 +832,19 @@ class TestGitHubClient:
 
     def test_encodes_branch_and_parses_blob_tree(self, monkeypatch):
         requests = []
-        payloads = iter([
-            {"name": "feature/assets", "commit": {"sha": "a" * 40}},
-            {"truncated": False, "tree": [
-                {"path": "SKILL.md", "type": "blob", "mode": "100644"},
-                {"path": "linked.py", "type": "blob", "mode": "120000"},
-                {"path": "dir", "type": "tree", "mode": "040000"},
-            ]},
-        ])
+        payloads = iter(
+            [
+                {"name": "feature/assets", "commit": {"sha": "a" * 40}},
+                {
+                    "truncated": False,
+                    "tree": [
+                        {"path": "SKILL.md", "type": "blob", "mode": "100644"},
+                        {"path": "linked.py", "type": "blob", "mode": "120000"},
+                        {"path": "dir", "type": "tree", "mode": "040000"},
+                    ],
+                },
+            ]
+        )
 
         def fake_urlopen(request, timeout):
             requests.append((request, timeout))
@@ -768,7 +860,9 @@ class TestGitHubClient:
     def test_http_and_malformed_tree_fail_explicitly(self, monkeypatch):
         def http_error(_request, timeout):
             assert timeout == 30
-            raise urllib.error.HTTPError("url", 404, "missing", {}, self.Response({"message": "missing"}))
+            raise urllib.error.HTTPError(
+                "url", 404, "missing", {}, self.Response({"message": "missing"})
+            )
 
         monkeypatch.setattr(liveness.urllib.request, "urlopen", http_error)
         with pytest.raises(liveness.GitHubApiError, match="404") as caught:

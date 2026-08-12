@@ -40,6 +40,7 @@ ROOT_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from portable_paths import is_safe_portable_relative_path as _is_safe_portable_relative_path
 from security_blocklist import blocked_metadata_source
 from skill_frontmatter import normalize_skill_frontmatter
 from utils import (
@@ -291,8 +292,6 @@ def bundled_relative_path(source_dir: str, repo_path: str) -> str:
     if not repo_path.startswith(prefix):
         return ""
     return repo_path[len(prefix) :]
-
-
 def has_case_conflicting_paths(paths: Iterable[str]) -> bool:
     """Detect case-only conflicts in complete paths or any directory prefix."""
     seen: dict[str, str] = {}
@@ -327,15 +326,8 @@ def is_valid_git_source_ref(ref: str) -> bool:
 
 
 def is_safe_portable_relative_path(value: object) -> bool:
-    """Return whether value is a strict POSIX relative path on every platform."""
-    if not isinstance(value, str) or not value or value != value.strip() or "\\" in value:
-        return False
-    if re.match(r"^[A-Za-z]:", value):
-        return False
-    parts = value.split("/")
-    if any(part in {"", ".", ".."} for part in parts):
-        return False
-    return not PurePosixPath(value).is_absolute()
+    """Expose the side-effect-free portable path validator to pipeline callers."""
+    return _is_safe_portable_relative_path(value)
 
 
 def should_recurse_bundled_dir(relative_path: str) -> bool:
