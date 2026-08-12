@@ -237,6 +237,8 @@ class TestCurrentStateInventory:
             "metadata_mismatch_count": 1,
             "source_identity_error_count": 0,
             "source_identity_errors": [],
+            "metadata_error_count": 0,
+            "metadata_errors": [],
             "ambiguous_stable_key_count": 0,
             "backfill_candidate_count": 1,
         }
@@ -309,6 +311,33 @@ class TestCurrentStateInventory:
             }
         ]
         with pytest.raises(ValueError, match="dev/missing-path.*missing_source_path"):
+            audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
+
+    def test_invalid_candidate_bundle_declaration_blocks_targets(self, tmp_path):
+        root = tmp_path / "data"
+        make_skill(
+            root,
+            "dev",
+            "invalid-bundle",
+            "Run scripts/build.py.",
+            {
+                "stars": 900,
+                "repo": "acme/tools",
+                "path": "skills/invalid-bundle/SKILL.md",
+                "github_branch": "main",
+                "bundled_files": ["references/a:b.md"],
+            },
+        )
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=100)
+        assert report["metadata_errors"] == [
+            {
+                "archive_path": "dev/invalid-bundle",
+                "error": "invalid_bundled_files",
+                "eligible_for_backfill": True,
+            }
+        ]
+        with pytest.raises(ValueError, match="dev/invalid-bundle.*invalid_bundled_files"):
             audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
 
     @pytest.mark.parametrize(
