@@ -98,21 +98,34 @@ def _is_canonical_archive_skill(dirpath: str, root: str | Path) -> bool:
     return len(relative.parts) == 2
 
 
-def _canonical_archive_rows(root: str | Path) -> list[tuple[str, dict | None]]:
-    """Return canonical archive roots after rejecting global case collisions."""
+def _iter_canonical_archive_paths(root: str | Path):
+    """Yield canonical archive paths without parsing their metadata."""
     archive_root = Path(root).resolve()
-    rows = [
-        (dirpath, metadata)
-        for dirpath, metadata in iter_archived_skills(str(root))
-        if _is_canonical_archive_skill(dirpath, archive_root)
-    ]
-    relative_dirs = [
-        Path(dirpath).resolve().relative_to(archive_root).as_posix()
-        for dirpath, _metadata in rows
-    ]
-    if has_case_conflicting_paths(relative_dirs):
+    for dirpath, dirnames, filenames in os.walk(root):
+        if ".git" in dirnames:
+            dirnames.remove(".git")
+        if "SKILL.md" not in filenames:
+            continue
+        try:
+            relative = Path(dirpath).resolve().relative_to(archive_root)
+        except ValueError:
+            continue
+        if len(relative.parts) == 2:
+            yield relative.as_posix()
+
+
+def _assert_unique_canonical_archive_paths(root: str | Path) -> None:
+    if has_case_conflicting_paths(_iter_canonical_archive_paths(root)):
         raise ValueError(f"archive contains case-conflicting skill roots: {root}")
-    return rows
+
+
+def _canonical_archive_rows(root: str | Path):
+    """Stream canonical archive rows after a lightweight path-only preflight."""
+    archive_root = Path(root).resolve()
+    _assert_unique_canonical_archive_paths(root)
+    for dirpath, metadata in iter_archived_skills(str(root)):
+        if _is_canonical_archive_skill(dirpath, archive_root):
+            yield dirpath, metadata
 
 
 def canonical_source_identity(
@@ -128,7 +141,7 @@ def canonical_source_identity(
         return repo, "", "missing_source_path"
 
     source_path = path_value.strip().replace("\\", "/")
-    if source_path.startswith("/") or re.match(r"^[A-Za-z]:/", source_path):
+    if source_path.startswith("/") or re.match(r"^[A-Za-z]:", source_path):
         return repo, source_path, "absolute_source_path"
     parts = source_path.split("/")
     if any(part in {"", ".", ".."} for part in parts):
@@ -144,8 +157,9 @@ def canonical_source_identity_from_metadata(metadata: dict) -> tuple[str, str, s
     for field in ("path", "github_path"):
         if field not in metadata:
             continue
+        path_value = _metadata_source_path(field, metadata[field])
         repo, source_path, error = canonical_source_identity(
-            metadata.get("repo"), metadata[field]
+            metadata.get("repo"), path_value
         )
         if error:
             return repo, source_path, error
@@ -155,6 +169,19 @@ def canonical_source_identity_from_metadata(metadata: dict) -> tuple[str, str, s
     if any(identity != aliases[0] for identity in aliases[1:]):
         return aliases[0][0], aliases[0][1], "conflicting_source_path_aliases"
     return aliases[0][0], aliases[0][1], ""
+
+
+def _metadata_source_path(field: str, value: object) -> object:
+    """Expand the legacy directory-form github_path into an exact SKILL.md path."""
+    if field != "github_path" or not isinstance(value, str):
+        return value
+    source_path = value.strip()
+    if not source_path:
+        return "SKILL.md"
+    normalized = source_path.replace("\\", "/")
+    if normalized.rsplit("/", 1)[-1].casefold() == "skill.md":
+        return source_path
+    return f"{source_path}/SKILL.md"
 
 
 def canonical_source_branch_from_metadata(metadata: dict) -> tuple[str, str]:
@@ -191,12 +218,16 @@ def _identity_keys(metadata: dict, *, name: str, category: str) -> set[str]:
     """Return every plausible key so malformed aliases still make duplicates ambiguous."""
     repo_value = metadata.get("repo")
     repo = repo_value.strip() if isinstance(repo_value, str) else ""
-    values = [metadata[field] for field in ("path", "github_path") if field in metadata]
+    values = [
+        (field, _metadata_source_path(field, metadata[field]))
+        for field in ("path", "github_path")
+        if field in metadata
+    ]
     if not values:
-        values = [None]
+        values = [("path", None)]
 
     keys = set()
-    for value in values:
+    for _field, value in values:
         exact_repo, source_path, error = canonical_source_identity(repo_value, value)
         if not error:
             keys.add(f"{exact_repo.casefold()}:{source_path}")
@@ -260,7 +291,7 @@ def _declared_bundled_files(metadata: dict) -> tuple[list[str], bool]:
     for value in declared:
         if not isinstance(value, str) or not value or value != value.strip() or "\\" in value:
             return [], False
-        if re.match(r"^[A-Za-z]:/", value) or any(
+        if re.match(r"^[A-Za-z]:", value) or any(
             part in {"", ".", ".."} for part in value.split("/")
         ):
             return [], False
