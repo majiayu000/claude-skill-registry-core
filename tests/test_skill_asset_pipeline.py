@@ -75,8 +75,13 @@ def archive(tmp_path):
         "dev",
         "plain",
         "Just prose, no local files.",
-        {"stars": 900, "repo": "acme/plain", "path": "skills/plain/SKILL.md",
-         "github_branch": "main", "name": "plain"},
+        {
+            "stars": 900,
+            "repo": "acme/plain",
+            "path": "skills/plain/SKILL.md",
+            "github_branch": "main",
+            "name": "plain",
+        },
     )
     make_skill(
         root,
@@ -456,6 +461,31 @@ class TestCurrentStateInventory:
         with pytest.raises(ValueError, match="symbolic link"):
             audit_skill_assets.run_current_state(str(root))
 
+    def test_rejects_non_portable_existing_asset_paths(self, tmp_path):
+        root = tmp_path / "data"
+        skill = make_skill(
+            root,
+            "dev",
+            "non-portable",
+            "Read references/a:b.md.",
+            {"repo": "acme/tools", "path": "skills/non-portable/SKILL.md"},
+        )
+        (skill / "references").mkdir()
+        (skill / "references" / "a:b.md").write_text("body")
+
+        with pytest.raises(ValueError, match="non-portable path"):
+            audit_skill_assets.run_current_state(str(root))
+
+    def test_rejects_symlinked_archive_directories(self, tmp_path):
+        root = tmp_path / "data"
+        make_skill(root, "dev", "valid", "body")
+        outside = tmp_path / "outside-category"
+        make_skill(outside, "external", "linked", "body")
+        (root / "linked-category").symlink_to(outside / "external", target_is_directory=True)
+
+        with pytest.raises(ValueError, match="symbolic link"):
+            audit_skill_assets.run_current_state(str(root))
+
     @pytest.mark.parametrize("metadata_text", ["{broken", "[]"])
     def test_rejects_invalid_metadata(self, tmp_path, metadata_text):
         root = tmp_path / "data"
@@ -561,9 +591,7 @@ class TestBackfillTargets:
     def test_download_selection_rejects_case_conflicts(self, paths):
         entries = [{"relative_path": path, "size": 1} for path in paths]
 
-        with pytest.raises(
-            sync_download_support.BundledListingError, match="case-conflicting"
-        ):
+        with pytest.raises(sync_download_support.BundledListingError, match="case-conflicting"):
             sync_download_support.select_bundled_file_entries(entries)
 
     def test_loads_exact_target_and_preserves_existing_metadata(self, tmp_path):
@@ -588,9 +616,7 @@ class TestBackfillTargets:
             {"github_branch": "release/v2"},
         ],
     )
-    def test_rejects_missing_invalid_or_mismatched_target_branch(
-        self, tmp_path, branch_update
-    ):
+    def test_rejects_missing_invalid_or_mismatched_target_branch(self, tmp_path, branch_update):
         archive_root = tmp_path / "archive"
         _skill, target = make_backfill_target(archive_root)
         targets_path = tmp_path / "targets.jsonl"
@@ -724,9 +750,35 @@ class TestApplyStagedArchives:
             backfill_skill_assets,
             "_scan_archives_with_clamav",
             lambda archives, _binary: {
-                key: backfill_skill_assets._archive_snapshot(path)
-                for key, path in archives.items()
+                key: backfill_skill_assets._archive_snapshot(path) for key, path in archives.items()
             },
+        )
+
+    def test_archive_snapshot_is_unambiguous_for_nul_content(self, tmp_path):
+        single = tmp_path / "single"
+        split = tmp_path / "split"
+        single.mkdir()
+        split.mkdir()
+        (single / "a").write_bytes(b"x\0z\0")
+        (split / "a").write_bytes(b"x")
+        (split / "z").write_bytes(b"")
+
+        assert backfill_skill_assets._archive_snapshot(single) != (
+            backfill_skill_assets._archive_snapshot(split)
+        )
+
+    def test_archive_snapshot_includes_executable_mode(self, tmp_path):
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        first.mkdir()
+        second.mkdir()
+        (first / "run.sh").write_text("exit 0")
+        (second / "run.sh").write_text("exit 0")
+        (first / "run.sh").chmod(0o644)
+        (second / "run.sh").chmod(0o755)
+
+        assert backfill_skill_assets._archive_snapshot(first) != (
+            backfill_skill_assets._archive_snapshot(second)
         )
 
     def test_applies_complete_staged_archive(self, tmp_path, monkeypatch):
@@ -910,8 +962,7 @@ class TestApplyStagedArchives:
             for path in archives.values():
                 scanned_metadata.append(json.loads((path / "metadata.json").read_text()))
             return {
-                key: backfill_skill_assets._archive_snapshot(path)
-                for key, path in archives.items()
+                key: backfill_skill_assets._archive_snapshot(path) for key, path in archives.items()
             }
 
         monkeypatch.setattr(backfill_skill_assets, "_scan_archives_with_clamav", scan_final)
