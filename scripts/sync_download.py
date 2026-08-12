@@ -42,6 +42,7 @@ from sync_pipeline_support import (
     bundled_relative_path,
     filter_pending_skills,
     is_safe_bundled_file,
+    is_safe_portable_relative_path,
     is_submodule_contents_entry,
     load_acquisition_manifest,
     load_learning_priors,
@@ -388,6 +389,10 @@ async def download_skills(
         if not repo:
             failures["no_repo"].append(name)
             add_observation(skill, outcome="failed", failure_reason="no_repo")
+            return False
+        if path and not is_safe_portable_relative_path(path):
+            failures["invalid_source_path"].append(name)
+            add_observation(skill, outcome="failed", failure_reason="invalid_source_path")
             return False
         blocked_source = blocked_metadata_source(
             {

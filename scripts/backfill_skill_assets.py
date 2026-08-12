@@ -33,7 +33,10 @@ from audit_skill_assets import (
 )
 from sync_download import download_skills
 from sync_download_support import bundled_file_blobs_match, exact_source_branch
-from sync_pipeline_support import has_case_conflicting_paths
+from sync_pipeline_support import (
+    has_case_conflicting_paths,
+    is_safe_portable_relative_path,
+)
 
 
 def _assert_no_symlink_components(root: Path, destination: Path) -> None:
@@ -283,7 +286,7 @@ def validate_staged_archives(targets: list[dict], stage_root: Path) -> dict[str,
         declared = metadata.get("bundled_files")
         if not isinstance(declared, list) or not declared:
             raise ValueError(f"staged backfill contains no bundled files: {stable_key}")
-        if any(not isinstance(path, str) or not path for path in declared):
+        if any(not is_safe_portable_relative_path(path) for path in declared):
             raise ValueError(f"staged bundled_files is malformed: {metadata_path}")
         if has_case_conflicting_paths(declared):
             raise ValueError(f"staged bundled_files contains case conflicts: {metadata_path}")

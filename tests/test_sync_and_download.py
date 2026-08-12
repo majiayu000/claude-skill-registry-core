@@ -410,6 +410,48 @@ def test_download_blocks_security_listed_source_path_alias(tmp_path, monkeypatch
     assert failure_report["failure_reasons"]["blocked_source"] == 1
 
 
+@pytest.mark.parametrize("exact_paths_only", [False, True])
+def test_download_rejects_drive_relative_source_path(
+    tmp_path, monkeypatch, exact_paths_only
+):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure_report.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "C:scripts/SKILL.md",
+                        "category": "development",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(monkeypatch, {})
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            failure_report_path=failure_report_path,
+            cleanup_ci_untracked=False,
+            exact_paths_only=exact_paths_only,
+        )
+    )
+
+    assert stats["downloaded"] == 0
+    assert stats["failed"] == 1
+    assert not list(output_dir.rglob("SKILL.md"))
+    failure_report = json.loads(failure_report_path.read_text(encoding="utf-8"))
+    assert failure_report["failure_reasons"]["invalid_source_path"] == 1
+
+
 def test_download_removes_skill_that_fails_security_scan(tmp_path, monkeypatch):
     module = load_module()
     registry_path = tmp_path / "registry.json"
