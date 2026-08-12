@@ -51,6 +51,9 @@ production downloader refreshes these fields:
   "github_branch": "main",
   "github_commit_sha": "<40-character commit sha>",
   "assets_verified_at": "2026-08-01T00:00:00Z",
+  "asset_liveness": "live",
+  "assets_liveness_checked_at": "2026-08-08T00:00:00Z",
+  "assets_liveness_sha": "<current 40-character branch-head sha>",
   "archive_mode": "directory",
   "bundled_files": ["scripts/run.py", "references/guide.md"]
 }
@@ -59,6 +62,11 @@ production downloader refreshes these fields:
 `bundled_files` must exactly match the regular files present below the canonical
 skill directory, excluding `SKILL.md` and `metadata.json`. An empty or truncated
 bundle is a failed backfill, not a successful skill-md-only refresh.
+
+`github_commit_sha` and `assets_verified_at` describe the immutable archived
+snapshot and are never refreshed by liveness checks. The `assets_liveness_*`
+fields describe the latest successful upstream observation. Transient GitHub/API
+errors leave the previous observation unchanged and appear only in the run report.
 
 ## Delivery Phases
 
@@ -88,6 +96,14 @@ bundle is a failed backfill, not a successful skill-md-only refresh.
 2. Record live, moved, gone, and verification-error outcomes without presenting
    stale checks as fresh successes.
 3. Fail the workflow when decay exceeds the configured threshold.
+
+The existing weekly `full` sync profile performs this check before committing
+data-repository changes. The gate fails when more than 35% of targets are
+`partial`, `moved`, or `gone`, when more than 10% have upstream verification
+errors, or when no verified targets are found. Local validation and metadata
+apply/rollback errors always fail regardless of percentage; the 10% tolerance
+applies only to transient upstream verification errors. Its structured report is
+retained as the `asset-liveness-report` workflow artifact.
 
 ### Phase 4 — registry and search visibility
 
@@ -127,4 +143,5 @@ bundle is a failed backfill, not a successful skill-md-only refresh.
    an explicit capacity decision.
 2. Full-directory redistribution makes upstream license handling more important
    than archiving `SKILL.md` alone; license policy remains a release gate.
-3. The liveness threshold and schedule must be selected before Phase 3 is enabled.
+3. Threshold changes from the initial 35% decay / 10% error policy require an
+   explicit capacity and incident-response decision.
