@@ -37,6 +37,7 @@ from sync_pipeline_support import (
     has_case_conflicting_paths,
     is_safe_portable_relative_path,
 )
+from utils import classify_license, normalize_license
 
 
 def _assert_no_symlink_components(root: Path, destination: Path) -> None:
@@ -79,6 +80,18 @@ def _load_metadata(path: Path) -> dict:
     if not isinstance(payload, dict):
         raise ValueError(f"metadata must be an object: {path}")
     return payload
+
+
+def _validate_report_path(report_path: Path, archive_root: Path) -> None:
+    if report_path.is_symlink():
+        raise ValueError(f"report path cannot be a symbolic link: {report_path}")
+    resolved_report = report_path.resolve(strict=False)
+    resolved_archive = archive_root.resolve(strict=False)
+    try:
+        resolved_report.relative_to(resolved_archive)
+    except ValueError:
+        return
+    raise ValueError(f"report path cannot overlap archive root: {report_path}")
 
 
 def _actual_support_files(skill_dir: Path) -> list[str]:
@@ -213,6 +226,16 @@ def load_backfill_targets(targets_path: Path, archive_root: Path) -> list[dict]:
         if branch != target_branch:
             raise ValueError(
                 f"target line {line_number} source branch does not match archive metadata"
+            )
+        license_name = normalize_license(metadata.get("license", ""))
+        distribution = str(metadata.get("distribution") or "").strip()
+        if classify_license(license_name) != "compatible" or distribution != "compatible":
+            raise ValueError(
+                f"archive metadata does not approve asset redistribution: {metadata_path}"
+            )
+        if target.get("license") != license_name or target.get("distribution") != distribution:
+            raise ValueError(
+                f"target line {line_number} legal metadata does not match archive metadata"
             )
         archive_snapshot = _asset_free_archive_snapshot(destination)
 
@@ -496,6 +519,7 @@ async def run_backfill(
     github_token: str = "",
     clamscan_binary: str = "clamscan",
 ) -> int:
+    _validate_report_path(report_path, archive_root)
     targets = []
     stats = {}
     failure_details = {}
