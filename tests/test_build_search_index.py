@@ -22,6 +22,7 @@ SCRIPTS_DIR = ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+import archive_preflight  # noqa: E402
 from build_search_index import (  # noqa: E402
     build_search_index,
     has_install_location,
@@ -807,6 +808,39 @@ def test_registry_scanners_fail_closed_on_invalid_canonical_archive(
     skill_md.write_text("# Invalid", encoding="utf-8")
 
     with pytest.raises(ValueError, match=error):
+        scanner(skills_dir)
+
+
+@pytest.mark.parametrize("scanner", [scan_skills_v2, scan_registry_skills])
+def test_registry_scanners_reject_symlinked_canonical_skill(tmp_path, scanner):
+    skills_dir = tmp_path / "skills"
+    skill_dir = skills_dir / "dev" / "demo"
+    skill_dir.mkdir(parents=True)
+    external = tmp_path / "outside.md"
+    external.write_text("# Outside", encoding="utf-8")
+    (skill_dir / "SKILL.md").symlink_to(external)
+
+    with pytest.raises(ValueError, match="regular non-symlink file"):
+        scanner(skills_dir)
+
+
+@pytest.mark.parametrize("scanner", [scan_skills_v2, scan_registry_skills])
+def test_registry_scanners_reject_coexisting_skill_case_variants(
+    tmp_path, monkeypatch, scanner
+):
+    skills_dir = tmp_path / "skills"
+    skill_dir = skills_dir / "dev" / "demo"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Demo", encoding="utf-8")
+    monkeypatch.setattr(
+        archive_preflight.os,
+        "walk",
+        lambda _root, *, onerror: iter(
+            [(str(skill_dir), [], ["SKILL.md", "skill.md"])]
+        ),
+    )
+
+    with pytest.raises(ValueError, match="case-conflicting SKILL.md files"):
         scanner(skills_dir)
 
 
