@@ -88,18 +88,68 @@ class TestStrictBackfillInventory:
 
     def test_rejects_case_colliding_archive_roots(self, tmp_path, monkeypatch):
         root = tmp_path / "data"
-        root.mkdir()
         monkeypatch.setattr(
             audit_skill_assets,
-            "iter_archived_skills",
-            lambda _root: iter([
-                (str(root / "dev" / "Demo"), {}),
-                (str(root / "dev" / "demo"), {}),
-            ]),
+            "_iter_canonical_archive_paths",
+            lambda _root: iter(["dev/Demo", "dev/demo"]),
         )
 
         with pytest.raises(ValueError, match="case-conflicting skill roots"):
-            audit_skill_assets._canonical_archive_rows(root)
+            list(audit_skill_assets._canonical_archive_rows(root))
+
+    def test_canonical_archive_rows_stream_metadata_after_lightweight_preflight(
+        self, tmp_path, monkeypatch
+    ):
+        root = tmp_path / "data"
+        first = root / "dev" / "one"
+        second = root / "dev" / "two"
+        first.mkdir(parents=True)
+        second.mkdir(parents=True)
+        calls = []
+
+        monkeypatch.setattr(
+            audit_skill_assets,
+            "_iter_canonical_archive_paths",
+            lambda _root: iter(["dev/one", "dev/two"]),
+        )
+
+        def metadata_rows(_root):
+            calls.append("metadata")
+            yield str(first), {"name": "one"}
+            yield str(second), {"name": "two"}
+
+        monkeypatch.setattr(audit_skill_assets, "iter_archived_skills", metadata_rows)
+
+        rows = audit_skill_assets._canonical_archive_rows(root)
+
+        assert calls == []
+        assert next(rows) == (str(first), {"name": "one"})
+        assert calls == ["metadata"]
+        assert next(rows) == (str(second), {"name": "two"})
+        with pytest.raises(StopIteration):
+            next(rows)
+
+    @pytest.mark.parametrize(
+        ("metadata", "expected_path"),
+        [
+            ({"repo": "acme/tools", "github_path": "skills/demo"}, "skills/demo/SKILL.md"),
+            ({"repo": "acme/tools", "github_path": ""}, "SKILL.md"),
+            (
+                {
+                    "repo": "acme/tools",
+                    "path": "skills/demo/SKILL.md",
+                    "github_path": "skills/demo",
+                },
+                "skills/demo/SKILL.md",
+            ),
+        ],
+    )
+    def test_normalizes_legacy_directory_form_github_path(self, metadata, expected_path):
+        assert audit_skill_assets.canonical_source_identity_from_metadata(metadata) == (
+            "acme/tools",
+            expected_path,
+            "",
+        )
 
     def test_conflicting_aliases_contribute_every_normalized_identity_key(self):
         keys = audit_skill_assets._identity_keys(
@@ -131,6 +181,7 @@ class TestStrictBackfillInventory:
         [
             ["references//guide.md"],
             ["C:/scripts/run.py"],
+            ["C:scripts/run.py"],
             ["references/Guide.md", "references/guide.md"],
             ["References/one.md", "references/two.md"],
         ],
