@@ -40,6 +40,13 @@ ROOT_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from asset_claims import (
+    BUNDLED_DIR_ALLOWLIST,
+    BUNDLED_ROOT_FILE_ALLOWLIST,
+)
+from asset_claims import (
+    requires_complete_bundled_archive as requires_complete_bundled_archive,
+)
 from portable_paths import is_safe_portable_relative_path as _is_safe_portable_relative_path
 from security_blocklist import blocked_metadata_source
 from skill_frontmatter import normalize_skill_frontmatter
@@ -72,7 +79,6 @@ DEFAULT_MANIFEST_PATH = ROOT_DIR / "sources" / "acquisition_manifest.json"
 DEFAULT_LEARNING_PRIORS_PATH = ROOT_DIR / "sources" / "learning" / "discovery_priors.json"
 GITHUB_API_BASE = "https://api.github.com"
 
-
 def configure_sync_logging(log_path: str = "sync_and_download.log") -> None:
     """Configure CLI logging explicitly, never as a shared-module import side effect."""
     if getattr(configure_sync_logging, "_configured", False):
@@ -86,42 +92,9 @@ def configure_sync_logging(log_path: str = "sync_and_download.log") -> None:
     configure_sync_logging._configured = True
 
 
-BUNDLED_DIR_ALLOWLIST = {
-    "bin",
-    "connectors",
-    "references",
-    "reference",
-    "scripts",
-    "assets",
-    "knowledge",
-    "templates",
-    "examples",
-    "prompts",
-    "rules",
-    "src",
-}
 DESIGN_BUNDLED_DIR_PATTERN = re.compile(r"^design-[a-z0-9-]+$")
 SAFE_BUNDLED_BIN_FILENAMES = re.compile(r"^jq(?:-[A-Za-z0-9_.-]+|\.LICENSE)$")
 BUNDLED_ROOT_CODE_FILE_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*\.(?:py|swift)$")
-BUNDLED_ROOT_FILE_ALLOWLIST = {
-    "audit.md",
-    "package.json",
-    "package-lock.json",
-    "pnpm-lock.yaml",
-    "yarn.lock",
-    "requirements.txt",
-    "pyproject.toml",
-    "setup.md",
-    "uv.lock",
-    "README.md",
-    "LICENSE",
-    "LICENSE.md",
-}
-BUNDLED_REQUIRED_ROOT_FILE_HINTS = BUNDLED_ROOT_FILE_ALLOWLIST - {
-    "README.md",
-    "LICENSE",
-    "LICENSE.md",
-}
 BUNDLED_FILE_EXTENSIONS = {
     ".bash",
     ".css",
@@ -401,19 +374,6 @@ def is_safe_bundled_file(
 def is_submodule_contents_entry(entry: dict) -> bool:
     """Return True for GitHub Contents API submodules exposed as file entries."""
     return entry.get("type") == "submodule" or "submodule_git_url" in entry
-
-
-def requires_complete_bundled_archive(skill_content: str) -> bool:
-    """Return True when SKILL.md explicitly depends on bundled support files."""
-    normalized = (skill_content or "").lower().replace("\\", "/")
-    for dirname in BUNDLED_DIR_ALLOWLIST:
-        if re.search(rf"(?<![a-z0-9_.-]){re.escape(dirname)}/", normalized):
-            return True
-    if re.search(r"(?<![a-z0-9_.-])design-[a-z0-9-]+/", normalized):
-        return True
-    if re.search(r"(?<![a-z0-9_/.-])[a-z0-9][a-z0-9_.-]*\.(?:py|swift)(?![a-z0-9_.-])", normalized):
-        return True
-    return any(filename.lower() in normalized for filename in BUNDLED_REQUIRED_ROOT_FILE_HINTS)
 
 
 def normalize_skill_frontmatter_description(content: str, skill: dict) -> str:
