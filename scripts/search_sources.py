@@ -5,12 +5,13 @@ import json
 import logging
 import re
 from datetime import datetime
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from audit_skill_assets import canonical_source_identity_from_metadata
 from category_taxonomy import resolve_category
 from sync_download_support import bundled_file_blobs_match, exact_source_branch
+from sync_pipeline_support import is_safe_portable_relative_path
 from utils import (
     extract_description,
     get_repo_suffix,
@@ -139,10 +140,7 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
 
     normalized = []
     for value in declared:
-        if not isinstance(value, str) or not value or value != value.strip() or "\\" in value:
-            return {}
-        path = PurePosixPath(value)
-        if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        if not is_safe_portable_relative_path(value):
             return {}
         if value in {"SKILL.md", "metadata.json"} or value in normalized:
             return {}
