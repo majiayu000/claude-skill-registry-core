@@ -9,6 +9,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
+import archive_preflight
 import audit_skill_assets
 import verify_upstream_assets as liveness
 from skill_asset_audit import (
@@ -126,6 +127,25 @@ class TestStrictBackfillInventory:
 
         with pytest.raises(ValueError, match="unable to inspect archive tree.*denied"):
             list(audit_skill_assets._canonical_archive_rows(root))
+
+    def test_archive_preflight_rejects_coexisting_skill_case_variants(
+        self, tmp_path, monkeypatch
+    ):
+        root = tmp_path / "data"
+        skill_dir = root / "dev" / "demo"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Demo", encoding="utf-8")
+
+        monkeypatch.setattr(
+            archive_preflight.os,
+            "walk",
+            lambda _root, *, onerror: iter(
+                [(str(skill_dir), [], ["SKILL.md", "skill.md"])]
+            ),
+        )
+
+        with pytest.raises(ValueError, match="case-conflicting SKILL.md files"):
+            list(archive_preflight.iter_canonical_archive_paths(root))
 
     def test_canonical_archive_rows_reuse_fail_closed_preflight_paths(self, tmp_path, monkeypatch):
         root = tmp_path / "data"
@@ -827,6 +847,20 @@ class TestAssetLiveness:
 
         assert targets == []
         assert "canonical SKILL.md has invalid casing" in errors[0]["error"]
+
+    def test_symlinked_canonical_skill_file_is_a_liveness_error(self, tmp_path):
+        skills = tmp_path / "skills"
+        metadata_path = make_verified_asset(skills, "alpha")
+        skill_path = metadata_path.parent / "SKILL.md"
+        external = tmp_path / "outside.md"
+        external.write_text("# Outside", encoding="utf-8")
+        skill_path.unlink()
+        skill_path.symlink_to(external)
+
+        targets, errors = liveness.load_targets(skills)
+
+        assert targets == []
+        assert "regular non-symlink file" in errors[0]["error"]
 
     def test_case_conflicting_skill_roots_are_rejected(self, tmp_path):
         skills = tmp_path / "skills"
