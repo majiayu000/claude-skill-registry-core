@@ -51,7 +51,20 @@ def iter_canonical_archive_paths(root: str | Path):
         skill_path = Path(dirpath, "SKILL.md")
         if skill_path.is_symlink() or not skill_path.is_file():
             raise ValueError(
-                f"canonical SKILL.md must be a regular non-symlink file: {relative / 'SKILL.md'}"
+                "canonical SKILL.md must be a regular file "
+                f"(regular non-symlink file required): {relative / 'SKILL.md'}"
+            )
+        metadata_variants = [
+            name for name in filenames if name.casefold() == "metadata.json"
+        ]
+        if len(metadata_variants) > 1:
+            raise ValueError(
+                f"canonical archive contains case-conflicting metadata.json files: {relative}"
+            )
+        if metadata_variants and metadata_variants[0] != "metadata.json":
+            raise ValueError(
+                f"canonical metadata.json has invalid casing: "
+                f"{relative / metadata_variants[0]}"
             )
         relative_path = relative.as_posix()
         if not is_safe_portable_relative_path(relative_path):

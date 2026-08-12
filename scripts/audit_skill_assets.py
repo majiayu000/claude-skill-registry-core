@@ -99,7 +99,6 @@ def run_targets(root: str, min_stars: int) -> None:
             )
         )
 
-
 def _assert_unique_canonical_archive_paths(paths: list[str], root: str | Path) -> None:
     if has_case_conflicting_paths(paths):
         raise ValueError(f"archive contains case-conflicting skill roots: {root}")
@@ -114,6 +113,12 @@ def _canonical_archive_rows(root: str | Path):
         dirpath = archive_root / relative
         metadata_path = dirpath / "metadata.json"
         metadata = None
+        if metadata_path.is_symlink() or (
+            metadata_path.exists() and not metadata_path.is_file()
+        ):
+            raise ValueError(
+                f"canonical metadata.json must be a regular file: {relative}"
+            )
         if metadata_path.exists():
             try:
                 metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
