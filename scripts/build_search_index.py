@@ -38,6 +38,7 @@ from search_sources import (
     load_from_registry,
     load_registry_count,
     scan_skills_v2,
+    validated_published_asset_fields,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -248,7 +249,7 @@ def build_search_index(
             security_decision = security_decisions_by_path.get(archive_path)
         if require_security_evidence and not security_decision:
             raise ValueError(
-                "Missing required security evidence for " f"{archive_path or install or name}"
+                f"Missing required security evidence for {archive_path or install or name}"
             )
         security_status = (
             security_decision["status"] if security_decision else infer_security_status(skill)
@@ -258,16 +259,8 @@ def build_search_index(
         quality_score = quality["quality_score"]
         quality_grade = quality["quality_grade"]
         trust_score = score_skill_trust(repo, path, install_status, security_status, stars)
-        asset_penalty = asset_ranking_penalty(skill)
-        asset_fields = {
-            key: skill[key]
-            for key in (
-                "asset_state", "asset_liveness", "bundled_file_count",
-                "github_commit_sha", "assets_verified_at",
-                "assets_liveness_checked_at", "assets_liveness_sha",
-            )
-            if key in skill
-        }
+        asset_fields = validated_published_asset_fields(skill)
+        asset_penalty = asset_ranking_penalty(asset_fields)
 
         # Minimal record
         mini_record = {
@@ -278,8 +271,8 @@ def build_search_index(
             "r": stars,
             "i": install,
             "b": branch,  # branch for GitHub URL
-            **({"a": skill["asset_state"]} if "asset_state" in skill else {}),
-            **({"l": skill["asset_liveness"]} if "asset_liveness" in skill else {}),
+            **({"a": asset_fields["asset_state"]} if "asset_state" in asset_fields else {}),
+            **({"l": asset_fields["asset_liveness"]} if "asset_liveness" in asset_fields else {}),
         }
         # Full record
         full_record = {
@@ -341,22 +334,31 @@ def build_search_index(
                 separators=(",", ":"),
             ),
             -asset_penalty,
+            json.dumps(full_record, ensure_ascii=True, sort_keys=True, separators=(",", ":")),
         )
         existing_rank = (
-            int(existing.get("stars", 0) or 0),
-            int(existing.get("quality_score", 0) or 0),
-            int(existing.get("_description_length", 0) or 0),
-            json.dumps(
-                legacy_asset_free_record(existing_records["full"]),
-                ensure_ascii=True,
-                sort_keys=True,
-                separators=(",", ":"),
-            ),
-            -float(existing.get("_asset_ranking_penalty", 0.1)),
-        ) if existing_records else None
-        if not existing or (
-            existing_rank is not None and candidate_rank > existing_rank
-        ):
+            (
+                int(existing.get("stars", 0) or 0),
+                int(existing.get("quality_score", 0) or 0),
+                int(existing.get("_description_length", 0) or 0),
+                json.dumps(
+                    legacy_asset_free_record(existing_records["full"]),
+                    ensure_ascii=True,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+                -float(existing.get("_asset_ranking_penalty", 0.1)),
+                json.dumps(
+                    existing_records["full"],
+                    ensure_ascii=True,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            )
+            if existing_records
+            else None
+        )
+        if not existing or (existing_rank is not None and candidate_rank > existing_rank):
             records_by_key[dedupe_key] = {
                 "mini": mini_record,
                 "full": full_record,
@@ -388,12 +390,13 @@ def build_search_index(
                 "quality_score": quality_score,
                 "trust_score": trust_score,
                 "asset_ranking_penalty": asset_penalty,
-                "recommended_score": max(0, round(
-                    quality_score * 0.45
-                    + trust_score * 0.30
-                    + min(100, stars**0.5) * 0.25,
-                    2,
-                )),
+                "recommended_score": max(
+                    0,
+                    round(
+                        quality_score * 0.45 + trust_score * 0.30 + min(100, stars**0.5) * 0.25,
+                        2,
+                    ),
+                ),
             }
 
     # Every published search/category view must use the same stable-key winners
@@ -411,15 +414,25 @@ def build_search_index(
     search_index["t"] = len(search_index["s"])
 
     # Preserve popularity ordering while breaking otherwise equal ranks by live assets.
-    search_index["s"].sort(key=lambda x: (
-        -x.get("r", 0), asset_ranking_penalty({
-            "asset_state": x.get("a"), "asset_liveness": x.get("l"),
-        }), x.get("i", ""), x.get("n", ""),
-    ))
+    search_index["s"].sort(
+        key=lambda x: (
+            -x.get("r", 0),
+            asset_ranking_penalty(
+                {
+                    "asset_state": x.get("a"),
+                    "asset_liveness": x.get("l"),
+                }
+            ),
+            x.get("i", ""),
+            x.get("n", ""),
+        )
+    )
     featured_skills.sort(
         key=lambda x: (
-            -x.get("stars", 0), asset_ranking_penalty(x),
-            x.get("install", ""), x.get("name", ""),
+            -x.get("stars", 0),
+            asset_ranking_penalty(x),
+            x.get("install", ""),
+            x.get("name", ""),
         )
     )
     featured_skills = featured_skills[:100]

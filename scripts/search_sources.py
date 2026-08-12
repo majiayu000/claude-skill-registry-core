@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 from audit_skill_assets import canonical_source_identity_from_metadata
 from category_taxonomy import resolve_category
 from sync_download_support import bundled_file_blobs_match, exact_source_branch
-from sync_pipeline_support import is_safe_portable_relative_path
+from sync_pipeline_support import has_case_conflicting_paths, is_safe_portable_relative_path
 from utils import (
     extract_description,
     get_repo_suffix,
@@ -22,8 +22,13 @@ from utils import (
 logger = logging.getLogger(__name__)
 SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{40}$")
 ASSET_FIELDS = {
-    "asset_state", "asset_liveness", "bundled_file_count", "github_commit_sha",
-    "assets_verified_at", "assets_liveness_checked_at", "assets_liveness_sha",
+    "asset_state",
+    "asset_liveness",
+    "bundled_file_count",
+    "github_commit_sha",
+    "assets_verified_at",
+    "assets_liveness_checked_at",
+    "assets_liveness_sha",
 }
 
 
@@ -102,6 +107,54 @@ def asset_ranking_penalty(skill: Dict[str, Any]) -> float:
     return 0.1
 
 
+def validated_published_asset_fields(record: dict) -> dict:
+    """Return only complete, internally consistent published asset evidence."""
+    count = record.get("bundled_file_count")
+    pinned_sha = record.get("github_commit_sha")
+    verified_at = record.get("assets_verified_at")
+    if (
+        record.get("asset_state") != "verified"
+        or isinstance(count, bool)
+        or not isinstance(count, int)
+        or count < 1
+        or not isinstance(pinned_sha, str)
+        or not SHA_PATTERN.fullmatch(pinned_sha)
+        or not _valid_timestamp(verified_at)
+    ):
+        return {}
+
+    fields = {
+        "asset_state": "verified",
+        "bundled_file_count": count,
+        "github_commit_sha": pinned_sha.lower(),
+        "assets_verified_at": verified_at,
+    }
+    liveness = record.get("asset_liveness")
+    checked_at = record.get("assets_liveness_checked_at")
+    liveness_sha = record.get("assets_liveness_sha")
+    if liveness not in {"live", "partial", "moved", "gone"}:
+        return fields
+    if not _valid_timestamp(checked_at):
+        return fields
+    if liveness_sha is not None and (
+        not isinstance(liveness_sha, str) or not SHA_PATTERN.fullmatch(liveness_sha)
+    ):
+        return fields
+    if liveness in {"live", "partial"} and liveness_sha is None:
+        return fields
+    if liveness == "gone" and liveness_sha is not None:
+        return fields
+    fields.update(
+        {
+            "asset_liveness": liveness,
+            "assets_liveness_checked_at": checked_at,
+        }
+    )
+    if liveness_sha is not None:
+        fields["assets_liveness_sha"] = liveness_sha.lower()
+    return fields
+
+
 def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -> dict:
     """Return publishable asset facets only when canonical local evidence validates."""
     root = archive_root.absolute()
@@ -145,6 +198,8 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
         if value in {"SKILL.md", "metadata.json"} or value in normalized:
             return {}
         normalized.append(value)
+    if has_case_conflicting_paths(normalized):
+        return {}
     try:
         actual = []
         for path in skill_dir.rglob("*"):
@@ -154,6 +209,8 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
             if path.is_file() and relative not in {"SKILL.md", "metadata.json"}:
                 actual.append(relative)
     except OSError:
+        return {}
+    if has_case_conflicting_paths(actual):
         return {}
     if sorted(normalized) != sorted(actual):
         return {}
@@ -166,28 +223,18 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
         "github_commit_sha": pinned_sha.lower(),
         "assets_verified_at": verified_at,
     }
-    liveness = metadata.get("asset_liveness")
-    checked_at = metadata.get("assets_liveness_checked_at")
-    liveness_sha = metadata.get("assets_liveness_sha")
-    if liveness not in {"live", "partial", "moved", "gone"}:
-        return fields
-    if not _valid_timestamp(checked_at):
-        return fields
-    if liveness_sha is not None and (
-        not isinstance(liveness_sha, str) or not SHA_PATTERN.fullmatch(liveness_sha)
-    ):
-        return fields
-    if liveness in {"live", "partial"} and liveness_sha is None:
-        return fields
-    if liveness == "gone" and liveness_sha is not None:
-        return fields
-    fields.update({
-        "asset_liveness": liveness,
-        "assets_liveness_checked_at": checked_at,
-    })
-    if liveness_sha is not None:
-        fields["assets_liveness_sha"] = liveness_sha.lower()
-    return fields
+    fields.update(
+        {
+            key: metadata[key]
+            for key in (
+                "asset_liveness",
+                "assets_liveness_checked_at",
+                "assets_liveness_sha",
+            )
+            if key in metadata
+        }
+    )
+    return validated_published_asset_fields(fields)
 
 
 def scan_skills_v2(skills_dir: Path) -> List[Dict]:
@@ -228,7 +275,7 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
         category = resolve_category(metadata.get("category", category_name), allow_unknown=True)
 
         repo = metadata.get("repo", "")
-        github_path = metadata.get("path") or metadata.get("github_path") or "/".join(rel_parts)
+        github_path = metadata.get("github_path") or metadata.get("path") or "/".join(rel_parts)
         github_branch = metadata.get("github_branch") or metadata.get("branch") or "main"
 
         if github_path and repo:
@@ -340,6 +387,10 @@ def load_registry_manifest_shards(registry_path: Path, registry: Dict) -> List[D
 def add_registry_install_fields(skills: List[Dict]) -> List[Dict]:
     """Populate install fields for registry fallback rows."""
     for skill in skills:
+        validated_assets = validated_published_asset_fields(skill)
+        for field in ASSET_FIELDS:
+            skill.pop(field, None)
+        skill.update(validated_assets)
         repo = skill.get("repo", "")
         path = skill.get("path", "")
         name = skill.get("name", "unknown")

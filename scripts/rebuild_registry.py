@@ -301,7 +301,7 @@ def scan_skills(skills_dir: Path) -> list:
 
         # Repo/path/branch normalization across different metadata formats
         repo = metadata.get("repo", "")
-        github_path = metadata.get("path") or metadata.get("github_path") or "/".join(rel_parts)
+        github_path = metadata.get("github_path") or metadata.get("path") or "/".join(rel_parts)
         github_branch = metadata.get("github_branch") or metadata.get("branch") or "main"
 
         skill_entry = {
