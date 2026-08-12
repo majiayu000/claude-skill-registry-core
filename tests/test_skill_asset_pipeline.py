@@ -691,9 +691,7 @@ class TestBackfillTargets:
     def test_download_selection_rejects_case_conflicts(self, paths):
         entries = [{"relative_path": path, "size": 1} for path in paths]
 
-        with pytest.raises(
-            sync_download_support.BundledListingError, match="case-conflicting"
-        ):
+        with pytest.raises(sync_download_support.BundledListingError, match="case-conflicting"):
             sync_download_support.select_bundled_file_entries(entries)
 
     def test_loads_exact_target_and_preserves_existing_metadata(self, tmp_path):
@@ -718,9 +716,7 @@ class TestBackfillTargets:
             {"github_branch": "release/v2"},
         ],
     )
-    def test_rejects_missing_invalid_or_mismatched_target_branch(
-        self, tmp_path, branch_update
-    ):
+    def test_rejects_missing_invalid_or_mismatched_target_branch(self, tmp_path, branch_update):
         archive_root = tmp_path / "archive"
         _skill, target = make_backfill_target(archive_root)
         targets_path = tmp_path / "targets.jsonl"
@@ -854,9 +850,35 @@ class TestApplyStagedArchives:
             backfill_skill_assets,
             "_scan_archives_with_clamav",
             lambda archives, _binary: {
-                key: backfill_skill_assets._archive_snapshot(path)
-                for key, path in archives.items()
+                key: backfill_skill_assets._archive_snapshot(path) for key, path in archives.items()
             },
+        )
+
+    def test_archive_snapshot_is_unambiguous_for_nul_content(self, tmp_path):
+        single = tmp_path / "single"
+        split = tmp_path / "split"
+        single.mkdir()
+        split.mkdir()
+        (single / "a").write_bytes(b"x\0z\0")
+        (split / "a").write_bytes(b"x")
+        (split / "z").write_bytes(b"")
+
+        assert backfill_skill_assets._archive_snapshot(single) != (
+            backfill_skill_assets._archive_snapshot(split)
+        )
+
+    def test_archive_snapshot_includes_executable_mode(self, tmp_path):
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        first.mkdir()
+        second.mkdir()
+        (first / "run.sh").write_text("exit 0")
+        (second / "run.sh").write_text("exit 0")
+        (first / "run.sh").chmod(0o644)
+        (second / "run.sh").chmod(0o755)
+
+        assert backfill_skill_assets._archive_snapshot(first) != (
+            backfill_skill_assets._archive_snapshot(second)
         )
 
     def test_applies_complete_staged_archive(self, tmp_path, monkeypatch):
@@ -1040,8 +1062,7 @@ class TestApplyStagedArchives:
             for path in archives.values():
                 scanned_metadata.append(json.loads((path / "metadata.json").read_text()))
             return {
-                key: backfill_skill_assets._archive_snapshot(path)
-                for key, path in archives.items()
+                key: backfill_skill_assets._archive_snapshot(path) for key, path in archives.items()
             }
 
         monkeypatch.setattr(backfill_skill_assets, "_scan_archives_with_clamav", scan_final)
