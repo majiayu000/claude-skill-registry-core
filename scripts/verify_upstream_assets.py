@@ -21,7 +21,7 @@ from pathlib import Path, PurePosixPath
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from audit_skill_assets import canonical_source_identity_from_metadata
 from skill_asset_audit import classify_files, fetch_repo_tree, verdict_from_counts
-from sync_download_support import exact_source_branch
+from sync_download_support import bundled_file_blobs_match, exact_source_branch
 from sync_pipeline_support import (
     has_case_conflicting_paths,
     is_safe_portable_relative_path,
@@ -233,6 +233,8 @@ def _target_from_metadata(metadata_path: Path, skills_dir: Path) -> Target:
     actual = _actual_bundled_files(skill_dir)
     if sorted(normalized) != actual:
         raise ValueError(f"bundled_files mismatch: declared={sorted(normalized)}, actual={actual}")
+    if not bundled_file_blobs_match(metadata, skill_dir, normalized):
+        raise ValueError("bundled_file_blobs do not match archived support file bytes")
     return Target(
         stable_key=f"{repo.casefold()}:{source_path}",
         repo=repo,
@@ -484,7 +486,7 @@ def summarize(rows: list[dict]) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
-def _legacy_resolve_skill_dir(target: dict, skill_dirs: list[str]) -> str | None:
+def resolve_skill_dir(target: dict, skill_dirs: list[str]) -> str | None:
     """Resolve one inventory target using the historical JSONL verifier rules."""
     declared = target.get("dir") or ""
     if declared and declared in skill_dirs:
@@ -496,7 +498,7 @@ def _legacy_resolve_skill_dir(target: dict, skill_dirs: list[str]) -> str | None
     return candidates[0] if candidates else None
 
 
-def _legacy_verify_repo(repo: str, targets: list[dict]) -> list[dict]:
+def verify_repo(repo: str, targets: list[dict]) -> list[dict]:
     """Verify legacy inventory targets with one upstream tree fetch per repository."""
     try:
         paths = fetch_repo_tree(repo)
@@ -505,7 +507,7 @@ def _legacy_verify_repo(repo: str, targets: list[dict]) -> list[dict]:
     skill_dirs = [os.path.dirname(path) for path in paths if os.path.basename(path) == "SKILL.md"]
     rows = []
     for target in targets:
-        resolved = _legacy_resolve_skill_dir(target, skill_dirs)
+        resolved = resolve_skill_dir(target, skill_dirs)
         if resolved is None:
             rows.append({**target, "status": "not_found"})
             continue
@@ -535,7 +537,7 @@ def _legacy_verify_jsonl(targets_path: Path, output_path: Path) -> int:
     summary: collections.Counter = collections.Counter()
     with output_path.open("w", encoding="utf-8") as output:
         for index, (repo, repo_targets) in enumerate(sorted(by_repo.items()), 1):
-            for row in _legacy_verify_repo(repo, repo_targets):
+            for row in verify_repo(repo, repo_targets):
                 summary[row["status"]] += 1
                 output.write(json.dumps(row) + "\n")
             if index % 25 == 0:
