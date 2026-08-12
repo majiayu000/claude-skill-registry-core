@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import sys
@@ -288,6 +289,8 @@ class TestStrictBackfillInventory:
                     "path": "skills/demo/SKILL.md",
                     "github_branch": "release/v1",
                     "stars": 100,
+                    "license": "MIT",
+                    "distribution": "compatible",
                 }
             ),
             encoding="utf-8",
@@ -308,6 +311,8 @@ class TestStrictBackfillInventory:
                     "path": "skills/demo",
                     "github_branch": "main",
                     "stars": 100,
+                    "license": "MIT",
+                    "distribution": "compatible",
                 }
             ),
             encoding="utf-8",
@@ -357,7 +362,9 @@ def make_verified_asset(
     for filename in files:
         path = skill_dir / filename
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("asset", encoding="utf-8")
+        path.write_bytes(b"asset")
+    blob_header = b"blob 5\0"
+    blob_sha = hashlib.sha1(blob_header + b"asset", usedforsecurity=False).hexdigest()
     metadata = {
         "name": name,
         "repo": repo,
@@ -367,6 +374,7 @@ def make_verified_asset(
         "assets_verified_at": "2026-08-01T00:00:00Z",
         "archive_mode": "directory",
         "bundled_files": files,
+        "bundled_file_blobs": dict.fromkeys(files, blob_sha),
     }
     metadata_path = skill_dir / "metadata.json"
     metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
@@ -401,6 +409,18 @@ class FakeLivenessClient:
 
 
 class TestAssetLiveness:
+    def test_public_legacy_verifier_functions_remain_supported(self, monkeypatch):
+        target = {"repo": "acme/tools", "dir": "skills/demo", "name": "demo"}
+        monkeypatch.setattr(
+            liveness,
+            "fetch_repo_tree",
+            lambda _repo: ["skills/demo/SKILL.md", "skills/demo/scripts/run.py"],
+        )
+
+        assert liveness.resolve_skill_dir(target, ["skills/demo"]) == "skills/demo"
+        [row] = liveness.verify_repo("acme/tools", [target])
+        assert row["status"] == "EXEC"
+
     def test_legacy_jsonl_verifier_interface_remains_supported(self, tmp_path, monkeypatch, capsys):
         targets_path = tmp_path / "targets.jsonl"
         output_path = tmp_path / "verified.jsonl"
@@ -601,6 +621,31 @@ class TestAssetLiveness:
         assert metadata_path.read_bytes() == before
         report = json.loads((tmp_path / "report.json").read_text())
         assert report["summary"] == {"local_error": 1}
+
+    def test_local_blob_mismatch_fails_closed_without_api_call(self, tmp_path):
+        skills = tmp_path / "skills"
+        metadata_path = make_verified_asset(skills, "alpha")
+        (metadata_path.parent / "scripts/run.py").write_text("tampered", encoding="utf-8")
+        client = FakeLivenessClient()
+
+        result = liveness.main(
+            [
+                "--skills-dir",
+                str(skills),
+                "--report",
+                str(tmp_path / "report.json"),
+                "--apply",
+                "--max-error-percent",
+                "100",
+            ],
+            client=client,
+        )
+
+        assert result == 1
+        assert client.calls == []
+        report = json.loads((tmp_path / "report.json").read_text())
+        assert report["summary"] == {"local_error": 1}
+        assert "do not match archived support file bytes" in report["rows"][0]["error"]
 
     @pytest.mark.parametrize("metadata_state", ["missing", "dangling", "directory"])
     def test_missing_or_nonregular_metadata_is_local_error(self, tmp_path, metadata_state):

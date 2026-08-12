@@ -55,6 +55,8 @@ def archive(tmp_path):
             "path": "skills/with-script/SKILL.md",
             "github_branch": "main",
             "name": "with-script",
+            "license": "MIT",
+            "distribution": "compatible",
         },
     )
     make_skill(
@@ -68,6 +70,8 @@ def archive(tmp_path):
             "path": "skills/with-docs/SKILL.md",
             "github_branch": "main",
             "name": "with-docs",
+            "license": "MIT",
+            "distribution": "compatible",
         },
     )
     make_skill(
@@ -81,6 +85,8 @@ def archive(tmp_path):
             "path": "skills/plain/SKILL.md",
             "github_branch": "main",
             "name": "plain",
+            "license": "MIT",
+            "distribution": "compatible",
         },
     )
     make_skill(
@@ -94,6 +100,8 @@ def archive(tmp_path):
             "path": "skills/low-stars/SKILL.md",
             "github_branch": "main",
             "name": "low-stars",
+            "license": "MIT",
+            "distribution": "compatible",
         },
     )
     return root
@@ -200,6 +208,8 @@ class TestCurrentStateInventory:
                 "category": "dev",
                 "archive_mode": "directory",
                 "bundled_files": ["references/guide.md"],
+                "license": "MIT",
+                "distribution": "compatible",
             },
         )
         make_skill(
@@ -236,6 +246,8 @@ class TestCurrentStateInventory:
             "metadata_mismatch_count": 1,
             "source_identity_error_count": 0,
             "source_identity_errors": [],
+            "metadata_error_count": 0,
+            "metadata_errors": [],
             "ambiguous_stable_key_count": 0,
             "backfill_candidate_count": 1,
         }
@@ -249,6 +261,8 @@ class TestCurrentStateInventory:
             "github_branch": "main",
             "name": "duplicate",
             "category": "dev",
+            "license": "MIT",
+            "distribution": "compatible",
         }
         make_skill(root, "a", "duplicate", "Run scripts/setup.py.", base_meta)
         make_skill(root, "b", "duplicate", "Run scripts/setup.py.", base_meta)
@@ -264,6 +278,8 @@ class TestCurrentStateInventory:
                 "github_branch": "release/v2",
                 "name": "ready",
                 "category": "dev",
+                "license": "MIT",
+                "distribution": "compatible",
             },
         )
         rows = audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
@@ -280,6 +296,8 @@ class TestCurrentStateInventory:
                 "category": "dev",
                 "stars": 500,
                 "claim": "EXEC",
+                "license": "MIT",
+                "distribution": "compatible",
             }
         ]
 
@@ -308,6 +326,64 @@ class TestCurrentStateInventory:
             }
         ]
         with pytest.raises(ValueError, match="dev/missing-path.*missing_source_path"):
+            audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
+
+    def test_unapproved_distribution_is_reported_and_blocks_targets(self, tmp_path):
+        root = tmp_path / "data"
+        make_skill(
+            root,
+            "dev",
+            "restricted",
+            "Run scripts/build.py.",
+            {
+                "stars": 900,
+                "repo": "acme/restricted",
+                "path": "skills/restricted/SKILL.md",
+                "github_branch": "main",
+                "name": "restricted",
+                "category": "dev",
+                "license": "GPL-3.0",
+                "distribution": "restricted",
+            },
+        )
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=100)
+
+        assert report["metadata_errors"] == [
+            {
+                "archive_path": "dev/restricted",
+                "error": "asset_redistribution_not_approved",
+                "eligible_for_backfill": True,
+            }
+        ]
+        with pytest.raises(ValueError, match="asset_redistribution_not_approved"):
+            audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
+
+    def test_invalid_candidate_bundle_declaration_blocks_targets(self, tmp_path):
+        root = tmp_path / "data"
+        make_skill(
+            root,
+            "dev",
+            "invalid-bundle",
+            "Run scripts/build.py.",
+            {
+                "stars": 900,
+                "repo": "acme/tools",
+                "path": "skills/invalid-bundle/SKILL.md",
+                "github_branch": "main",
+                "bundled_files": ["references/a:b.md"],
+            },
+        )
+
+        report = audit_skill_assets.run_current_state(str(root), min_stars=100)
+        assert report["metadata_errors"] == [
+            {
+                "archive_path": "dev/invalid-bundle",
+                "error": "invalid_bundled_files",
+                "eligible_for_backfill": True,
+            }
+        ]
+        with pytest.raises(ValueError, match="dev/invalid-bundle.*invalid_bundled_files"):
             audit_skill_assets.build_backfill_targets(str(root), min_stars=100)
 
     @pytest.mark.parametrize(
@@ -561,6 +637,7 @@ def make_backfill_target(
             "path": source_path,
             "category": "dev",
             "license": "MIT",
+            "distribution": "compatible",
             "downloaded_at": "2026-01-02T00:00:00Z",
             "stars": 500,
             "github_branch": "main",
@@ -576,6 +653,8 @@ def make_backfill_target(
         "category": "dev",
         "stars": 500,
         "claim": "EXEC",
+        "license": "MIT",
+        "distribution": "compatible",
     }
     return skill, target
 
@@ -606,6 +685,24 @@ class TestBackfillTargets:
         assert loaded["destination"] == archive_root / "dev" / "demo"
         assert loaded["skill"]["license"] == "MIT"
         assert loaded["skill"]["github_branch"] == target["github_branch"]
+
+    @pytest.mark.parametrize(
+        ("license_name", "distribution"),
+        [("NOASSERTION", "restricted"), ("GPL-3.0", "restricted"), ("Vendor EULA", "compatible")],
+    )
+    def test_rejects_unapproved_asset_redistribution(self, tmp_path, license_name, distribution):
+        archive_root = tmp_path / "archive"
+        skill, target = make_backfill_target(archive_root)
+        metadata_path = skill / "metadata.json"
+        metadata = json.loads(metadata_path.read_text())
+        metadata.update({"license": license_name, "distribution": distribution})
+        metadata_path.write_text(json.dumps(metadata))
+        target.update({"license": license_name, "distribution": distribution})
+        targets_path = tmp_path / "targets.jsonl"
+        targets_path.write_text(json.dumps(target) + "\n")
+
+        with pytest.raises(ValueError, match="does not approve asset redistribution"):
+            backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
 
     @pytest.mark.parametrize(
         "branch_update",
@@ -1023,6 +1120,32 @@ class TestApplyStagedArchives:
 
 
 class TestRunBackfill:
+    def test_rejects_report_path_inside_archive_before_download(self, tmp_path, monkeypatch):
+        archive_root = tmp_path / "archive"
+        destination, target = make_backfill_target(archive_root)
+        targets_path = tmp_path / "targets.jsonl"
+        targets_path.write_text(json.dumps(target) + "\n")
+        original_metadata = (destination / "metadata.json").read_bytes()
+        downloaded = False
+
+        async def unexpected_download(*_args, **_kwargs):
+            nonlocal downloaded
+            downloaded = True
+
+        monkeypatch.setattr(backfill_skill_assets, "download_skills", unexpected_download)
+        with pytest.raises(ValueError, match="cannot overlap archive root"):
+            asyncio.run(
+                backfill_skill_assets.run_backfill(
+                    targets_path,
+                    archive_root,
+                    destination / "metadata.json",
+                    apply=True,
+                )
+            )
+
+        assert not downloaded
+        assert (destination / "metadata.json").read_bytes() == original_metadata
+
     def test_validates_in_staging_without_mutating_archive(self, tmp_path, monkeypatch):
         archive_root = tmp_path / "archive"
         destination, target = make_backfill_target(archive_root)

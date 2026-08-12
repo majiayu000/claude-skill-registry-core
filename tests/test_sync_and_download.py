@@ -1901,6 +1901,71 @@ def test_bundled_listing_failure_does_not_publish_skill_md_only(tmp_path, monkey
     assert "status 403" in failure_report["failures"]["bundled_listing_failed"][0]
 
 
+def test_non_portable_required_bundle_path_fails_instead_of_degrading(tmp_path, monkeypatch):
+    module = load_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    failure_report_path = tmp_path / "failure_report.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "skills": [
+                    {
+                        "name": "demo",
+                        "repo": "acme/demo",
+                        "path": "skills/demo",
+                        "category": "development",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_fake_aiohttp(
+        monkeypatch,
+        {
+            "https://raw.githubusercontent.com/acme/demo/main/skills/demo/SKILL.md": FakeResponse(
+                200,
+                text=(
+                    "---\nname: demo\ndescription: Demo with required assets.\n---\n"
+                    "# Demo\nRead references/a:b.md before use.\n"
+                ),
+            ),
+            "https://api.github.com/repos/acme/demo/contents/skills/demo?ref=main": FakeResponse(
+                200,
+                json_payload=[{"type": "dir", "path": "skills/demo/references", "size": 0}],
+            ),
+            "https://api.github.com/repos/acme/demo/contents/skills/demo/references?ref=main": (
+                FakeResponse(
+                    200,
+                    json_payload=[
+                        {
+                            "type": "file",
+                            "path": "skills/demo/references/a:b.md",
+                            "size": 10,
+                        }
+                    ],
+                )
+            ),
+        },
+    )
+
+    stats = asyncio.run(
+        module.download_skills(
+            registry_path,
+            output_dir,
+            failure_report_path=failure_report_path,
+        )
+    )
+
+    assert stats["downloaded"] == 0
+    assert stats["failed"] == 1
+    assert not list(output_dir.rglob("SKILL.md"))
+    failure_report = json.loads(failure_report_path.read_text())
+    assert failure_report["failure_reasons"]["bundled_listing_failed"] == 1
+    assert "non-portable bundled path" in failure_report["failures"]["bundled_listing_failed"][0]
+
+
 def test_bundled_listing_failure_degrades_when_skill_has_no_support_refs(
     tmp_path,
     monkeypatch,
