@@ -14,6 +14,7 @@ Usage:
 metadata. `backfill-targets` emits only deterministic, exact-path candidates
 that claim support files but currently archive none.
 """
+
 from __future__ import annotations
 
 import collections
@@ -25,6 +26,7 @@ import sys
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from portable_paths import is_safe_portable_relative_path
 from skill_asset_audit import (
     classify_files,
     classify_skill_text,
@@ -33,7 +35,6 @@ from skill_asset_audit import (
 )
 from sync_pipeline_support import (
     has_case_conflicting_paths,
-    is_safe_portable_relative_path,
     is_valid_git_source_ref,
 )
 from utils import build_skill_key
@@ -86,12 +87,16 @@ def run_targets(root: str, min_stars: int) -> None:
         if key in seen:
             continue
         seen.add(key)
-        print(json.dumps({
-            "repo": repo,
-            "dir": skill_dir,
-            "stars": stars,
-            "name": meta.get("name", ""),
-        }))
+        print(
+            json.dumps(
+                {
+                    "repo": repo,
+                    "dir": skill_dir,
+                    "stars": stars,
+                    "name": meta.get("name", ""),
+                }
+            )
+        )
 
 
 def _is_canonical_archive_skill(dirpath: str, root: str | Path) -> bool:
@@ -166,9 +171,7 @@ def canonical_source_identity_from_metadata(metadata: dict) -> tuple[str, str, s
         if field not in metadata:
             continue
         path_value = _metadata_source_path(field, metadata[field])
-        repo, source_path, error = canonical_source_identity(
-            metadata.get("repo"), path_value
-        )
+        repo, source_path, error = canonical_source_identity(metadata.get("repo"), path_value)
         if error:
             return repo, source_path, error
         aliases.append((repo, source_path))
@@ -370,33 +373,37 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
         stars = _parse_stars(metadata.get("stars"), metadata_path)
         provenance_error = source_error or branch_error
         if provenance_error:
-            source_identity_errors.append({
-                "archive_path": relative_dir,
-                "error": provenance_error,
-                "eligible_for_backfill": (
-                    asset_state == "missing_claimed_assets"
-                    and stars >= min_stars
-                    and declared_files_valid
-                ),
-            })
+            source_identity_errors.append(
+                {
+                    "archive_path": relative_dir,
+                    "error": provenance_error,
+                    "eligible_for_backfill": (
+                        asset_state == "missing_claimed_assets"
+                        and stars >= min_stars
+                        and declared_files_valid
+                    ),
+                }
+            )
         if (
             asset_state == "missing_claimed_assets"
             and stars >= min_stars
             and not provenance_error
             and declared_files_valid
         ):
-            candidates.append({
-                "stable_key": stable_key,
-                "archive_path": relative_dir,
-                "repo": repo,
-                "source_path": source_path,
-                "github_branch": source_branch,
-                "dir": _source_dir(source_path),
-                "name": name,
-                "category": category,
-                "stars": stars,
-                "claim": claim,
-            })
+            candidates.append(
+                {
+                    "stable_key": stable_key,
+                    "archive_path": relative_dir,
+                    "repo": repo,
+                    "source_path": source_path,
+                    "github_branch": source_branch,
+                    "dir": _source_dir(source_path),
+                    "name": name,
+                    "category": category,
+                    "stars": stars,
+                    "claim": claim,
+                }
+            )
 
     if not total_skills:
         raise SystemExit(f"no SKILL.md found under {root}")
@@ -429,14 +436,10 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
 def build_backfill_targets(root: str, min_stars: int = 100) -> list[dict]:
     report, targets = _scan_inventory(root, min_stars)
     blocking_errors = [
-        row
-        for row in report["source_identity_errors"]
-        if row["eligible_for_backfill"]
+        row for row in report["source_identity_errors"] if row["eligible_for_backfill"]
     ]
     if blocking_errors:
-        details = ", ".join(
-            f"{row['archive_path']} ({row['error']})" for row in blocking_errors
-        )
+        details = ", ".join(f"{row['archive_path']} ({row['error']})" for row in blocking_errors)
         raise ValueError(f"invalid source identity for backfill candidates: {details}")
     return targets
 
