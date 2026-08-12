@@ -36,12 +36,23 @@ def iter_canonical_archive_paths(root: str | Path):
         if len(relative.parts) != 2:
             continue
         skill_variants = [name for name in filenames if name.casefold() == "skill.md"]
-        if skill_variants and "SKILL.md" not in skill_variants:
+        if len(skill_variants) > 1:
+            rendered = ", ".join(sorted(skill_variants))
+            raise ValueError(
+                f"canonical archive contains case-conflicting SKILL.md files: "
+                f"{relative} ({rendered})"
+            )
+        if skill_variants and skill_variants[0] != "SKILL.md":
             raise ValueError(
                 f"canonical SKILL.md has invalid casing: {relative / skill_variants[0]}"
             )
         if "SKILL.md" not in filenames:
             continue
+        skill_path = Path(dirpath, "SKILL.md")
+        if skill_path.is_symlink() or not skill_path.is_file():
+            raise ValueError(
+                f"canonical SKILL.md must be a regular non-symlink file: {relative / 'SKILL.md'}"
+            )
         relative_path = relative.as_posix()
         if not is_safe_portable_relative_path(relative_path):
             raise ValueError(f"non-portable canonical archive path: {relative_path}")
