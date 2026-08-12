@@ -13,6 +13,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from archive_preflight import iter_canonical_archive_paths
 from plugin_index import load_plugins_from_source
 from search_sources import verified_asset_fields
 from utils import (
@@ -272,6 +273,7 @@ def scan_skills(skills_dir: Path) -> list:
         logger.warning(f"Skills directory not found: {skills_dir}")
         return skills
 
+    list(iter_canonical_archive_paths(skills_dir))
     for skill_md in skills_dir.rglob("SKILL.md"):
         if is_declared_bundled_skill_file(skill_md, skills_dir):
             continue

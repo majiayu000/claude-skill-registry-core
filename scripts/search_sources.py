@@ -5,9 +5,10 @@ import json
 import logging
 import re
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional
 
+from archive_preflight import iter_canonical_archive_paths
 from audit_skill_assets import canonical_source_identity_from_metadata
 from category_taxonomy import resolve_category
 from sync_download_support import bundled_file_blobs_match, exact_source_branch
@@ -196,26 +197,33 @@ def verified_asset_fields(metadata: dict, skill_dir: Path, archive_root: Path) -
     for value in declared:
         if not is_safe_portable_relative_path(value):
             return {}
-        if value.casefold() in RESERVED_ARCHIVE_FILES or value in normalized:
+        first_component = PurePosixPath(value).parts[0].casefold()
+        if first_component in RESERVED_ARCHIVE_FILES or value in normalized:
             return {}
         normalized.append(value)
     if has_case_conflicting_paths(normalized):
         return {}
     try:
         actual = []
+        archive_paths = []
         for path in skill_dir.rglob("*"):
             relative = path.relative_to(skill_dir).as_posix()
             if path.is_symlink():
                 return {}
+            archive_paths.append(relative)
+            first_component = PurePosixPath(relative).parts[0].casefold()
+            if (
+                first_component in RESERVED_ARCHIVE_FILES
+                and relative not in {"SKILL.md", "metadata.json"}
+            ):
+                return {}
             if path.is_file():
                 if relative in {"SKILL.md", "metadata.json"}:
                     continue
-                if relative.casefold() in RESERVED_ARCHIVE_FILES:
-                    return {}
                 actual.append(relative)
     except OSError:
         return {}
-    if has_case_conflicting_paths(actual):
+    if has_case_conflicting_paths(archive_paths):
         return {}
     if sorted(normalized) != sorted(actual):
         return {}
@@ -250,6 +258,7 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
         logger.warning(f"Skills directory not found: {skills_dir}")
         return skills
 
+    list(iter_canonical_archive_paths(skills_dir))
     for skill_md in skills_dir.rglob("SKILL.md"):
         if is_declared_bundled_skill_file(skill_md, skills_dir):
             continue

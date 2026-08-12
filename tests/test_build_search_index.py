@@ -769,6 +769,47 @@ def test_verified_asset_fields_reject_symlinks(tmp_path):
     assert verified_asset_fields(metadata, linked_root / "skill", linked_root) == {}
 
 
+def test_verified_asset_fields_reject_reserved_bundle_root(tmp_path):
+    skill_dir = tmp_path / "dev" / "skill"
+    reserved_dir = skill_dir / "Metadata.json"
+    reserved_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("body", encoding="utf-8")
+    asset = reserved_dir / "run.py"
+    asset.write_text("asset", encoding="utf-8")
+    metadata = {
+        "repo": "acme/tools",
+        "path": "skills/demo/SKILL.md",
+        "github_branch": "main",
+        "archive_mode": "directory",
+        "bundled_files": ["Metadata.json/run.py"],
+        "bundled_file_blobs": {"Metadata.json/run.py": git_blob_sha(b"asset")},
+        "github_commit_sha": "a" * 40,
+        "assets_verified_at": "2026-08-01T00:00:00Z",
+    }
+
+    assert verified_asset_fields(metadata, skill_dir, tmp_path) == {}
+
+
+@pytest.mark.parametrize("scanner", [scan_skills_v2, scan_registry_skills])
+@pytest.mark.parametrize(
+    ("relative_path", "error"),
+    [
+        (Path("CON/demo/SKILL.md"), "non-portable canonical archive path"),
+        (Path("dev/demo/skill.md"), "canonical SKILL.md has invalid casing"),
+    ],
+)
+def test_registry_scanners_fail_closed_on_invalid_canonical_archive(
+    tmp_path, scanner, relative_path, error
+):
+    skills_dir = tmp_path / "skills"
+    skill_md = skills_dir / relative_path
+    skill_md.parent.mkdir(parents=True)
+    skill_md.write_text("# Invalid", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=error):
+        scanner(skills_dir)
+
+
 def test_registry_and_search_omit_verified_state_without_source_identity(tmp_path):
     skills_dir = tmp_path / "skills"
     skill_dir = skills_dir / "development" / "asset-demo"
