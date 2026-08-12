@@ -26,6 +26,7 @@ import sys
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from asset_claims import requires_complete_bundled_archive
 from portable_paths import is_safe_portable_relative_path
 from skill_asset_audit import (
     classify_files,
@@ -123,14 +124,23 @@ def _iter_canonical_archive_paths(root: str | Path):
                 raise ValueError(f"symbolic link is not allowed in archive tree: {relative}")
         if ".git" in dirnames:
             dirnames.remove(".git")
-        if "SKILL.md" not in filenames:
-            continue
         try:
             relative = Path(dirpath).resolve().relative_to(archive_root)
         except ValueError:
             continue
-        if len(relative.parts) == 2:
-            yield relative.as_posix()
+        if len(relative.parts) != 2:
+            continue
+        skill_variants = [name for name in filenames if name.casefold() == "skill.md"]
+        if skill_variants and "SKILL.md" not in skill_variants:
+            raise ValueError(
+                f"canonical SKILL.md has invalid casing: {relative / skill_variants[0]}"
+            )
+        if "SKILL.md" not in filenames:
+            continue
+        relative_path = relative.as_posix()
+        if not is_safe_portable_relative_path(relative_path):
+            raise ValueError(f"non-portable canonical archive path: {relative_path}")
+        yield relative_path
 
 
 def _assert_unique_canonical_archive_paths(root: str | Path) -> None:
@@ -205,6 +215,8 @@ def _metadata_source_path(field: str, value: object) -> object:
         return "SKILL.md" if field == "github_path" else value
     normalized = source_path.replace("\\", "/")
     if normalized.rsplit("/", 1)[-1].casefold() == "skill.md":
+        return source_path
+    if PurePosixPath(normalized).suffix:
         return source_path
     return f"{source_path}/SKILL.md"
 
@@ -305,22 +317,28 @@ def _actual_bundled_files(dirpath: str) -> list[str]:
     root = Path(dirpath)
     files = []
     archive_paths = []
-    for path in root.rglob("*"):
-        relative = path.relative_to(root).as_posix()
-        archive_paths.append(relative)
-        if path.is_symlink():
-            raise ValueError(f"symbolic link is not allowed in archive skill: {relative}")
-        if not is_safe_portable_relative_path(relative):
-            raise ValueError(f"non-portable path is not allowed in archive skill: {relative}")
-        try:
-            mode = path.lstat().st_mode
-        except OSError as exc:
-            raise ValueError(f"unable to inspect archive support path {relative}: {exc}") from exc
-        if not stat.S_ISREG(mode):
-            continue
-        if relative in {"SKILL.md", "metadata.json"}:
-            continue
-        files.append(relative)
+
+    def raise_walk_error(error: OSError) -> None:
+        raise ValueError(f"unable to inspect archive skill {dirpath}: {error}") from error
+
+    for current_dir, dirnames, filenames in os.walk(root, onerror=raise_walk_error):
+        for name in [*dirnames, *filenames]:
+            path = Path(current_dir, name)
+            relative = path.relative_to(root).as_posix()
+            archive_paths.append(relative)
+            try:
+                mode = path.lstat().st_mode
+            except OSError as exc:
+                raise ValueError(
+                    f"unable to inspect archive support path {relative}: {exc}"
+                ) from exc
+            if stat.S_ISLNK(mode):
+                raise ValueError(f"symbolic link is not allowed in archive skill: {relative}")
+            if not is_safe_portable_relative_path(relative):
+                raise ValueError(f"non-portable path is not allowed in archive skill: {relative}")
+            if not stat.S_ISREG(mode) or relative in {"SKILL.md", "metadata.json"}:
+                continue
+            files.append(relative)
     if _has_case_conflict(archive_paths):
         raise ValueError(f"case-conflicting paths are not allowed in archive skill: {dirpath}")
     return sorted(files)
@@ -355,7 +373,10 @@ def _declared_bundled_files(metadata: dict) -> tuple[list[str], bool]:
         if path.is_absolute():
             return [], False
         normalized_path = path.as_posix()
-        if normalized_path in {"SKILL.md", "metadata.json"} or normalized_path in normalized:
+        if (
+            normalized_path.casefold() in {"skill.md", "metadata.json"}
+            or normalized_path in normalized
+        ):
             return [], False
         normalized.append(normalized_path)
     if _has_case_conflict(normalized):
@@ -398,11 +419,17 @@ def _scan_inventory(root: str, min_stars: int) -> tuple[dict, list[dict]]:
         declared_files, declared_files_valid = _declared_bundled_files(metadata)
         actual_archive_mode = "directory" if actual_files else "skill-md"
         declared_archive_mode = str(metadata.get("archive_mode") or "")
-        claim = classify_skill_text(_read_skill(dirpath))
+        skill_text = _read_skill(dirpath)
+        claim = classify_skill_text(skill_text)
+        pipeline_claim = requires_complete_bundled_archive(skill_text)
         local_verdict = _local_verdict(actual_files)
         if actual_files:
             asset_state = "archived"
-        elif claim != "BARE":
+        elif (
+            claim != "BARE"
+            or pipeline_claim
+            or (declared_files_valid and bool(declared_files))
+        ):
             asset_state = "missing_claimed_assets"
         else:
             asset_state = "no_assets_claimed"

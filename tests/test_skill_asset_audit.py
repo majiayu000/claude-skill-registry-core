@@ -169,6 +169,12 @@ class TestStrictBackfillInventory:
             "acme/tools", "skills/demo"
         ) == ("acme/tools", "skills/demo", "source_path_not_skill_md")
 
+    @pytest.mark.parametrize("field", ["path", "github_path"])
+    def test_metadata_file_path_is_not_reinterpreted_as_directory(self, field):
+        assert audit_skill_assets.canonical_source_identity_from_metadata(
+            {"repo": "acme/tools", field: "README.md"}
+        ) == ("acme/tools", "README.md", "source_path_not_skill_md")
+
     def test_conflicting_aliases_contribute_every_normalized_identity_key(self):
         keys = audit_skill_assets._identity_keys(
             {
@@ -200,6 +206,9 @@ class TestStrictBackfillInventory:
             ["references//guide.md"],
             ["C:/scripts/run.py"],
             ["C:scripts/run.py"],
+            ["skill.md"],
+            ["SKILL.MD"],
+            ["Metadata.json"],
             ["references/Guide.md", "references/guide.md"],
             ["References/one.md", "references/two.md"],
         ],
@@ -222,6 +231,44 @@ class TestStrictBackfillInventory:
 
         assert report["actual_bundled_file_count"] == 1
         assert report["local_verdict_counts"] == {"REF_ASSET": 1}
+
+    def test_support_file_scan_fails_closed_on_walk_error(self, tmp_path, monkeypatch):
+        skill = tmp_path / "dev" / "demo"
+        skill.mkdir(parents=True)
+
+        def failed_walk(_root, *, onerror):
+            onerror(PermissionError("denied"))
+            yield from ()
+
+        monkeypatch.setattr(audit_skill_assets.os, "walk", failed_walk)
+
+        with pytest.raises(ValueError, match="unable to inspect archive skill.*denied"):
+            audit_skill_assets._actual_bundled_files(str(skill))
+
+    @pytest.mark.parametrize(
+        ("category", "name"),
+        [("CON", "demo"), ("dev", "demo.")],
+    )
+    def test_rejects_nonportable_canonical_archive_root(self, tmp_path, category, name):
+        root = tmp_path / "data"
+        skill = root / category / name
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("body", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="non-portable canonical archive path"):
+            audit_skill_assets.run_current_state(str(root))
+
+    def test_rejects_miscased_canonical_skill_filename(self, tmp_path):
+        root = tmp_path / "data"
+        valid = root / "dev" / "valid"
+        invalid = root / "dev" / "invalid"
+        valid.mkdir(parents=True)
+        invalid.mkdir(parents=True)
+        (valid / "SKILL.md").write_text("body", encoding="utf-8")
+        (invalid / "skill.md").write_text("body", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="canonical SKILL.md has invalid casing"):
+            audit_skill_assets.run_current_state(str(root))
 
     def test_conflicting_alias_record_makes_valid_candidate_ambiguous(self, tmp_path):
         root = tmp_path / "data"
@@ -297,6 +344,37 @@ class TestStrictBackfillInventory:
         )
 
         assert target["source_path"] == "skills/demo/SKILL.md"
+        assert target["stable_key"] == "acme/tools:skills/demo/SKILL.md"
+
+    @pytest.mark.parametrize(
+        ("body", "bundled_files"),
+        [
+            ("No recognizable asset reference.", ["package.json"]),
+            ("Run src/widget.jsx before continuing.", None),
+        ],
+    )
+    def test_pipeline_asset_claims_are_backfill_eligible(
+        self, tmp_path, body, bundled_files
+    ):
+        skill = tmp_path / "data" / "dev" / "demo"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(body, encoding="utf-8")
+        metadata = {
+            "repo": "acme/tools",
+            "path": "skills/demo/SKILL.md",
+            "github_branch": "main",
+            "stars": 100,
+        }
+        if bundled_files is not None:
+            metadata.update(
+                {"archive_mode": "directory", "bundled_files": bundled_files}
+            )
+        (skill / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+
+        [target] = audit_skill_assets.build_backfill_targets(
+            str(tmp_path / "data"), min_stars=100
+        )
+
         assert target["stable_key"] == "acme/tools:skills/demo/SKILL.md"
 
 
