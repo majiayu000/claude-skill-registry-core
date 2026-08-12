@@ -955,6 +955,22 @@ class TestApplyStagedArchives:
         with pytest.raises(ValueError, match="case conflicts"):
             backfill_skill_assets.validate_staged_archives(loaded, stage_root)
 
+    def test_rejects_drive_relative_staged_declaration(self, tmp_path):
+        archive_root = tmp_path / "archive"
+        _destination, target = make_backfill_target(archive_root)
+        targets_path = tmp_path / "targets.jsonl"
+        targets_path.write_text(json.dumps(target) + "\n")
+        loaded = backfill_skill_assets.load_backfill_targets(targets_path, archive_root)
+        stage_root = tmp_path / "stage"
+        staged = self._stage(stage_root, target)
+        metadata_path = staged / "metadata.json"
+        metadata = json.loads(metadata_path.read_text())
+        metadata["bundled_files"] = ["C:scripts/setup.py"]
+        metadata_path.write_text(json.dumps(metadata))
+
+        with pytest.raises(ValueError, match="bundled_files is malformed"):
+            backfill_skill_assets.validate_staged_archives(loaded, stage_root)
+
     def test_rejects_staged_asset_that_no_longer_matches_pinned_blob(self, tmp_path):
         archive_root = tmp_path / "archive"
         _destination, target = make_backfill_target(archive_root)
