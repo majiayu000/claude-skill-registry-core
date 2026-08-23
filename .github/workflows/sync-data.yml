@@ -421,8 +421,8 @@ jobs:
           fi
 
           {
-            git -C skills diff --name-only --diff-filter=AM || true
-            git -C skills ls-files --others --exclude-standard || true
+            git -C skills diff --name-only --diff-filter=AM
+            git -C skills ls-files --others --exclude-standard
           } | sort -u > "$FILE_LIST"
 
           COUNT=$(wc -l < "$FILE_LIST" | tr -d '[:space:]')
@@ -467,8 +467,8 @@ jobs:
           echo "🛡️ Running incremental ClamAV scan on changed skills..."
           CLAMAV_FILE_LIST="$RUNNER_TEMP/clamav-scan-files.txt"
           {
-            git -C skills diff --name-only --diff-filter=AM || true
-            git -C skills ls-files --others --exclude-standard || true
+            git -C skills diff --name-only --diff-filter=AM
+            git -C skills ls-files --others --exclude-standard
           } | sed 's#^#skills/#' | sort -u > "$CLAMAV_FILE_LIST"
           if [ ! -s "$CLAMAV_FILE_LIST" ]; then
             echo "No changed archive files for ClamAV scan." | tee clamav-report.txt
@@ -563,6 +563,7 @@ jobs:
           DOWNLOAD_FULL_OUTCOME: ${{ steps.download_full.outcome }}
           DOWNLOAD_DAILY_OUTCOME: ${{ steps.download_daily.outcome }}
           SECURITY_MODE: ${{ steps.security_scope.outputs.mode }}
+          SECURITY_CHANGED_COUNT: ${{ steps.security_scope.outputs.changed_count }}
           SECURITY_FULL_OUTCOME: ${{ steps.security_full.outcome }}
           SECURITY_DAILY_OUTCOME: ${{ steps.security_daily.outcome }}
         run: |
@@ -576,8 +577,14 @@ jobs:
 
           if [ "$SECURITY_MODE" = "full" ]; then
             security_outcome="$SECURITY_FULL_OUTCOME"
+            expected_min=1
           else
             security_outcome="$SECURITY_DAILY_OUTCOME"
+            if [ "${SECURITY_CHANGED_COUNT:-0}" -gt 0 ]; then
+              expected_min=1
+            else
+              expected_min=0
+            fi
           fi
 
           python scripts/check_sync_pipeline_health.py \
@@ -585,7 +592,8 @@ jobs:
             --download-outcome "${download_outcome:-not-run}" \
             --security-outcome "${security_outcome:-not-run}" \
             --security-report security-report.json \
-            --require-security-report
+            --require-security-report \
+            --expected-min-security-total "${expected_min}"
 
       - name: Verify bundled asset liveness
         if: steps.discovery.outputs.profile == 'full'
@@ -676,6 +684,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
 
           git add registry.json registry_summary.json registry-manifest.json registry-shards/ sources/ CHANGELOG.md scripts/ schema/ README.md SECURITY.md LICENSE THIRD_PARTY_NOTICES.md .github/workflows/sync-data.yml .github/workflows/metadata-compliance.yml
+          git rm -f --cached --ignore-unmatch registry-shards/*.json.gz
 
           if git diff --staged --quiet; then
             echo "No core changes"

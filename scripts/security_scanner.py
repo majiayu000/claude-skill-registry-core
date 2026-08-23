@@ -15,6 +15,7 @@ import jsonschema
 import yaml
 from security_blocklist import blocked_metadata_source, load_security_blocklist
 from security_rules import (
+    BUNDLED_BINARY_EXTENSIONS,
     BUNDLED_SCAN_DIRS,
     BUNDLED_SCAN_EXTENSIONS,
     BUNDLED_SCAN_ROOT_FILES,
@@ -30,7 +31,7 @@ from utils import is_declared_bundled_skill_file, split_frontmatter_content
 # Load schema
 SCHEMA_PATH = Path(__file__).parent.parent / "schema" / "skill.schema.json"
 SECURITY_SCANNER_NAME = "claude-skill-registry-security-scanner"
-SECURITY_SCANNER_VERSION = "1.1.3"
+SECURITY_SCANNER_VERSION = "1.1.4"
 
 
 def utc_now_isoformat() -> str:
@@ -65,6 +66,7 @@ def security_ruleset_hash() -> str:
             "bundled_scan_dirs": BUNDLED_SCAN_DIRS,
             "bundled_scan_root_files": BUNDLED_SCAN_ROOT_FILES,
             "bundled_scan_extensions": sorted(BUNDLED_SCAN_EXTENSIONS),
+            "bundled_binary_extensions": sorted(BUNDLED_BINARY_EXTENSIONS),
         }
     )
 
@@ -308,6 +310,11 @@ class SecurityScanner:
                         "yaml.load",
                         "yaml.unsafe_load",
                         "shell=True",
+                        "php_request_exec",
+                        "php_eval_request",
+                        "reverse_shell_dev_tcp",
+                        "curl_pipe_shell",
+                        "nc_exec_shell",
                     }
                     severity = "error" if pattern_name in critical_patterns else "warning"
 
@@ -352,10 +359,21 @@ class SecurityScanner:
                 bundled_file.suffix.lower() in BUNDLED_SCAN_EXTENSIONS
                 or bundled_file.name in BUNDLED_SCAN_ROOT_FILES
             )
-            is_bin_file = bool(rel_path.parts) and rel_path.parts[0].lower() == "bin"
+            is_bin_file = any(part.lower() == "bin" for part in rel_path.parts)
             is_executable = bool(bundled_file.stat().st_mode & 0o111)
+            suffix = bundled_file.suffix.lower()
+            looks_like_text = False
+            if (
+                not is_known_text
+                and suffix not in BUNDLED_BINARY_EXTENSIONS
+            ):
+                try:
+                    bundled_file.read_text(encoding="utf-8")
+                    looks_like_text = True
+                except (OSError, UnicodeDecodeError):
+                    looks_like_text = False
             has_shebang = False
-            if not (is_known_text or is_bin_file or is_executable):
+            if not (is_known_text or looks_like_text or is_bin_file or is_executable):
                 try:
                     with bundled_file.open("rb") as handle:
                         has_shebang = handle.read(2) == b"#!"
@@ -364,7 +382,7 @@ class SecurityScanner:
                     continue
 
             executable_like = is_bin_file or is_executable or has_shebang
-            if is_known_text or executable_like:
+            if is_known_text or looks_like_text or executable_like:
                 self._scan_bundled_text_file(
                     bundled_file,
                     executable_like=executable_like,

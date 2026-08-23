@@ -78,31 +78,19 @@ ALTER TABLE user_favorites ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read stats" ON skill_stats
   FOR SELECT USING (true);
 
-CREATE POLICY "Anyone can insert stats" ON skill_stats
-  FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Anyone can update stats" ON skill_stats
-  FOR UPDATE USING (true);
-
--- skill_likes: 所有人可读可写
+-- skill_likes: 所有人可读；写入只走 SECURITY DEFINER 函数
 CREATE POLICY "Anyone can read likes" ON skill_likes
   FOR SELECT USING (true);
 
 CREATE POLICY "Anyone can insert likes" ON skill_likes
   FOR INSERT WITH CHECK (true);
 
-CREATE POLICY "Users can delete own likes" ON skill_likes
-  FOR DELETE USING (true);
-
--- skill_comments: 所有人可读，可写自己的评论
+-- skill_comments: 所有人可读未删除评论；写入只走函数
 CREATE POLICY "Anyone can read comments" ON skill_comments
   FOR SELECT USING (is_deleted = false);
 
 CREATE POLICY "Anyone can insert comments" ON skill_comments
   FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Users can update own comments" ON skill_comments
-  FOR UPDATE USING (true);
 
 -- user_favorites: 只能读写自己的收藏
 CREATE POLICY "Users can read own favorites" ON user_favorites
@@ -160,7 +148,7 @@ BEGIN
     'count', COALESCE(v_new_count, 0)
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 -- 添加评论函数
 CREATE OR REPLACE FUNCTION add_comment(
@@ -187,7 +175,7 @@ BEGIN
 
   RETURN json_build_object('id', v_comment_id, 'success', true);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 -- 获取技能统计和用户状态
 CREATE OR REPLACE FUNCTION get_skill_stats(p_skill_install TEXT, p_device_id TEXT)
@@ -220,7 +208,7 @@ BEGIN
     'favorited', COALESCE(v_favorited, false)
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 -- 获取热门技能排行
 CREATE OR REPLACE FUNCTION get_trending_skills(p_limit INT DEFAULT 50)
@@ -241,4 +229,4 @@ BEGIN
   ORDER BY score DESC, s.updated_at DESC
   LIMIT p_limit;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;

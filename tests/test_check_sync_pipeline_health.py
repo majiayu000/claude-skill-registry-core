@@ -65,6 +65,14 @@ def test_validate_pipeline_health_accepts_successful_steps(tmp_path):
     assert errors == []
 
 
+def test_supabase_schema_does_not_grant_anon_direct_stat_writes():
+    schema = (ROOT / "supabase" / "schema.sql").read_text(encoding="utf-8")
+
+    assert 'CREATE POLICY "Anyone can update stats"' not in schema
+    assert "FOR UPDATE USING (true)" not in schema
+    assert "SET search_path = public, pg_temp" in schema
+
+
 def test_validate_pipeline_health_rejects_failed_discovery(tmp_path):
     errors = validate_pipeline_health(
         PipelineHealthInput(
@@ -111,6 +119,48 @@ def test_validate_pipeline_health_rejects_failed_security_report(tmp_path):
     )
 
     assert errors == ["security report contains failed scans: failed=1"]
+
+
+def test_validate_pipeline_health_rejects_empty_scan_when_changes_were_expected(tmp_path):
+    report_path = tmp_path / "security-report.json"
+    report_path.write_text(
+        json.dumps({**_security_report(total=0, passed=0, failed=0), "skills": []}),
+        encoding="utf-8",
+    )
+
+    errors = validate_pipeline_health(
+        PipelineHealthInput(
+            discovery_outcome="success",
+            download_outcome="success",
+            security_outcome="success",
+            security_report=report_path,
+            require_security_report=True,
+            expected_min_security_total=1,
+        )
+    )
+
+    assert errors == ["security report scanned 0 skills but expected at least 1"]
+
+
+def test_validate_pipeline_health_allows_empty_scan_when_archive_did_not_change(tmp_path):
+    report_path = tmp_path / "security-report.json"
+    report_path.write_text(
+        json.dumps({**_security_report(total=0, passed=0, failed=0), "skills": []}),
+        encoding="utf-8",
+    )
+
+    errors = validate_pipeline_health(
+        PipelineHealthInput(
+            discovery_outcome="success",
+            download_outcome="success",
+            security_outcome="success",
+            security_report=report_path,
+            require_security_report=True,
+            expected_min_security_total=0,
+        )
+    )
+
+    assert errors == []
 
 
 def test_validate_pipeline_health_rejects_missing_security_decision(tmp_path):

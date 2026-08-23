@@ -25,6 +25,7 @@ class PipelineHealthInput:
     security_outcome: str
     security_report: Path
     require_security_report: bool
+    expected_min_security_total: int = 0
 
 
 def normalize_outcome(value: str) -> str:
@@ -40,7 +41,7 @@ def _validate_step(step_name: str, outcome: str) -> list[str]:
     return []
 
 
-def _validate_security_report(report_path: Path) -> list[str]:
+def _validate_security_report(report_path: Path, expected_min_total: int = 0) -> list[str]:
     if not report_path.exists():
         return [f"required security report is missing: {report_path}"]
 
@@ -60,6 +61,12 @@ def _validate_security_report(report_path: Path) -> list[str]:
     failed = int(payload.get("failed", 0))
     if failed > 0:
         return [f"security report contains failed scans: failed={failed}"]
+
+    total = int(payload.get("total", 0))
+    if expected_min_total > 0 and total < expected_min_total:
+        return [
+            f"security report scanned {total} skills but expected at least {expected_min_total}"
+        ]
 
     skills = payload.get("skills")
     if not isinstance(skills, list):
@@ -115,7 +122,12 @@ def validate_pipeline_health(pipeline_input: PipelineHealthInput) -> list[str]:
         pipeline_input.require_security_report
         and normalize_outcome(pipeline_input.security_outcome) == "success"
     ):
-        errors.extend(_validate_security_report(pipeline_input.security_report))
+        errors.extend(
+            _validate_security_report(
+                pipeline_input.security_report,
+                expected_min_total=pipeline_input.expected_min_security_total,
+            )
+        )
 
     return errors
 
@@ -129,6 +141,7 @@ def parse_args() -> PipelineHealthInput:
     parser.add_argument("--security-outcome", required=True)
     parser.add_argument("--security-report", default="security-report.json")
     parser.add_argument("--require-security-report", action="store_true")
+    parser.add_argument("--expected-min-security-total", type=int, default=0)
     args = parser.parse_args()
 
     return PipelineHealthInput(
@@ -137,6 +150,7 @@ def parse_args() -> PipelineHealthInput:
         security_outcome=args.security_outcome,
         security_report=Path(args.security_report),
         require_security_report=args.require_security_report,
+        expected_min_security_total=max(0, args.expected_min_security_total),
     )
 
 
