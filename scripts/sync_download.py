@@ -478,7 +478,8 @@ async def download_skills(
                                     and ("---" in content[:50] or "#" in content[:100])
                                 ):
                                     content_requires_complete_archive = (
-                                        requires_complete_bundled_archive(content)
+                                        requires_complete_bundled_archive(source_text)
+                                        or requires_complete_bundled_archive(content)
                                     )
                                     require_complete_archive = content_requires_complete_archive or (
                                         exact_paths_only and pin_commit_sha
