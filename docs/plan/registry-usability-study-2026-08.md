@@ -70,7 +70,7 @@
 
 | 事件 | 含义 |
 |---|---|
-| `search_submitted` | 参与者按回车或点快捷标签，只保留搜索长度区间和结果数量区间 |
+| `search_submitted` | 参与者输入查询、按回车或点快捷标签，只保留搜索长度区间和结果数量区间 |
 | `skill_detail_opened` | 打开一个 Skill 详情 |
 | `favorite_toggled` | 收藏或取消收藏 |
 | `install_copy_clicked` | 点击复制安装命令，表示安装意图，不能证明命令已经运行 |

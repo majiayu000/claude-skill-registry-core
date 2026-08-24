@@ -87,3 +87,161 @@ def test_study_mode_is_query_gated_and_has_no_network_sender():
     assert "query_text" not in source
     assert "userAgent" not in source
     assert "document.referrer" not in source
+
+
+def test_browser_study_tracks_automatic_search_and_random_without_plugin_misattribution():
+    result = run_node(
+        r"""
+const assert = require('assert');
+
+function makeClassList(initial = []) {
+  const values = new Set(initial);
+  return {
+    add: value => values.add(value),
+    remove: value => values.delete(value),
+    contains: value => values.has(value)
+  };
+}
+
+function makeControl(id, classes = []) {
+  const listeners = {};
+  return {
+    id,
+    disabled: false,
+    textContent: '',
+    classList: makeClassList(classes),
+    addEventListener(type, handler) { listeners[type] = handler; },
+    listeners
+  };
+}
+
+const controls = {
+  'study-panel': makeControl('study-panel', ['hidden']),
+  'study-start': makeControl('study-start'),
+  'study-finish': makeControl('study-finish'),
+  'study-download': makeControl('study-download'),
+  'study-status': makeControl('study-status'),
+  'result-count': makeControl('result-count'),
+  'search-results': makeControl('search-results')
+};
+controls['result-count'].textContent = '42 results';
+
+const documentHandlers = {};
+const fakeDocument = {
+  getElementById: id => controls[id] || null,
+  querySelector: selector => selector === '.nav-tab.active'
+    ? { dataset: { view: 'featured' } }
+    : null,
+  addEventListener(type, handler) {
+    documentHandlers[type] = handler;
+  },
+  createElement() { return { click() {} }; }
+};
+
+const stored = new Map();
+let nextTimerId = 1;
+const timers = new Map();
+const fakeWindow = {
+  document: fakeDocument,
+  location: { search: '?study=1&cohort=review' },
+  sessionStorage: {
+    getItem: key => stored.get(key) || null,
+    setItem: (key, value) => stored.set(key, value),
+    removeItem: key => stored.delete(key)
+  },
+  crypto: { randomUUID: () => 'browser-session' },
+  navigator: { clipboard: { writeText: async () => {} } },
+  setTimeout(handler, delay) {
+    const id = nextTimerId++;
+    timers.set(id, { handler, delay, cancelled: false });
+    return id;
+  },
+  clearTimeout(id) {
+    if (timers.has(id)) timers.get(id).cancelled = true;
+  }
+};
+global.window = fakeWindow;
+
+function flushTimers() {
+  const queued = [...timers.values()].sort((a, b) => a.delay - b.delay);
+  timers.clear();
+  queued.forEach(timer => {
+    if (!timer.cancelled) timer.handler();
+  });
+}
+
+const study = require('./docs/js/study-mode.js');
+let openedInstall = '';
+fakeWindow.showSkillDetail = card => { openedInstall = card.dataset.install; };
+documentHandlers.DOMContentLoaded();
+
+const searchTarget = { id: 'search-input', value: 'before consent' };
+documentHandlers.input({ target: searchTarget });
+flushTimers();
+controls['study-start'].listeners.click();
+assert.strictEqual(controls['study-download'].disabled, true);
+
+searchTarget.value = 'security';
+documentHandlers.input({ target: searchTarget });
+flushTimers();
+documentHandlers.keydown({ key: 'Enter', target: searchTarget });
+flushTimers();
+
+const randomTarget = {
+  closest: selector => selector === '#random-btn' ? randomTarget : null
+};
+documentHandlers.click({ target: randomTarget });
+fakeWindow.showSkillDetail({ dataset: { install: 'owner/random-skill' } });
+assert.strictEqual(openedInstall, 'owner/random-skill');
+
+const modalCopyTarget = {
+  closest(selector) {
+    if (selector === '.copy-btn') return modalCopyTarget;
+    return null;
+  }
+};
+documentHandlers.click({ target: modalCopyTarget });
+
+const modalGitHubTarget = {
+  closest: selector => selector === '#modal-body a[href*="github.com/"]'
+    ? modalGitHubTarget
+    : null
+};
+documentHandlers.click({ target: modalGitHubTarget });
+
+const pluginCard = {};
+const pluginCopyTarget = {
+  closest(selector) {
+    if (selector === '.copy-btn') return pluginCopyTarget;
+    if (selector === '.plugin-card') return pluginCard;
+    return null;
+  }
+};
+documentHandlers.click({ target: pluginCopyTarget });
+
+(async () => {
+  await controls['study-finish'].listeners.click();
+  assert.strictEqual(controls['study-download'].disabled, false);
+  const summary = study.recorder.summary();
+  assert.deepStrictEqual(summary.events.map(event => event.name), [
+    'search_submitted',
+    'skill_detail_opened',
+    'install_copy_clicked',
+    'github_opened'
+  ]);
+  assert.strictEqual(summary.events[0].details.source, 'input');
+  assert.deepStrictEqual(summary.events.slice(1).map(event => event.details.skill_install), [
+    'owner/random-skill',
+    'owner/random-skill',
+    'owner/random-skill'
+  ]);
+  assert.strictEqual(summary.events[1].details.source_view, 'random');
+  console.log(JSON.stringify(summary));
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
+"""
+    )
+
+    assert result["active"] is False

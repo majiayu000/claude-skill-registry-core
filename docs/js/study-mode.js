@@ -175,6 +175,10 @@
         const recorder = createRecorder({ storage: globalScope.sessionStorage });
         const cohort = params.get('cohort') || '';
         let lastSkillInstall = '';
+        let pendingDetailSource = '';
+        let searchRevision = 0;
+        let lastRecordedSearchRevision = -1;
+        let pendingSearchTimer = null;
         panel.classList.remove('hidden');
 
         function visibleResultCount() {
@@ -193,28 +197,72 @@
             return target.closest('[data-install]')?.dataset.install || lastSkillInstall;
         }
 
+        function scheduleSearchRecord(query, source, delayMs, startsNewSearch = true) {
+            if (startsNewSearch || searchRevision === 0) searchRevision += 1;
+            const revision = searchRevision;
+            const queryLengthBucket = bucketQueryLength(query);
+            if (pendingSearchTimer !== null) {
+                globalScope.clearTimeout(pendingSearchTimer);
+            }
+            if (queryLengthBucket === '0') return;
+
+            pendingSearchTimer = globalScope.setTimeout(() => {
+                pendingSearchTimer = null;
+                if (lastRecordedSearchRevision === revision) return;
+                const recorded = recorder.track('search_submitted', {
+                    query_length_bucket: queryLengthBucket,
+                    result_count_bucket: bucketResultCount(visibleResultCount()),
+                    source
+                });
+                if (recorded) lastRecordedSearchRevision = revision;
+            }, delayMs);
+        }
+
+        function installDetailTrackingHook() {
+            const original = globalScope.showSkillDetail;
+            if (typeof original !== 'function' || original.__registryStudyWrapped) return;
+
+            function trackedShowSkillDetail(card) {
+                const install = card?.dataset?.install || '';
+                if (install) {
+                    lastSkillInstall = install;
+                    recorder.track('skill_detail_opened', {
+                        skill_install: install,
+                        source_view: pendingDetailSource || currentSourceView()
+                    });
+                }
+                pendingDetailSource = '';
+                return original.apply(this, arguments);
+            }
+
+            trackedShowSkillDetail.__registryStudyWrapped = true;
+            globalScope.showSkillDetail = trackedShowSkillDetail;
+        }
+
+        globalScope.document.addEventListener('DOMContentLoaded', installDetailTrackingHook, {
+            once: true
+        });
+
+        globalScope.document.addEventListener('input', event => {
+            if (event.target.id !== 'search-input') return;
+            scheduleSearchRecord(event.target.value, 'input', 350);
+        }, true);
+
         globalScope.document.addEventListener('keydown', event => {
             if (event.key !== 'Enter' || event.target.id !== 'search-input') return;
-            globalScope.setTimeout(() => {
-                recorder.track('search_submitted', {
-                    query_length_bucket: bucketQueryLength(event.target.value),
-                    result_count_bucket: bucketResultCount(visibleResultCount()),
-                    source: 'enter'
-                });
-            }, 0);
+            scheduleSearchRecord(event.target.value, 'enter', 0, false);
         }, true);
 
         globalScope.document.addEventListener('click', event => {
             const target = event.target;
             const quickTag = target.closest('#quick-tags .tag');
             if (quickTag) {
-                globalScope.setTimeout(() => {
-                    recorder.track('search_submitted', {
-                        query_length_bucket: bucketQueryLength(quickTag.dataset.query),
-                        result_count_bucket: bucketResultCount(visibleResultCount()),
-                        source: 'quick_tag'
-                    });
-                }, 0);
+                scheduleSearchRecord(quickTag.dataset.query, 'quick_tag', 0);
+                return;
+            }
+
+            if (target.closest('#random-btn')) {
+                pendingDetailSource = 'random';
                 return;
             }
 
@@ -237,6 +285,7 @@
 
             const copyButton = target.closest('.copy-btn');
             if (copyButton) {
+                if (copyButton.closest('.plugin-card')) return;
                 recorder.track('install_copy_clicked', {
                     skill_install: installFromTarget(copyButton)
                 });
@@ -249,21 +298,13 @@
                 return;
             }
 
-            const skillCard = target.closest('.skill-card, .leaderboard-card, .similar-card');
-            if (skillCard?.dataset.install) {
-                lastSkillInstall = skillCard.dataset.install;
-                recorder.track('skill_detail_opened', {
-                    skill_install: lastSkillInstall,
-                    source_view: currentSourceView()
-                });
-            }
         }, true);
 
         function refreshControls(message) {
             const active = recorder.isActive();
             startButton.disabled = active;
             finishButton.disabled = !active;
-            downloadButton.disabled = !recorder.summary();
+            downloadButton.disabled = active || !recorder.summary();
             status.textContent = message || (active
                 ? 'Recording coarse interactions in this tab.'
                 : 'Not recording. Start only after the participant agrees.');
@@ -277,6 +318,10 @@
 
         startButton.addEventListener('click', () => {
             recorder.start(cohort);
+            lastSkillInstall = '';
+            pendingDetailSource = '';
+            searchRevision = 0;
+            lastRecordedSearchRevision = -1;
             refreshControls('Recording started. No search text or personal identifier is stored.');
         });
 
