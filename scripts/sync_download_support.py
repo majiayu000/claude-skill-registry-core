@@ -370,13 +370,9 @@ async def download_bundled_files_to_directory(
         message = "eligible bundled files exceed per-skill count or byte limits"
         return archived, [message], "bundled_limits_exceeded", blob_ids
     if not entries:
-        if require_complete_archive:
-            return (
-                archived,
-                ["required bundled archive contains no eligible support files"],
-                "bundled_listing_incomplete",
-                blob_ids,
-            )
+        # A complete empty listing is valid for standalone SKILL.md sources with no
+        # eligible support files. Listing failures and omissions are already
+        # represented by BundledListingError or the truncated/incomplete flag.
         return archived, failed, "", blob_ids
 
     skill_root = skill_dir.resolve()

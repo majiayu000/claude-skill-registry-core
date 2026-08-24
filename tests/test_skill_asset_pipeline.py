@@ -728,7 +728,7 @@ class TestBackfillTargets:
         assert entries == []
         assert incomplete is True
 
-    def test_required_ordinary_bundle_rejects_empty_listing(self, tmp_path):
+    def test_required_ordinary_bundle_allows_complete_empty_listing(self, tmp_path):
         async def empty_collector(*_args):
             return [], False
 
@@ -747,8 +747,7 @@ class TestBackfillTargets:
             )
         )
 
-        assert result[1] == ["required bundled archive contains no eligible support files"]
-        assert result[2] == "bundled_listing_incomplete"
+        assert result == ([], [], "", {})
 
     @pytest.mark.parametrize(
         "paths",
