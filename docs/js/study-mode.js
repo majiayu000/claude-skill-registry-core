@@ -202,6 +202,13 @@
             return target.closest('[data-install]')?.dataset.install || lastSkillInstall;
         }
 
+        function markPendingRandomDetail() {
+            pendingDetailSource = 'random';
+            globalScope.setTimeout(() => {
+                if (pendingDetailSource === 'random') pendingDetailSource = '';
+            }, 0);
+        }
+
         function scheduleSearchRecord(query, source, delayMs, startsNewSearch = true) {
             if (startsNewSearch || searchRevision === 0) searchRevision += 1;
             const revision = searchRevision;
@@ -260,6 +267,15 @@
         }, true);
 
         globalScope.document.addEventListener('keydown', event => {
+            const modal = globalScope.document.getElementById('skill-modal');
+            if (
+                event.key === 'r'
+                && globalScope.document.activeElement?.id !== 'search-input'
+                && modal?.classList.contains('hidden')
+            ) {
+                markPendingRandomDetail();
+                return;
+            }
             if (event.key !== 'Enter' || event.target.id !== 'search-input') return;
             scheduleSearchRecord(event.target.value, 'enter', 0, false);
         }, true);
@@ -273,10 +289,7 @@
             }
 
             if (target.closest('#random-btn')) {
-                pendingDetailSource = 'random';
-                globalScope.setTimeout(() => {
-                    if (pendingDetailSource === 'random') pendingDetailSource = '';
-                }, 0);
+                markPendingRandomDetail();
                 return;
             }
 

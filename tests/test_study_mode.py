@@ -123,13 +123,15 @@ const controls = {
   'study-download': makeControl('study-download'),
   'study-status': makeControl('study-status'),
   'result-count': makeControl('result-count'),
-  'search-results': makeControl('search-results')
+  'search-results': makeControl('search-results'),
+  'skill-modal': makeControl('skill-modal', ['hidden'])
 };
 controls['result-count'].textContent = '42 results';
 
 const documentHandlers = {};
 let openedInstall = '';
 const fakeDocument = {
+  activeElement: { id: '' },
   getElementById: id => controls[id] || null,
   querySelector(selector) {
     if (selector === '.nav-tab.active') return { dataset: { view: 'featured' } };
@@ -208,6 +210,10 @@ documentHandlers.click({ target: randomTarget });
 flushTimers();
 fakeWindow.showSkillDetail({ dataset: { install: 'owner/ordinary-skill' } });
 
+documentHandlers.keydown({ key: 'r', target: { id: '' } });
+fakeWindow.showSkillDetail({ dataset: { install: 'owner/keyboard-random-skill' } });
+flushTimers();
+
 documentHandlers.click({ target: randomTarget });
 fakeWindow.showSkillDetail({ dataset: { install: 'owner/random-skill' } });
 flushTimers();
@@ -249,18 +255,21 @@ documentHandlers.click({ target: pluginCopyTarget });
     'search_submitted',
     'skill_detail_opened',
     'skill_detail_opened',
+    'skill_detail_opened',
     'install_copy_clicked',
     'github_opened'
   ]);
   assert.strictEqual(summary.events[0].details.source, 'input');
   assert.deepStrictEqual(summary.events.slice(1).map(event => event.details.skill_install), [
     'owner/ordinary-skill',
+    'owner/keyboard-random-skill',
     'owner/random-skill',
     'owner/random-skill',
     'owner/random-skill'
   ]);
   assert.notStrictEqual(summary.events[1].details.source_view, 'random');
   assert.strictEqual(summary.events[2].details.source_view, 'random');
+  assert.strictEqual(summary.events[3].details.source_view, 'random');
   console.log(JSON.stringify(summary));
 })().catch(error => {
   console.error(error);
