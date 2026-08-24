@@ -42,6 +42,11 @@
         return '101+';
     }
 
+    function normalizeCohort(value) {
+        const normalized = String(value ?? '').trim().toLowerCase();
+        return /^\d{4}q[1-4]$/.test(normalized) ? normalized : '';
+    }
+
     function sanitizeDetails(eventName, details = {}) {
         const allowedKeys = ALLOWED_EVENTS[eventName];
         if (!allowedKeys) return null;
@@ -103,7 +108,7 @@
             session = {
                 schema_version: SCHEMA_VERSION,
                 session_id: sanitizeToken(makeId(), 80),
-                cohort: sanitizeToken(cohort, 40),
+                cohort: normalizeCohort(cohort),
                 started_at: isoNow(),
                 started_ms: now(),
                 finished_at: null,
@@ -203,6 +208,7 @@
             const queryLengthBucket = bucketQueryLength(query);
             if (pendingSearchTimer !== null) {
                 globalScope.clearTimeout(pendingSearchTimer);
+                pendingSearchTimer = null;
             }
             if (queryLengthBucket === '0') return;
 
@@ -224,7 +230,12 @@
 
             function trackedShowSkillDetail(card) {
                 const install = card?.dataset?.install || '';
-                if (install) {
+                const result = original.apply(this, arguments);
+                const command = globalScope.document.querySelector(
+                    '#modal-body .install-cmd span:not(.prefix)'
+                )?.textContent || '';
+                const displayedInstall = command.replace(/^sk install\s+/, '').trim();
+                if (install && displayedInstall === install) {
                     lastSkillInstall = install;
                     recorder.track('skill_detail_opened', {
                         skill_install: install,
@@ -232,7 +243,7 @@
                     });
                 }
                 pendingDetailSource = '';
-                return original.apply(this, arguments);
+                return result;
             }
 
             trackedShowSkillDetail.__registryStudyWrapped = true;
@@ -263,6 +274,9 @@
 
             if (target.closest('#random-btn')) {
                 pendingDetailSource = 'random';
+                globalScope.setTimeout(() => {
+                    if (pendingDetailSource === 'random') pendingDetailSource = '';
+                }, 0);
                 return;
             }
 
@@ -317,6 +331,10 @@
         }
 
         startButton.addEventListener('click', () => {
+            if (pendingSearchTimer !== null) {
+                globalScope.clearTimeout(pendingSearchTimer);
+                pendingSearchTimer = null;
+            }
             recorder.start(cohort);
             lastSkillInstall = '';
             pendingDetailSource = '';
@@ -327,6 +345,7 @@
 
         finishButton.addEventListener('click', async () => {
             recorder.finish();
+            refreshControls('Study finished. Copying the summary…');
             try {
                 await globalScope.navigator.clipboard.writeText(serializeSummary());
                 refreshControls('Study finished. Summary copied to the clipboard.');
@@ -360,6 +379,7 @@
         ALLOWED_EVENTS,
         bucketQueryLength,
         bucketResultCount,
+        normalizeCohort,
         sanitizeDetails,
         createRecorder,
         recorder: null,

@@ -38,7 +38,8 @@ const recorder = study.createRecorder({
 });
 
 assert.strictEqual(recorder.track('search_submitted', {}), false);
-recorder.start('q3 cohort with spaces');
+assert.strictEqual(study.normalizeCohort('2026Q3'), '2026q3');
+recorder.start('alice@example.com');
 assert.strictEqual(recorder.isActive(), true);
 assert.strictEqual(recorder.track('unknown_event', {}), false);
 assert.strictEqual(recorder.track('search_submitted', {
@@ -57,7 +58,7 @@ assert.strictEqual(recorder.track('skill_detail_opened', {
 const summary = recorder.finish();
 assert.strictEqual(summary.active, false);
 assert.strictEqual(summary.started_ms, undefined);
-assert.strictEqual(summary.cohort, 'q3cohortwithspaces');
+assert.strictEqual(summary.cohort, '');
 assert.strictEqual(summary.events[0].elapsed_ms, 0);
 assert.strictEqual(summary.events[1].elapsed_ms, 1500);
 assert.strictEqual(summary.events[0].details.query_text, undefined);
@@ -127,11 +128,16 @@ const controls = {
 controls['result-count'].textContent = '42 results';
 
 const documentHandlers = {};
+let openedInstall = '';
 const fakeDocument = {
   getElementById: id => controls[id] || null,
-  querySelector: selector => selector === '.nav-tab.active'
-    ? { dataset: { view: 'featured' } }
-    : null,
+  querySelector(selector) {
+    if (selector === '.nav-tab.active') return { dataset: { view: 'featured' } };
+    if (selector === '#modal-body .install-cmd span:not(.prefix)' && openedInstall) {
+      return { textContent: `sk install ${openedInstall}` };
+    }
+    return null;
+  },
   addEventListener(type, handler) {
     documentHandlers[type] = handler;
   },
@@ -139,18 +145,23 @@ const fakeDocument = {
 };
 
 const stored = new Map();
+let resolveClipboard;
 let nextTimerId = 1;
 const timers = new Map();
 const fakeWindow = {
   document: fakeDocument,
-  location: { search: '?study=1&cohort=review' },
+  location: { search: '?study=1&cohort=2026q3' },
   sessionStorage: {
     getItem: key => stored.get(key) || null,
     setItem: (key, value) => stored.set(key, value),
     removeItem: key => stored.delete(key)
   },
   crypto: { randomUUID: () => 'browser-session' },
-  navigator: { clipboard: { writeText: async () => {} } },
+  navigator: {
+    clipboard: {
+      writeText: () => new Promise(resolve => { resolveClipboard = resolve; })
+    }
+  },
   setTimeout(handler, delay) {
     const id = nextTimerId++;
     timers.set(id, { handler, delay, cancelled: false });
@@ -171,14 +182,15 @@ function flushTimers() {
 }
 
 const study = require('./docs/js/study-mode.js');
-let openedInstall = '';
-fakeWindow.showSkillDetail = card => { openedInstall = card.dataset.install; };
+fakeWindow.showSkillDetail = card => {
+  if (card.dataset.install !== 'owner/unavailable') openedInstall = card.dataset.install;
+};
 documentHandlers.DOMContentLoaded();
 
 const searchTarget = { id: 'search-input', value: 'before consent' };
 documentHandlers.input({ target: searchTarget });
-flushTimers();
 controls['study-start'].listeners.click();
+flushTimers();
 assert.strictEqual(controls['study-download'].disabled, true);
 
 searchTarget.value = 'security';
@@ -187,11 +199,14 @@ flushTimers();
 documentHandlers.keydown({ key: 'Enter', target: searchTarget });
 flushTimers();
 
+fakeWindow.showSkillDetail({ dataset: { install: 'owner/unavailable' } });
+
 const randomTarget = {
   closest: selector => selector === '#random-btn' ? randomTarget : null
 };
 documentHandlers.click({ target: randomTarget });
 fakeWindow.showSkillDetail({ dataset: { install: 'owner/random-skill' } });
+flushTimers();
 assert.strictEqual(openedInstall, 'owner/random-skill');
 
 const modalCopyTarget = {
@@ -220,9 +235,12 @@ const pluginCopyTarget = {
 documentHandlers.click({ target: pluginCopyTarget });
 
 (async () => {
-  await controls['study-finish'].listeners.click();
+  const finishPromise = controls['study-finish'].listeners.click();
   assert.strictEqual(controls['study-download'].disabled, false);
+  resolveClipboard();
+  await finishPromise;
   const summary = study.recorder.summary();
+  assert.strictEqual(summary.cohort, '2026q3');
   assert.deepStrictEqual(summary.events.map(event => event.name), [
     'search_submitted',
     'skill_detail_opened',
