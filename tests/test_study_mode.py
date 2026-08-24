@@ -205,6 +205,10 @@ const randomTarget = {
   closest: selector => selector === '#random-btn' ? randomTarget : null
 };
 documentHandlers.click({ target: randomTarget });
+flushTimers();
+fakeWindow.showSkillDetail({ dataset: { install: 'owner/ordinary-skill' } });
+
+documentHandlers.click({ target: randomTarget });
 fakeWindow.showSkillDetail({ dataset: { install: 'owner/random-skill' } });
 flushTimers();
 assert.strictEqual(openedInstall, 'owner/random-skill');
@@ -244,16 +248,19 @@ documentHandlers.click({ target: pluginCopyTarget });
   assert.deepStrictEqual(summary.events.map(event => event.name), [
     'search_submitted',
     'skill_detail_opened',
+    'skill_detail_opened',
     'install_copy_clicked',
     'github_opened'
   ]);
   assert.strictEqual(summary.events[0].details.source, 'input');
   assert.deepStrictEqual(summary.events.slice(1).map(event => event.details.skill_install), [
+    'owner/ordinary-skill',
     'owner/random-skill',
     'owner/random-skill',
     'owner/random-skill'
   ]);
-  assert.strictEqual(summary.events[1].details.source_view, 'random');
+  assert.notStrictEqual(summary.events[1].details.source_view, 'random');
+  assert.strictEqual(summary.events[2].details.source_view, 'random');
   console.log(JSON.stringify(summary));
 })().catch(error => {
   console.error(error);
