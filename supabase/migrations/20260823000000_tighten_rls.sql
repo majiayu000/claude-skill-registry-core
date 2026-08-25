@@ -1,140 +1,91 @@
--- ═══════════════════════════════════════════════════════════
--- Claude Skills Registry - Supabase Schema
--- 社区版：点赞、评论、收藏（不需要强制登录）
--- ═══════════════════════════════════════════════════════════
+-- Tighten community RLS: public clients may read public fields, while all
+-- identity-sensitive writes use authenticated RPCs or ownership policies.
 
--- 1. 技能统计表（点赞数、评论数）
-CREATE TABLE IF NOT EXISTS skill_stats (
-  skill_install TEXT PRIMARY KEY,           -- 技能安装路径，如 "openai/codex/skill-installer"
-  likes_count INT DEFAULT 0,                -- 点赞总数
-  comments_count INT DEFAULT 0,             -- 评论总数
-  views_count INT DEFAULT 0,                -- 浏览次数
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+DROP POLICY IF EXISTS "Anyone can insert stats" ON public.skill_stats;
+DROP POLICY IF EXISTS "Anyone can update stats" ON public.skill_stats;
+DROP POLICY IF EXISTS "Anyone can read stats" ON public.skill_stats;
+DROP POLICY IF EXISTS "Anyone can read likes" ON public.skill_likes;
+DROP POLICY IF EXISTS "Anyone can insert likes" ON public.skill_likes;
+DROP POLICY IF EXISTS "Users can delete own likes" ON public.skill_likes;
+DROP POLICY IF EXISTS "Anyone can insert comments" ON public.skill_comments;
+DROP POLICY IF EXISTS "Users can update own comments" ON public.skill_comments;
+DROP POLICY IF EXISTS "Users can read own favorites" ON public.user_favorites;
+DROP POLICY IF EXISTS "Users can insert favorites" ON public.user_favorites;
+DROP POLICY IF EXISTS "Users can delete own favorites" ON public.user_favorites;
+DROP POLICY IF EXISTS "Authenticated users can update own comments" ON public.skill_comments;
+DROP POLICY IF EXISTS "Authenticated users can read own favorites" ON public.user_favorites;
+DROP POLICY IF EXISTS "Authenticated users can insert own favorites" ON public.user_favorites;
+DROP POLICY IF EXISTS "Authenticated users can delete own favorites" ON public.user_favorites;
 
--- 2. 点赞记录表（防止重复点赞）
-CREATE TABLE IF NOT EXISTS skill_likes (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  skill_install TEXT NOT NULL,              -- 技能安装路径
-  device_id TEXT NOT NULL,                  -- 设备ID（匿名用户）
-  user_id UUID REFERENCES auth.users,       -- 可选：登录用户ID
-  created_at TIMESTAMPTZ DEFAULT NOW(),
+CREATE POLICY "Anyone can read stats" ON public.skill_stats
+  FOR SELECT TO anon, authenticated USING (true);
 
-  -- 每个设备/用户只能点赞一次
-  UNIQUE(skill_install, device_id)
-);
+DROP POLICY IF EXISTS "Anyone can read comments" ON public.skill_comments;
+CREATE POLICY "Anyone can read comments" ON public.skill_comments
+  FOR SELECT TO anon, authenticated USING (is_deleted = false);
 
--- 3. 评论表
-CREATE TABLE IF NOT EXISTS skill_comments (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  skill_install TEXT NOT NULL,              -- 技能安装路径
-  device_id TEXT NOT NULL,                  -- 设备ID
-  user_id UUID REFERENCES auth.users,       -- 可选：登录用户ID
-  nickname TEXT DEFAULT 'Anonymous',        -- 昵称
-  content TEXT NOT NULL,                    -- 评论内容
-  rating INT CHECK (rating >= 1 AND rating <= 5), -- 1-5星评分
-  is_deleted BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+CREATE INDEX IF NOT EXISTS idx_skill_comments_device_created
+  ON public.skill_comments(device_id, created_at DESC);
 
--- 4. 收藏表（需要设备ID或用户ID）
-CREATE TABLE IF NOT EXISTS user_favorites (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  skill_install TEXT NOT NULL,
-  device_id TEXT,                           -- 设备ID（匿名用户）
-  user_id UUID REFERENCES auth.users,       -- 登录用户ID
-  folder TEXT DEFAULT 'default',            -- 收藏夹名称
-  note TEXT,                                -- 用户笔记
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-
-  -- 每个设备/用户每个技能只收藏一次
-  UNIQUE(skill_install, device_id),
-  UNIQUE(skill_install, user_id)
-);
-
--- ═══════════════════════════════════════════════════════════
--- 索引优化
--- ═══════════════════════════════════════════════════════════
-
-CREATE INDEX IF NOT EXISTS idx_skill_stats_likes ON skill_stats(likes_count DESC);
-CREATE INDEX IF NOT EXISTS idx_skill_comments_skill ON skill_comments(skill_install);
-CREATE INDEX IF NOT EXISTS idx_skill_comments_created ON skill_comments(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_skill_comments_device_created ON skill_comments(device_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_user_favorites_device ON user_favorites(device_id);
-CREATE INDEX IF NOT EXISTS idx_user_favorites_user ON user_favorites(user_id);
-
-ALTER TABLE user_favorites
+ALTER TABLE public.user_favorites
+  DROP CONSTRAINT IF EXISTS user_favorites_skill_install_bounds;
+ALTER TABLE public.user_favorites
   ADD CONSTRAINT user_favorites_skill_install_bounds CHECK (
     char_length(btrim(skill_install)) BETWEEN 3 AND 512
     AND strpos(skill_install, '/') > 0
     AND skill_install !~ '[[:cntrl:]]'
-  );
-ALTER TABLE user_favorites
+  ) NOT VALID;
+ALTER TABLE public.user_favorites
+  DROP CONSTRAINT IF EXISTS user_favorites_folder_bounds;
+ALTER TABLE public.user_favorites
   ADD CONSTRAINT user_favorites_folder_bounds CHECK (
     folder IS NULL OR char_length(folder) <= 50
-  );
-ALTER TABLE user_favorites
+  ) NOT VALID;
+ALTER TABLE public.user_favorites
+  DROP CONSTRAINT IF EXISTS user_favorites_note_bounds;
+ALTER TABLE public.user_favorites
   ADD CONSTRAINT user_favorites_note_bounds CHECK (
     note IS NULL OR char_length(note) <= 2000
-  );
+  ) NOT VALID;
 
--- ═══════════════════════════════════════════════════════════
--- RLS (Row Level Security) 策略
--- ═══════════════════════════════════════════════════════════
+REVOKE ALL ON TABLE public.skill_stats FROM anon, authenticated;
+REVOKE ALL ON TABLE public.skill_likes FROM anon, authenticated;
+REVOKE ALL ON TABLE public.skill_comments FROM anon, authenticated;
+REVOKE ALL ON TABLE public.user_favorites FROM anon, authenticated;
 
--- 启用 RLS
-ALTER TABLE skill_stats ENABLE ROW LEVEL SECURITY;
-ALTER TABLE skill_likes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE skill_comments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_favorites ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON TABLE public.skill_stats TO anon, authenticated;
+GRANT SELECT (
+  id, skill_install, nickname, content, rating, is_deleted, created_at, updated_at
+) ON TABLE public.skill_comments TO anon, authenticated;
+GRANT UPDATE (is_deleted) ON TABLE public.skill_comments TO authenticated;
 
--- Public clients can read aggregate stats and non-deleted public comment fields.
-CREATE POLICY "Anyone can read stats" ON skill_stats
-  FOR SELECT TO anon, authenticated USING (true);
-
-CREATE POLICY "Anyone can read comments" ON skill_comments
-  FOR SELECT TO anon, authenticated USING (is_deleted = false);
-
--- Authenticated and anonymous-auth users may only mutate rows tied to auth.uid().
-CREATE POLICY "Authenticated users can update own comments" ON skill_comments
+CREATE POLICY "Authenticated users can update own comments" ON public.skill_comments
   FOR UPDATE TO authenticated
   USING (device_id = (SELECT auth.uid())::TEXT)
   WITH CHECK (device_id = (SELECT auth.uid())::TEXT);
 
-CREATE POLICY "Authenticated users can read own favorites" ON user_favorites
+CREATE POLICY "Authenticated users can read own favorites" ON public.user_favorites
   FOR SELECT TO authenticated
   USING (device_id = (SELECT auth.uid())::TEXT);
 
-CREATE POLICY "Authenticated users can insert own favorites" ON user_favorites
+CREATE POLICY "Authenticated users can insert own favorites" ON public.user_favorites
   FOR INSERT TO authenticated
   WITH CHECK (
     device_id = (SELECT auth.uid())::TEXT
     AND (user_id IS NULL OR user_id = (SELECT auth.uid()))
   );
 
-CREATE POLICY "Authenticated users can delete own favorites" ON user_favorites
+CREATE POLICY "Authenticated users can delete own favorites" ON public.user_favorites
   FOR DELETE TO authenticated
   USING (device_id = (SELECT auth.uid())::TEXT);
 
-REVOKE ALL ON TABLE skill_stats FROM anon, authenticated;
-REVOKE ALL ON TABLE skill_likes FROM anon, authenticated;
-REVOKE ALL ON TABLE skill_comments FROM anon, authenticated;
-REVOKE ALL ON TABLE user_favorites FROM anon, authenticated;
+-- Replacing a function with a different signature creates an overload, so
+-- explicitly remove the old caller-supplied identity variants first.
+DROP FUNCTION IF EXISTS public.toggle_like(TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.add_comment(TEXT, TEXT, TEXT, TEXT, INT);
+DROP FUNCTION IF EXISTS public.get_skill_stats(TEXT, TEXT);
 
-GRANT SELECT ON TABLE skill_stats TO anon, authenticated;
-GRANT SELECT (
-  id, skill_install, nickname, content, rating, is_deleted, created_at, updated_at
-) ON TABLE skill_comments TO anon, authenticated;
-GRANT UPDATE (is_deleted) ON TABLE skill_comments TO authenticated;
-
--- ═══════════════════════════════════════════════════════════
--- 辅助函数
--- ═══════════════════════════════════════════════════════════
-
--- 点赞函数（自动更新统计）
-CREATE OR REPLACE FUNCTION toggle_like(p_skill_install TEXT)
+CREATE OR REPLACE FUNCTION public.toggle_like(p_skill_install TEXT)
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -196,8 +147,7 @@ BEGIN
 END;
 $$;
 
--- 添加评论函数
-CREATE OR REPLACE FUNCTION add_comment(
+CREATE OR REPLACE FUNCTION public.add_comment(
   p_skill_install TEXT,
   p_content TEXT,
   p_nickname TEXT DEFAULT 'Anonymous',
@@ -262,8 +212,7 @@ BEGIN
 END;
 $$;
 
--- 获取技能统计和用户状态
-CREATE OR REPLACE FUNCTION get_skill_stats(p_skill_install TEXT)
+CREATE OR REPLACE FUNCTION public.get_skill_stats(p_skill_install TEXT)
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -304,7 +253,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION toggle_favorite(p_skill_install TEXT)
+CREATE OR REPLACE FUNCTION public.toggle_favorite(p_skill_install TEXT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -348,7 +297,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION get_favorites()
+CREATE OR REPLACE FUNCTION public.get_favorites()
 RETURNS TABLE (skill_install TEXT)
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -369,7 +318,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION sync_favorites(p_skill_installs TEXT[])
+CREATE OR REPLACE FUNCTION public.sync_favorites(p_skill_installs TEXT[])
 RETURNS INT
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -430,8 +379,7 @@ BEGIN
 END;
 $$;
 
--- 获取热门技能排行
-CREATE OR REPLACE FUNCTION get_trending_skills(p_limit INT DEFAULT 50)
+CREATE OR REPLACE FUNCTION public.get_trending_skills(p_limit INT DEFAULT 50)
 RETURNS TABLE (
   skill_install TEXT,
   likes_count INT,
@@ -459,18 +407,18 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION toggle_like(TEXT) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION add_comment(TEXT, TEXT, TEXT, INT) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION get_skill_stats(TEXT) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION get_trending_skills(INT) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION toggle_favorite(TEXT) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION get_favorites() FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION sync_favorites(TEXT[]) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.toggle_like(TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.add_comment(TEXT, TEXT, TEXT, INT) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_skill_stats(TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_trending_skills(INT) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.toggle_favorite(TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_favorites() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.sync_favorites(TEXT[]) FROM PUBLIC, anon, authenticated;
 
-GRANT EXECUTE ON FUNCTION toggle_like(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION add_comment(TEXT, TEXT, TEXT, INT) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_skill_stats(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_trending_skills(INT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION toggle_favorite(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_favorites() TO authenticated;
-GRANT EXECUTE ON FUNCTION sync_favorites(TEXT[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.toggle_like(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.add_comment(TEXT, TEXT, TEXT, INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_skill_stats(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_trending_skills(INT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.toggle_favorite(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_favorites() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.sync_favorites(TEXT[]) TO authenticated;

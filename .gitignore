@@ -52,6 +52,9 @@ registry.json.tmp
 /docs/security-report.json
 /docs/stats.json
 
+# Regenerated gzip shards are published from Pages/CI, not git history
+/registry-shards/*.json.gz
+
 # Cache directories
 /cache/
 /.cache/

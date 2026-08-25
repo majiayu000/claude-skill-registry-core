@@ -21,7 +21,7 @@ The largest searchable index of Claude Code skills, aggregated from GitHub and c
 
 **Three ways to use:**
 1. **[Web Search](https://majiayu000.github.io/claude-skill-registry-core/)** - Fast browser-based search
-2. **[sk CLI](https://github.com/majiayu000/caude-skill-manager)** - Terminal package manager
+2. **[sk CLI](https://github.com/majiayu000/claude-skill-manager)** - Terminal package manager
 3. **API** - Direct JSON access
 
 **Repo layout note:** `core` owns workflows/pipeline logic, `data` stores `skills/**`, and `main` is generated from `core + data`. See `SCHEME2_SPLIT.md`.
@@ -65,7 +65,7 @@ For clone/update tips on large repositories, see [docs/FAST_CLONE.md](docs/FAST_
 
 ```bash
 # Install sk
-go install github.com/majiayu000/caude-skill-manager@latest
+go install github.com/majiayu000/claude-skill-manager@latest
 
 # Search skills
 sk search testing
@@ -386,7 +386,7 @@ See `docs/FAST_CLONE.md` for more options (existing clones, getting full checkou
 
 | Project | Description |
 |---------|-------------|
-| [caude-skill-manager](https://github.com/majiayu000/caude-skill-manager) | CLI tool for installing skills (`sk`) |
+| [claude-skill-manager](https://github.com/majiayu000/claude-skill-manager) | CLI tool for installing skills (`sk`) |
 | [anthropics/skills](https://github.com/anthropics/skills) | Official Anthropic skills |
 | [SkillsMP](https://skillsmp.com) | Web-based skill marketplace |
 | [awesome-claude-skills](https://github.com/travisvn/awesome-claude-skills) | Curated skill list |
