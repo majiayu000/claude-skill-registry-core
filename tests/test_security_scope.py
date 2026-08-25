@@ -12,6 +12,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from resolve_security_scope import _git_paths  # noqa: E402
+from resolve_security_scope import main as resolve_scope_main  # noqa: E402
 from security_scope import (  # noqa: E402
     SecurityScopeError,
     resolve_scan_file_list,
@@ -90,3 +91,25 @@ def test_git_scope_includes_type_changes_and_quarantines_symlink(tmp_path):
     assert "development/demo/references/notes.md" in paths
     with pytest.raises(SecurityScopeError, match="symlink"):
         resolve_scan_paths(skills, paths, fail_unmapped=True)
+
+
+def test_resolve_scope_main_writes_full_target_list(monkeypatch, tmp_path, capsys):
+    skills = _skill_tree(tmp_path)
+    output = tmp_path / "targets.bin"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "resolve_security_scope.py",
+            "--skills-dir",
+            str(skills),
+            "--mode",
+            "full",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert resolve_scope_main() == 0
+    assert output.read_bytes() == b"development/demo/SKILL.md\0"
+    assert capsys.readouterr().out == "1\n"
