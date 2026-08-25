@@ -26,7 +26,8 @@ from security_rules import (
     OBFUSCATION_EXEC_PATTERNS,
     SENSITIVE_PATHS,
 )
-from utils import is_declared_bundled_skill_file, split_frontmatter_content
+from security_scope import discover_scan_targets, resolve_scan_file_list
+from utils import split_frontmatter_content
 
 # Load schema
 SCHEMA_PATH = Path(__file__).parent.parent / "schema" / "skill.schema.json"
@@ -361,12 +362,8 @@ class SecurityScanner:
             )
             is_bin_file = any(part.lower() == "bin" for part in rel_path.parts)
             is_executable = bool(bundled_file.stat().st_mode & 0o111)
-            suffix = bundled_file.suffix.lower()
             looks_like_text = False
-            if (
-                not is_known_text
-                and suffix not in BUNDLED_BINARY_EXTENSIONS
-            ):
+            if not is_known_text:
                 try:
                     bundled_file.read_text(encoding="utf-8")
                     looks_like_text = True
@@ -568,61 +565,6 @@ class SecurityScanner:
         return "\n".join(report)
 
 
-def resolve_scan_file_list(skills_dir: Path, file_list_path: Path) -> List[Path]:
-    """
-    Resolve a newline-delimited archive file list into SKILL.md paths under skills_dir.
-    Lines may be absolute or relative paths. Non-SKILL.md files map to the
-    nearest parent directory that owns a SKILL.md.
-    """
-    if not file_list_path.exists():
-        return []
-
-    skills_root = skills_dir.resolve()
-    selected = []
-    seen = set()
-
-    def owning_skill_file(candidate: Path) -> Path | None:
-        current = candidate if candidate.is_dir() else candidate.parent
-        while True:
-            skill_file = current / "SKILL.md"
-            if skill_file.is_file() and not is_declared_bundled_skill_file(skill_file, skills_root):
-                return skill_file
-            if current == skills_root:
-                return None
-            current = current.parent
-
-    for raw in file_list_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-
-        candidate = Path(line)
-        if not candidate.is_absolute():
-            candidate = skills_dir / candidate
-        candidate = candidate.resolve()
-
-        try:
-            candidate.relative_to(skills_root)
-        except ValueError:
-            # Ignore paths outside scan root for safety.
-            continue
-
-        if not candidate.exists():
-            continue
-
-        skill_file = owning_skill_file(candidate)
-        if not skill_file:
-            continue
-
-        key = str(skill_file)
-        if key in seen:
-            continue
-        seen.add(key)
-        selected.append(skill_file)
-
-    return selected
-
-
 def scan_directory(
     skills_dir: Path,
     output_file: Path = None,
@@ -653,14 +595,7 @@ def scan_directory(
     }
 
     if selected_files is None:
-        def directory_scan_targets():
-            for skill_file in skills_dir.rglob("SKILL.md"):
-                resolved_skill_file = skill_file.resolve()
-                if is_declared_bundled_skill_file(resolved_skill_file, skills_root):
-                    continue
-                yield resolved_skill_file
-
-        scan_targets = directory_scan_targets()
+        scan_targets = discover_scan_targets(skills_dir)
     else:
         scan_targets = selected_files
 

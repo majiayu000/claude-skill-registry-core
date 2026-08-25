@@ -409,31 +409,23 @@ jobs:
         env:
           PROFILE: ${{ steps.discovery.outputs.profile }}
         run: |
-          FILE_LIST="$RUNNER_TEMP/security-scan-files.txt"
-          : > "$FILE_LIST"
+          TARGET_LIST="$RUNNER_TEMP/security-scan-targets.txt"
 
           if [ "$PROFILE" = "full" ]; then
-            echo "mode=full" >> "$GITHUB_OUTPUT"
-            echo "file_list=$FILE_LIST" >> "$GITHUB_OUTPUT"
-            echo "changed_count=0" >> "$GITHUB_OUTPUT"
-            echo "Security scope: full"
-            exit 0
+            MODE=full
+          else
+            MODE=incremental
           fi
 
-          {
-            git -C skills diff --name-only --diff-filter=AM
-            git -C skills ls-files --others --exclude-standard
-          } | sort -u > "$FILE_LIST"
-
-          COUNT=$(wc -l < "$FILE_LIST" | tr -d '[:space:]')
-          if [ -z "$COUNT" ]; then
-            COUNT=0
-          fi
-
-          echo "mode=daily-incremental" >> "$GITHUB_OUTPUT"
-          echo "file_list=$FILE_LIST" >> "$GITHUB_OUTPUT"
-          echo "changed_count=$COUNT" >> "$GITHUB_OUTPUT"
-          echo "Security scope: daily-incremental ($COUNT archive files)"
+          TARGET_COUNT=$(python scripts/resolve_security_scope.py \
+            --skills-dir skills \
+            --mode "$MODE" \
+            --output "$TARGET_LIST")
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "file_list=$TARGET_LIST" >> "$GITHUB_OUTPUT"
+          echo "target_list=$TARGET_LIST" >> "$GITHUB_OUTPUT"
+          echo "target_count=$TARGET_COUNT" >> "$GITHUB_OUTPUT"
+          echo "Security scope resolved to $TARGET_COUNT skill(s)"
 
       - name: Security scan (skills full)
         if: steps.security_scope.outputs.mode == 'full'
@@ -443,7 +435,7 @@ jobs:
           python scripts/security_scanner.py skills/ --quiet --output security-report.json
 
       - name: Security scan (skills daily incremental)
-        if: steps.security_scope.outputs.mode != 'full'
+        if: steps.security_scope.outputs.mode == 'incremental'
         id: security_daily
         run: |
           echo "🔒 Running incremental security scan on changed skills..."
@@ -480,7 +472,7 @@ jobs:
         if: always()
         env:
           MODE: ${{ steps.security_scope.outputs.mode }}
-          CHANGED_COUNT: ${{ steps.security_scope.outputs.changed_count }}
+          TARGET_COUNT: ${{ steps.security_scope.outputs.target_count }}
           FULL_OUTCOME: ${{ steps.security_full.outcome }}
           DAILY_OUTCOME: ${{ steps.security_daily.outcome }}
           CLAMAV_FULL_OUTCOME: ${{ steps.clamav_full.outcome }}
@@ -494,9 +486,7 @@ jobs:
             clamav_outcome="$CLAMAV_DAILY_OUTCOME"
           fi
           echo "Security mode: ${MODE:-unknown}"
-          if [ "$MODE" != "full" ]; then
-            echo "Security changed files: ${CHANGED_COUNT:-0}"
-          fi
+          echo "Security target skills: ${TARGET_COUNT:-0}"
           echo "Security scan outcome: ${outcome:-not-run}"
           echo "ClamAV scan outcome: ${clamav_outcome:-not-run}"
 
@@ -563,7 +553,7 @@ jobs:
           DOWNLOAD_FULL_OUTCOME: ${{ steps.download_full.outcome }}
           DOWNLOAD_DAILY_OUTCOME: ${{ steps.download_daily.outcome }}
           SECURITY_MODE: ${{ steps.security_scope.outputs.mode }}
-          SECURITY_CHANGED_COUNT: ${{ steps.security_scope.outputs.changed_count }}
+          SECURITY_TARGET_LIST: ${{ steps.security_scope.outputs.target_list }}
           SECURITY_FULL_OUTCOME: ${{ steps.security_full.outcome }}
           SECURITY_DAILY_OUTCOME: ${{ steps.security_daily.outcome }}
         run: |
@@ -577,14 +567,8 @@ jobs:
 
           if [ "$SECURITY_MODE" = "full" ]; then
             security_outcome="$SECURITY_FULL_OUTCOME"
-            expected_min=1
           else
             security_outcome="$SECURITY_DAILY_OUTCOME"
-            if [ "${SECURITY_CHANGED_COUNT:-0}" -gt 0 ]; then
-              expected_min=1
-            else
-              expected_min=0
-            fi
           fi
 
           python scripts/check_sync_pipeline_health.py \
@@ -593,7 +577,7 @@ jobs:
             --security-outcome "${security_outcome:-not-run}" \
             --security-report security-report.json \
             --require-security-report \
-            --expected-min-security-total "${expected_min}"
+            --expected-security-paths "$SECURITY_TARGET_LIST"
 
       - name: Verify bundled asset liveness
         if: steps.discovery.outputs.profile == 'full'

@@ -662,6 +662,7 @@ function extract(source, name) {
 
 eval(extract(render, 'getGitHubUrl'));
 eval(extract(render, 'escapeHtml'));
+eval(extract(render, 'createSkillCard'));
 
 assert.strictEqual(
   getGitHubUrl('facebook/react/.claude/skills/fix/SKILL.md', 'main'),
@@ -677,6 +678,20 @@ assert.strictEqual(
 );
 assert.strictEqual(escapeHtml(`<img src=x onerror=alert(1)>`), '&lt;img src=x onerror=alert(1)&gt;');
 assert.strictEqual(escapeHtml(`foo'"bar`), 'foo&#39;&quot;bar');
+const hostileUrl = getGitHubUrl(
+  `acme/demo/path" onmouseover="alert(1)`,
+  `main" onmouseover="alert(1)`
+);
+assert(!hostileUrl.includes('"'));
+assert(hostileUrl.includes('%22'));
+const state = { favorites: [] };
+const categoryDisplayName = value => value;
+const hostileCard = createSkillCard({
+  n: 'demo', d: 'safe', c: 'development',
+  g: [`</span><img src=x onerror=alert(1)>`], r: 0, i: 'acme/demo'
+}, false, false);
+assert(!hostileCard.includes('<img'));
+assert(render.includes('escapeHtml(getGitHubUrl('));
 assert(!render.includes("copyInstall(event, '${"));
 assert(!render.includes("toggleFavorite(event, '${"));
 assert(!index.includes('Official (Anthropic)'));

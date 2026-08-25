@@ -306,7 +306,7 @@ function createPluginCard(plugin) {
                 <a href="https://github.com/${escapeHtml(plugin.repo)}" target="_blank" style="color: var(--accent-primary); font-size: 0.85rem;">
                     View on GitHub →
                 </a>
-                ${plugin.homepage ? `<a href="${escapeHtml(plugin.homepage)}" target="_blank" style="color: var(--text-secondary); font-size: 0.85rem;">npm →</a>` : ''}
+                ${plugin.homepage && /^https?:\/\//i.test(plugin.homepage) ? `<a href="${escapeHtml(plugin.homepage)}" target="_blank" rel="noopener noreferrer" style="color: var(--text-secondary); font-size: 0.85rem;">npm →</a>` : ''}
             </div>
         </div>
     `;
@@ -398,7 +398,7 @@ function createSkillCard(skill, isFeatured = false, showFavoriteBtn = true) {
     const isOfficial = categoryCode === 'off' || categoryCode === 'official';
 
     const tagsHtml = tags.slice(0, 3).map(tag =>
-        `<span class="skill-tag">#${tag}</span>`
+        `<span class="skill-tag">#${escapeHtml(tag)}</span>`
     ).join('');
 
     return `
@@ -467,7 +467,7 @@ async function showSkillDetail(card) {
     if (!skill) return;
 
     const tagsHtml = (skill.g || []).map(tag =>
-        `<span class="tag">#${tag}</span>`
+        `<span class="tag">#${escapeHtml(tag)}</span>`
     ).join(' ');
 
     const isFavorite = state.favorites.includes(install);
@@ -527,7 +527,7 @@ async function showSkillDetail(card) {
         </div>
 
         <div style="margin-top: 1rem;">
-            <a href="${getGitHubUrl(install, skill.b || 'main')}" target="_blank" style="color: var(--accent-primary);">
+            <a href="${escapeHtml(getGitHubUrl(install, skill.b || 'main'))}" target="_blank" rel="noopener noreferrer" style="color: var(--accent-primary);">
                 View on GitHub →
             </a>
         </div>
@@ -766,8 +766,8 @@ function getGitHubUrl(install, branch = 'main') {
     const parts = install.split('/');
     if (parts.length < 2) return '#';
 
-    const owner = parts[0];
-    const repo = parts[1];
+    const owner = encodeURIComponent(parts[0]);
+    const repo = encodeURIComponent(parts[1]);
     let path = parts.slice(2).join('/').replace(/\/+$/, '');
     if (/\/SKILL\.md$/i.test(path)) {
         path = path.replace(/\/SKILL\.md$/i, '');
@@ -776,9 +776,9 @@ function getGitHubUrl(install, branch = 'main') {
     }
 
     if (path) {
-        return `https://github.com/${owner}/${repo}/blob/${branch}/${path}/SKILL.md`;
+        return `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/${path.split('/').map(encodeURIComponent).join('/')}/SKILL.md`;
     }
-    return `https://github.com/${owner}/${repo}/blob/${branch}/SKILL.md`;
+    return `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/SKILL.md`;
 }
 
 function escapeHtml(text) {

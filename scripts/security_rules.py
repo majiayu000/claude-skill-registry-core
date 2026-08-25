@@ -42,7 +42,7 @@ DANGEROUS_PATTERNS = {
     "php_request_exec": r"(?:system|passthru|shell_exec|exec|popen|proc_open|assert)\s*\(\s*\$_(GET|POST|REQUEST|COOKIE|SERVER)",
     "php_eval_request": r"(?:eval|assert)\s*\(\s*\$_(GET|POST|REQUEST|COOKIE)",
     # Reverse shells and pipe-to-shell
-    "reverse_shell_dev_tcp": r"/dev/tcp/",
+    "reverse_shell_dev_tcp": r"(?:\b(?:bash|sh|zsh)\b[^\n]{0,120}(?:>&|<>|>|<)\s*|\bexec\s+\d*(?:<>|>|<)\s*)/dev/tcp/[^\s/]+/\d{1,5}\b",
     "curl_pipe_shell": r"(?:curl|wget)\b[^\n]{0,200}\|\s*(?:bash|sh|zsh)\b",
     "nc_exec_shell": r"\bnc\s+[^\n]{0,80}\s-e\b",
 }

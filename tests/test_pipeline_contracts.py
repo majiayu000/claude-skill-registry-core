@@ -705,7 +705,8 @@ def test_sync_data_security_scope_fails_closed_on_git_errors():
 
     assert "git -C skills diff --name-only --diff-filter=AM || true" not in scope
     assert "git -C skills ls-files --others --exclude-standard || true" not in scope
-    assert "--expected-min-security-total" in workflow
+    assert "--expected-security-paths" in workflow
+    assert "security-scan-targets.txt" in scope
 
 
 def test_sync_data_cleans_ci_archive_leftovers_before_discovery():

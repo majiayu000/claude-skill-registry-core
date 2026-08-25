@@ -90,6 +90,7 @@ def test_fallback_uses_registry_only_when_source_is_missing(tmp_path):
         ('{"plugins": [null]}', "invalid_shape"),
         ('{"plugins": [{"name": "demo"}]}', "invalid_shape"),
         ('{"plugins": [{"name": "", "repo": "owner/repo"}]}', "invalid_shape"),
+        ('{"plugins": [{"name": "demo", "repo": "owner/repo", "homepage": "javascript:alert(1)"}]}', "invalid_shape"),
     ],
 )
 def test_present_malformed_source_fails_closed(tmp_path, payload, kind):
