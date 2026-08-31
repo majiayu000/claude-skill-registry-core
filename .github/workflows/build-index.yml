@@ -10,6 +10,7 @@ on:
     paths:
       - 'registry.json'
       - 'scripts/build_search_index.py'
+      - 'scripts/build_static_skill_pages.py'
       - 'scripts/index_artifacts.py'
       - 'scripts/rebuild_registry.py'
       - 'scripts/build_registry_summary.py'
@@ -335,6 +336,12 @@ jobs:
           echo ""
           echo "Index sizes:"
           du -sh docs/*.json docs/*.gz 2>/dev/null || true
+
+      - name: Build static featured skill pages
+        run: |
+          python scripts/build_static_skill_pages.py \
+            --featured docs/featured.json \
+            --output docs
 
       - name: Check generated artifact sizes
         run: |
