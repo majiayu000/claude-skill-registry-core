@@ -579,7 +579,7 @@ def test_uploaded_security_evidence_excludes_raw_secret_markers(tmp_path):
     assert "/private/" not in evidence_text
 
 
-def test_build_index_runs_generated_size_guard_before_pages_upload():
+def test_build_index_runs_generated_guards_without_deploying_pages():
     workflow_text = read_repo_file(".github/workflows/build-index.yml")
     workflow = yaml.safe_load(workflow_text)
     steps = workflow["jobs"]["build-index"]["steps"]
@@ -591,10 +591,7 @@ def test_build_index_runs_generated_size_guard_before_pages_upload():
     artifact_api_pos = names.index("Validate static artifact API v1")
     rebuild_pos = names.index("Rebuild root registry artifacts")
     search_pos = names.index("Build search index")
-    setup_pos = names.index("Setup Pages")
-    upload_pos = names.index("Upload Pages artifact")
-
-    assert rebuild_pos < search_pos < guard_pos < category_guard_pos < canonical_pos < artifact_api_pos < setup_pos < upload_pos
+    assert rebuild_pos < search_pos < guard_pos < category_guard_pos < canonical_pos < artifact_api_pos
     validator_step = steps[artifact_api_pos]
     assert validator_step["run"] == "python scripts/check_artifact_api.py --root . --docs-dir docs"
     assert "continue-on-error" not in validator_step
@@ -602,6 +599,9 @@ def test_build_index_runs_generated_size_guard_before_pages_upload():
     assert "scripts/check_registry_shard_placement.py" in workflow_text
     assert "--include docs" in workflow_text
     assert "--docs-dir docs" in workflow_text
+    assert "actions/configure-pages" not in workflow_text
+    assert "actions/upload-pages-artifact" not in workflow_text
+    assert "actions/deploy-pages" not in workflow_text
 
 
 def test_build_index_root_rebuild_commands_are_executable(tmp_path):

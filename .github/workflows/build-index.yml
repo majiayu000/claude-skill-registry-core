@@ -28,8 +28,7 @@ on:
       - '.github/workflows/build-index.yml'
 
 permissions:
-  pages: write
-  id-token: write
+  contents: read
   actions: read
 
 jobs:
@@ -352,25 +351,3 @@ jobs:
 
       - name: Validate static artifact API v1
         run: python scripts/check_artifact_api.py --root . --docs-dir docs
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v6
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: 'docs'
-
-  deploy-pages:
-    if: github.ref == 'refs/heads/main'
-    needs: build-index
-    runs-on: ubuntu-latest
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
