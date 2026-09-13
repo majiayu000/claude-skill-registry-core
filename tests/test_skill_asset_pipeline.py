@@ -844,6 +844,55 @@ class TestBackfillTargets:
         assert list(skill_dir.rglob("*")) == []
 
     @pytest.mark.parametrize(
+        "size",
+        [None, "not-a-size", -1],
+        ids=["none", "non-numeric", "negative"],
+    )
+    def test_unpinned_bundle_rejects_invalid_advertised_size(self, tmp_path, size):
+        """Fail closed on unusable listing sizes without starting a download."""
+
+        class FakeSession:
+            def get(self, url, timeout=None):
+                raise AssertionError("invalid advertised size must not start a download")
+
+        async def contents_collector(*_args):
+            return (
+                [
+                    {
+                        "repo_path": "skills/demo/scripts/tool.py",
+                        "relative_path": "scripts/tool.py",
+                        "download_url": "https://download.example/tool.py",
+                        "size": size,
+                        "sha": "a" * 40,
+                    }
+                ],
+                False,
+            )
+
+        skill_dir = tmp_path / "demo"
+        skill_dir.mkdir()
+        result = asyncio.run(
+            sync_download_support.download_bundled_files_to_directory(
+                FakeSession(),
+                "acme/tools",
+                "main",
+                "skills/demo/SKILL.md",
+                skill_dir,
+                True,
+                pin_commit_sha=False,
+                timeout=None,
+                tree_cache={},
+                contents_collector=contents_collector,
+            )
+        )
+
+        assert result[0] == []
+        assert result[1] == ["scripts/tool.py"]
+        assert result[2] == "bundled_download_failed"
+        assert not (skill_dir / "scripts" / "tool.py").exists()
+        assert list(skill_dir.rglob("*")) == []
+
+    @pytest.mark.parametrize(
         "paths",
         [
             ["references/Guide.md", "references/guide.md"],
