@@ -597,6 +597,7 @@ jobs:
             --expected-security-paths "$SECURITY_TARGET_LIST"
 
       - name: Verify bundled asset liveness
+        id: asset_liveness
         if: steps.discovery.outputs.profile == 'full'
         env:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
@@ -610,7 +611,11 @@ jobs:
             --min-targets 1
 
       - name: Upload bundled asset liveness report
-        if: always() && steps.discovery.outputs.profile == 'full'
+        # Only the verification step produces this report, so uploading when an earlier step
+        # aborted the job would add a second failure that hides the real one.
+        if: >-
+          always()
+          && (steps.asset_liveness.outcome == 'success' || steps.asset_liveness.outcome == 'failure')
         uses: actions/upload-artifact@v7
         with:
           name: asset-liveness-report
@@ -907,3 +912,57 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/build-index.yml/dispatches" \
             -d '{"ref":"main"}'
           echo "Dispatched build-index for Pages refresh"
+
+  alert:
+    needs: [preflight, sync, publish]
+    # Manual runs are watched by whoever started them; only unattended schedules need an issue.
+    if: ${{ always() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open, update or close the sync alert issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          IS_FULL: ${{ github.event.schedule == '30 2 * * 0' }}
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          SYNC_RESULT: ${{ needs.sync.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        run: |
+          # The weekly full run and the daily run fail at different gates, so they track separate
+          # issues. Sharing one would let the next daily success close a weekly failure unseen.
+          if [ "$IS_FULL" = "true" ]; then
+            title="[sync-data] Weekly full sync failed"
+            scope="weekly full sync"
+          else
+            title="[sync-data] Daily sync failed"
+            scope="daily sync"
+          fi
+
+          failed=false
+          for result in "$PREFLIGHT_RESULT" "$SYNC_RESULT" "$PUBLISH_RESULT"; do
+            if [ "$result" = "failure" ]; then
+              failed=true
+            fi
+          done
+
+          number=$(gh issue list --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)
+
+          if [ "$failed" = "true" ]; then
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --body "The scheduled ${scope} failed again: ${RUN_URL}"
+            else
+              gh issue create --title "$title" --body "$(printf '%s\n\n%s\n\n%s' \
+                "The scheduled ${scope} failed, so the archive and registry it publishes may be stale." \
+                "Failed run: ${RUN_URL}" \
+                "Job results: preflight=${PREFLIGHT_RESULT} sync=${SYNC_RESULT} publish=${PUBLISH_RESULT}")"
+            fi
+            exit 0
+          fi
+
+          if [ "$SYNC_RESULT" = "success" ] && [ -n "$number" ]; then
+            gh issue close "$number" --comment "The latest ${scope} completed successfully; closing this alert."
+          fi
