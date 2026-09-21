@@ -450,7 +450,16 @@ jobs:
         id: clamav_full
         run: |
           echo "🛡️ Running full ClamAV scan on skills..."
+          set +e
           clamscan --recursive --infected --log=clamav-report.txt skills
+          status=$?
+          set -e
+          # clamscan exits 1 for findings and 2 or above for scanner errors.
+          if [ "$status" -ge 2 ]; then
+            echo "clamscan failed with status $status"
+            exit "$status"
+          fi
+          python scripts/check_clamav_report.py --report clamav-report.txt
 
       - name: ClamAV scan (skills daily incremental)
         if: steps.security_scope.outputs.mode != 'full'
@@ -466,7 +475,15 @@ jobs:
             echo "No changed archive files for ClamAV scan." | tee clamav-report.txt
             exit 0
           fi
+          set +e
           clamscan --infected --log=clamav-report.txt --file-list "$CLAMAV_FILE_LIST"
+          status=$?
+          set -e
+          if [ "$status" -ge 2 ]; then
+            echo "clamscan failed with status $status"
+            exit "$status"
+          fi
+          python scripts/check_clamav_report.py --report clamav-report.txt
 
       - name: Print security outcome
         if: always()
