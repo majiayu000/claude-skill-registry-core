@@ -25,6 +25,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 import archive_preflight  # noqa: E402
 from build_search_index import (  # noqa: E402
     build_search_index,
+    get_stable_id,
     has_install_location,
     infer_install_status,
     score_skill_quality,
@@ -522,6 +523,85 @@ def test_registry_and_search_keep_legacy_github_path_install_identity(tmp_path):
     build_search_index([search_record], output_dir)
     lite = json.loads((output_dir / "search-index-lite.json").read_text())
     assert lite["skills"][0]["archive_path"] == "development/identity-demo/SKILL.md"
+
+
+def test_detail_shards_include_deduped_skills_beyond_lite_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr("build_search_index.LITE_INDEX_LIMIT", 1)
+    top = _skill(
+        name="top",
+        repo="acme/top",
+        install="acme/top/SKILL.md",
+        stars=100,
+        archive_path="development/top/SKILL.md",
+    )
+    old = _skill(
+        name="old-shared",
+        repo="acme/shared",
+        install="acme/shared/SKILL.md",
+        stars=1,
+        archive_path="development/old-shared/SKILL.md",
+    )
+    winner = _skill(
+        name="winner-shared",
+        repo="acme/shared",
+        install="acme/shared/SKILL.md",
+        stars=2,
+        archive_path="development/winner-shared/SKILL.md",
+    )
+    output_dir = tmp_path / "docs"
+
+    build_search_index([top, old, winner], output_dir)
+
+    lite = json.loads((output_dir / "search-index-lite.json").read_text())
+    assert lite["included_count"] == 1
+    assert lite["total_count"] == 2
+    assert [skill["name"] for skill in lite["skills"]] == ["top"]
+
+    winner_id = get_stable_id(winner["install"], "main")
+    shard = json.loads((output_dir / "skill-detail-shards" / f"{winner_id[0]}.json").read_text())
+    assert set(shard) == {"schema_version", "updated_at", "prefix", "count", "skills"}
+    assert shard["schema_version"] == 1
+    assert shard["prefix"] == winner_id[0]
+    assert shard["count"] == len(shard["skills"])
+    winner_records = [skill for skill in shard["skills"] if skill["id"] == winner_id]
+    assert len(winner_records) == 1
+    winner_record = winner_records[0]
+    assert winner_record["name"] == "winner-shared"
+    assert winner_record["archive_path"] == "development/winner-shared/SKILL.md"
+    assert set(winner_record) == {
+        "id",
+        "name",
+        "description",
+        "category",
+        "tags",
+        "stars",
+        "install",
+        "branch",
+        "repo",
+        "archive_path",
+        "source",
+        "quality_grade",
+        "security_status",
+        "install_status",
+        "quality_score",
+        "trust_score",
+        "compatible_agents",
+    }
+
+    all_shards = [
+        json.loads(path.read_text())
+        for path in (output_dir / "skill-detail-shards").glob("*.json")
+    ]
+    assert sum(shard["count"] for shard in all_shards) == lite["total_count"]
+    assert all(shard["count"] == len(shard["skills"]) for shard in all_shards)
+    assert all(
+        skill["id"].startswith(shard["prefix"])
+        for shard in all_shards
+        for skill in shard["skills"]
+    )
+    all_records = [skill for shard in all_shards for skill in shard["skills"]]
+    assert len({skill["id"] for skill in all_records}) == len(all_records) == lite["total_count"]
+    assert {skill["name"] for skill in all_records} == {"top", "winner-shared"}
 
 
 def test_live_asset_facets_win_equal_search_ranks_by_downranking_only(tmp_path):

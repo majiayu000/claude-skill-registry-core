@@ -8,6 +8,7 @@ Primary source is the archived skills tree, scanned recursively:
 Output files:
 - search-index.json - Compatibility pointer to search shard manifest
 - search-index-manifest.json + search-shards/*.json - Full search records
+- skill-detail-shards/<id-prefix>.json - Full lite records for detail lookup
 - categories/index.json + categories/<category>/manifest.json - Category parts
 - featured.json - Top 100 skills by stars
 - stats.json - Explicit raw/indexed/deduplicated counters
@@ -505,6 +506,53 @@ def build_search_index(
     with gzip.open(search_index_lite_gz_path, "wt", encoding="utf-8") as f:
         json.dump(lite_index, f, ensure_ascii=False, separators=(",", ":"))
 
+    # Detail lookups need the same deduplicated records beyond the startup cap.
+    # The stable id's first character selects a small, directly addressable shard.
+    detail_fields = (
+        "id",
+        "name",
+        "description",
+        "category",
+        "tags",
+        "stars",
+        "install",
+        "branch",
+        "repo",
+        "archive_path",
+        "source",
+        "quality_grade",
+        "security_status",
+        "install_status",
+        "quality_score",
+        "trust_score",
+        "compatible_agents",
+    )
+    detail_shards: Dict[str, List[Dict[str, Any]]] = {}
+    for skill in all_lite_skills:
+        detail_shards.setdefault(skill["id"][0], []).append(
+            {field: skill[field] for field in detail_fields if field in skill}
+        )
+    detail_shards_dir = output_dir / "skill-detail-shards"
+    detail_shards_dir.mkdir(exist_ok=True)
+    for stale_path in detail_shards_dir.glob("*.json"):
+        if stale_path.stem not in detail_shards:
+            stale_path.unlink()
+    detail_updated_at = utc_now_isoformat()
+    detail_shard_sizes = []
+    for prefix, shard_skills in sorted(detail_shards.items()):
+        shard_path = detail_shards_dir / f"{prefix}.json"
+        safe_write_json(
+            shard_path,
+            {
+                "schema_version": 1,
+                "updated_at": detail_updated_at,
+                "prefix": prefix,
+                "count": len(shard_skills),
+                "skills": shard_skills,
+            },
+        )
+        detail_shard_sizes.append(shard_path.stat().st_size)
+
     quality_artifacts = write_signal_artifacts(
         list(quality_records_by_id.values()),
         output_dir,
@@ -535,6 +583,10 @@ def build_search_index(
 
     logger.info(
         f"  search-index-lite.json: {search_index_lite_path.stat().st_size / 1024 / 1024:.2f} MB"
+    )
+    logger.info(
+        f"  skill detail shards: {len(detail_shards)} "
+        f"(largest {max(detail_shard_sizes, default=0) / 1024 / 1024:.2f} MB)"
     )
     logger.info(
         f"  quality-index.json pointer: {quality_artifacts.index_size_bytes / 1024 / 1024:.2f} MB"
@@ -678,6 +730,7 @@ def build_search_index(
             category_artifacts.largest_part_gzip_bytes,
             search_index_lite_path.stat().st_size,
             search_index_lite_gz_path.stat().st_size,
+            max(detail_shard_sizes, default=0),
             quality_artifacts.index_size_bytes,
             quality_artifacts.index_size_gzip_bytes,
             quality_artifacts.largest_shard_bytes,

@@ -21,6 +21,7 @@ artifact is optimized for bulk registry compatibility and raw archive browsing.
 | Path | Location | Contract |
 | --- | --- | --- |
 | `search-index-lite.json` | Core Pages | Startup catalog index with deduped summaries, quality/security signals, and `archive_path` for archived skills. |
+| `skill-detail-shards/<prefix>.json` | Core Pages | All deduped lite records for direct skill detail lookup, including records beyond the startup cap. |
 | `search-index.json` | Core Pages | Compatibility pointer for the full search payload. |
 | `search-index-manifest.json` | Core Pages | Full search shard manifest. |
 | `search-shards/part-000.json` | Core Pages | Full search shard part pattern. |
@@ -51,6 +52,13 @@ adds or changes the generated artifact.
 
 When present, a lite skill's `archive_path` is its exact `SKILL.md` path relative
 to the root of `claude-skill-registry-data`. It is not the upstream GitHub path.
+The detail shards contain the fields needed by the detail page from every
+ranked, stable-id deduplicated skill, including `archive_path` when available.
+For a skill id, fetch
+`skill-detail-shards/<first character of id>.json` and find the matching `id`.
+The id uses lowercase URL-safe base64 characters, so the prefix is one of
+`a-z`, `0-9`, `-`, or `_`. Each shard has `schema_version: 1`, `updated_at`,
+`prefix`, `count`, and `skills`; `count` equals the `skills` array length.
 
 ## Compatibility Pointers
 
@@ -150,8 +158,8 @@ Shard payloads must include:
 - `count`
 - a bounded payload array
 
-Search shard payload arrays are `s`. Lite search document payload arrays are
-`skills`. Signal shard payload arrays are
+Search shard payload arrays are `s`. Lite search and skill detail shard payload
+arrays are `skills`. Signal shard payload arrays are
 `records`. Category part payload arrays are `skills`. Registry shard payload
 arrays are `skills`.
 
@@ -167,8 +175,8 @@ Counts are compared only inside explicitly identical sets:
   `registry_summary.json`, and `stats.json.registry_skill_count_dedup`.
 - Search/category scan set: search pointer/manifest, category index/manifests,
   and `stats.json.indexed_skill_count_scan_shape`.
-- Stable-id dedup set: lite search, quality/security/ranking pointers/manifests,
-  and `stats.json.lite_index_count`.
+- Stable-id dedup set: lite search total count, all skill detail shards combined,
+  quality/security/ranking pointers/manifests, and `stats.json.lite_index_count`.
 
 Featured subsets, plugin counts, and raw archive counts are not compared to
 these groups.
