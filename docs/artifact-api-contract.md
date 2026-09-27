@@ -10,6 +10,7 @@ files to patch by hand.
 ## Locations
 
 - Core Pages base URL: `https://majiayu000.github.io/claude-skill-registry-core/`
+- Merged Pages base URL: `https://majiayu000.github.io/claude-skill-registry/`
 - Merged artifact raw base URL:
   `https://raw.githubusercontent.com/majiayu000/claude-skill-registry/main/`
 
@@ -21,7 +22,7 @@ artifact is optimized for bulk registry compatibility and raw archive browsing.
 | Path | Location | Contract |
 | --- | --- | --- |
 | `search-index-lite.json` | Core Pages | Startup catalog index with deduped summaries, quality/security signals, and `archive_path` for archived skills. |
-| `skill-detail-shards/<prefix>.json` | Core Pages | All deduped lite records for direct skill detail lookup, including records beyond the startup cap. |
+| `skill-detail-shards/<prefix>.json` | Merged Pages | All deduped lite records for direct skill detail lookup, including records beyond the startup cap. |
 | `search-index.json` | Core Pages | Compatibility pointer for the full search payload. |
 | `search-index-manifest.json` | Core Pages | Full search shard manifest. |
 | `search-shards/part-000.json` | Core Pages | Full search shard part pattern. |
