@@ -5,12 +5,12 @@
 > **Data repo (skills archive):** https://github.com/majiayu000/claude-skill-registry-data  
 > **Authority:** core workflows are canonical; main is a publish mirror.  
 <p align="center">
-  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry-core%2Fstats.json&query=%24.archive_skill_md_count_raw&label=SKILL.md%20files%20(raw)&color=blueviolet&style=flat-square" alt="SKILL.md files (raw)">
-  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry-core%2Fstats.json&query=%24.registry_skill_count_dedup&label=Skills%20(dedup)&color=purple&style=flat-square" alt="Skills (dedup)">
-  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry-core%2Fstats.json&query=%24.total_plugins&label=Plugins&color=1f6feb&style=flat-square" alt="Plugins">
-  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry-core%2Fstats.json&query=%24.updated_at&label=Updated%20UTC&color=2ea043&style=flat-square" alt="Updated UTC">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry%2Fstats.json&query=%24.archive_skill_md_count_raw&label=SKILL.md%20files%20(raw)&color=blueviolet&style=flat-square" alt="SKILL.md files (raw)">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry%2Fstats.json&query=%24.registry_skill_count_dedup&label=Skills%20(dedup)&color=purple&style=flat-square" alt="Skills (dedup)">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry%2Fstats.json&query=%24.total_plugins&label=Plugins&color=1f6feb&style=flat-square" alt="Plugins">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmajiayu000.github.io%2Fclaude-skill-registry%2Fstats.json&query=%24.updated_at&label=Updated%20UTC&color=2ea043&style=flat-square" alt="Updated UTC">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License">
-  <a href="https://majiayu000.github.io/claude-skill-registry-core/"><img src="https://img.shields.io/badge/Web-Search-blue?style=flat-square" alt="Web Search"></a>
+  <a href="https://majiayu000.github.io/claude-skill-registry/"><img src="https://img.shields.io/badge/Web-Search-blue?style=flat-square" alt="Web Search"></a>
 </p>
 
 > The most comprehensive Claude Code skills registry — updated daily with the latest skills
@@ -20,7 +20,7 @@
 The largest searchable index of Claude Code skills, aggregated from GitHub and community sources.
 
 **Three ways to use:**
-1. **[Web Search](https://majiayu000.github.io/claude-skill-registry-core/)** - Fast browser-based search
+1. **[Web Search](https://majiayu000.github.io/claude-skill-registry/)** - Fast browser-based search
 2. **[sk CLI](https://github.com/majiayu000/claude-skill-manager)** - Terminal package manager
 3. **API** - Direct JSON access
 
@@ -67,19 +67,19 @@ cycle without advancing its cursor or closing its alert.
 ## Release, Proof, And Support
 
 - **Release status**: daily catalog refreshes are represented by live generated metadata, not GitHub Releases. GitHub Releases are reserved for intentional pipeline/API milestones.
-- **Live proof**: use the [Web Search](https://majiayu000.github.io/claude-skill-registry-core/) UI, the badges above, and `stats.json` to verify current generated data.
+- **Live proof**: use the [Web Search](https://majiayu000.github.io/claude-skill-registry/) UI, the badges above, and `stats.json` to verify current generated data.
 - **Routing**: pipeline bugs, source intake, registry schema, Pages/search, and publish orchestration belong in this core repo. Archived skill body issues belong in `claude-skill-registry-data`. Generated mirror questions belong in `claude-skill-registry` only when the artifact itself is wrong.
 
 ```bash
-curl https://majiayu000.github.io/claude-skill-registry-core/stats.json
-curl https://majiayu000.github.io/claude-skill-registry-core/search-index-lite.json
+curl https://majiayu000.github.io/claude-skill-registry/stats.json
+curl https://majiayu000.github.io/claude-skill-registry/search-index-lite.json
 ```
 
 ## Quick Start
 
 ### Option 1: Web Search
 
-Visit [https://majiayu000.github.io/claude-skill-registry-core/](https://majiayu000.github.io/claude-skill-registry-core/)
+Visit [https://majiayu000.github.io/claude-skill-registry/](https://majiayu000.github.io/claude-skill-registry/)
 
 For clone/update tips on large repositories, see [docs/FAST_CLONE.md](docs/FAST_CLONE.md).
 
@@ -107,21 +107,21 @@ and deprecation markers.
 
 ```bash
 # Startup search index and bounded full-search shards
-curl https://majiayu000.github.io/claude-skill-registry-core/search-index.json
-curl https://majiayu000.github.io/claude-skill-registry-core/search-index-manifest.json
-curl https://majiayu000.github.io/claude-skill-registry-core/search-shards/part-000.json
+curl https://majiayu000.github.io/claude-skill-registry/search-index.json
+curl https://majiayu000.github.io/claude-skill-registry/search-index-manifest.json
+curl https://majiayu000.github.io/claude-skill-registry/search-shards/part-000.json
 
 # Deduplicated catalog index with quality/security/install signals
-curl https://majiayu000.github.io/claude-skill-registry-core/search-index-lite.json
-curl https://majiayu000.github.io/claude-skill-registry-core/quality-index.json
-curl https://majiayu000.github.io/claude-skill-registry-core/quality-index-manifest.json
-curl https://majiayu000.github.io/claude-skill-registry-core/quality-shards/part-000.json
-curl https://majiayu000.github.io/claude-skill-registry-core/security-index.json
-curl https://majiayu000.github.io/claude-skill-registry-core/security-index-manifest.json
-curl https://majiayu000.github.io/claude-skill-registry-core/security-shards/part-000.json
-curl https://majiayu000.github.io/claude-skill-registry-core/ranking-index.json
-curl https://majiayu000.github.io/claude-skill-registry-core/ranking-index-manifest.json
-curl https://majiayu000.github.io/claude-skill-registry-core/ranking-shards/part-000.json
+curl https://majiayu000.github.io/claude-skill-registry/search-index-lite.json
+curl https://majiayu000.github.io/claude-skill-registry/quality-index.json
+curl https://majiayu000.github.io/claude-skill-registry/quality-index-manifest.json
+curl https://majiayu000.github.io/claude-skill-registry/quality-shards/part-000.json
+curl https://majiayu000.github.io/claude-skill-registry/security-index.json
+curl https://majiayu000.github.io/claude-skill-registry/security-index-manifest.json
+curl https://majiayu000.github.io/claude-skill-registry/security-shards/part-000.json
+curl https://majiayu000.github.io/claude-skill-registry/ranking-index.json
+curl https://majiayu000.github.io/claude-skill-registry/ranking-index-manifest.json
+curl https://majiayu000.github.io/claude-skill-registry/ranking-shards/part-000.json
 
 # Lightweight registry summary (counts only)
 curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry-core/main/registry_summary.json
@@ -134,12 +134,12 @@ curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry/main/reg
 curl https://raw.githubusercontent.com/majiayu000/claude-skill-registry/main/registry.json
 
 # Category manifest and bounded parts
-curl https://majiayu000.github.io/claude-skill-registry-core/categories/index.json
-curl https://majiayu000.github.io/claude-skill-registry-core/categories/development/manifest.json
-curl https://majiayu000.github.io/claude-skill-registry-core/categories/development/part-000.json
+curl https://majiayu000.github.io/claude-skill-registry/categories/index.json
+curl https://majiayu000.github.io/claude-skill-registry/categories/development/manifest.json
+curl https://majiayu000.github.io/claude-skill-registry/categories/development/part-000.json
 
 # Legacy category pointer
-curl https://majiayu000.github.io/claude-skill-registry-core/categories/development.json
+curl https://majiayu000.github.io/claude-skill-registry/categories/development.json
 ```
 
 ---
@@ -299,7 +299,7 @@ Common category codes include:
 
 - [x] **Lightweight search index** (gzip-compressed; see stats.json)
 - [x] **Web search UI** (GitHub Pages)
-- [x] **GitHub Pages deployment** (https://majiayu000.github.io/claude-skill-registry-core/)
+- [x] **GitHub Pages deployment** (https://majiayu000.github.io/claude-skill-registry/)
 
 ### Planned
 
