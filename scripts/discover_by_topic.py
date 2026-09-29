@@ -49,6 +49,10 @@ CODE_SEARCH_QUERIES = [
 ]
 
 
+class DiscoveryBudgetExpired(Exception):
+    """Stop a batch before the runner's hard timeout, without completing its current repo."""
+
+
 class GitHubTopicDiscovery:
     """Discover skills using GitHub Topics and Code Search"""
 
@@ -75,6 +79,8 @@ class GitHubTopicDiscovery:
         self.max_code_pages = max(1, int(max_code_pages or 1))
         self.skip_code_search = bool(skip_code_search)
         self.request_delay = max(0.0, float(request_delay or 0.0))
+        self.deadline = None
+        self.checkpointed = False
 
         self.discovered_repos = set()
         self.skills = []
@@ -180,29 +186,43 @@ class GitHubTopicDiscovery:
         source_key = self._source_identity_key(repo, path)
         return bool(source_key and source_key in self._archive_source_index(output_dir))
 
+    def _check_budget(self, wait=0):
+        if self.deadline is not None and time.monotonic() + wait >= self.deadline:
+            raise DiscoveryBudgetExpired()
+
     def _request(self, url, params=None):
         """Make rate-limited request"""
-        if self.request_delay > 0:
-            time.sleep(self.request_delay)
-        try:
-            resp = self.session.get(url, params=params, timeout=30)
+        while True:
+            self._check_budget(self.request_delay)
+            if self.request_delay > 0:
+                time.sleep(self.request_delay)
+            try:
+                resp = self.session.get(url, params=params, timeout=30)
 
-            # Handle rate limiting
-            if resp.status_code == 403:
-                reset = int(resp.headers.get('X-RateLimit-Reset', 0))
-                if reset:
-                    wait = max(0, reset - time.time() + 1)
-                    if wait < 3600:
-                        logger.warning(f"Rate limited, waiting {wait:.0f}s")
-                        time.sleep(wait)
-                        return self._request(url, params)
+                if resp.status_code == 403:
+                    reset = int(resp.headers.get('X-RateLimit-Reset', 0))
+                    if reset:
+                        wait = max(0, reset - time.time() + 1)
+                        if wait < 3600:
+                            self._check_budget(wait)
+                            logger.warning(f"Rate limited, waiting {wait:.0f}s")
+                            time.sleep(wait)
+                            continue
+                    if not self.checkpointed:
+                        return None
+
+                resp.raise_for_status()
+                result = resp.json()
+                if self.checkpointed and result.get("incomplete_results"):
+                    raise RuntimeError("GitHub returned incomplete discovery results; retry this batch")
+                return result
+            except DiscoveryBudgetExpired:
+                raise
+            except Exception as e:
+                if self.checkpointed:
+                    raise
+                logger.error(f"Request failed: {e}")
                 return None
-
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.error(f"Request failed: {e}")
-            return None
 
     def discover_by_topics(self, topics=None):
         """Discover repositories by GitHub topics"""
@@ -326,7 +346,25 @@ class GitHubTopicDiscovery:
             'per_page': 100,
         }
 
-        result = self._request(url, params)
+        try:
+            result = self._request(url, params)
+        except requests.HTTPError as exc:
+            # A repository can disappear or become private between batches.
+            if exc.response is None or exc.response.status_code not in (404, 422):
+                raise
+            if exc.response.status_code == 422:
+                # Search also uses 422 for errors unrelated to repository availability.
+                try:
+                    self._request(f"{GITHUB_API}/repos/{repo}")
+                except requests.HTTPError as repo_exc:
+                    if repo_exc.response is None or repo_exc.response.status_code != 404:
+                        raise
+                else:
+                    raise exc
+            logger.warning("Repository is no longer searchable: %s (HTTP %s)",
+                           repo, exc.response.status_code)
+            self._ensure_repo_candidate(repo)["unavailable"] = True
+            return []
         if result and result.get('items'):
             for item in result['items']:
                 if not self._is_skill_md_path(item.get('path', '')):
@@ -341,6 +379,7 @@ class GitHubTopicDiscovery:
 
     def download_skill(self, repo, path, output_dir):
         """Download a SKILL.md file"""
+        self._check_budget()
         output_dir = Path(output_dir)
         blocked_source = blocked_metadata_source(
             {"repo": repo, "path": path},
@@ -372,9 +411,12 @@ class GitHubTopicDiscovery:
 
         # Try to fetch content
         for branch in ['main', 'master']:
+            self._check_budget()
             url = f"{GITHUB_RAW}/{repo}/{branch}/{path}"
             try:
                 resp = self.session.get(url, timeout=15)
+                if self.checkpointed and resp.status_code not in (200, 404):
+                    resp.raise_for_status()
                 if resp.status_code == 200:
                     content = resp.text
 
@@ -491,7 +533,11 @@ class GitHubTopicDiscovery:
                         self._archive_source_index(output_dir).add(source_key)
 
                     return True
+            except DiscoveryBudgetExpired:
+                raise
             except Exception as e:
+                if self.checkpointed:
+                    raise
                 logger.debug(f"Failed to fetch {url}: {e}")
 
         return False
@@ -584,53 +630,97 @@ class GitHubTopicDiscovery:
         output_json='sources/discovered.json',
         candidates_output='sources/learning/discovery_candidates.jsonl',
         priors_output='sources/learning/discovery_priors.json',
+        progress_path=None,
+        time_budget_seconds=0,
     ):
         """Run full discovery pipeline"""
+        self.checkpointed = progress_path is not None
+        if self.checkpointed and self.max_repos:
+            raise ValueError("Resumable discovery must keep the entire repository inventory")
+        self.deadline = time.monotonic() + time_budget_seconds if time_budget_seconds else None
+        progress = None
+        if progress_path is not None:
+            progress_path = Path(progress_path)
+            if progress_path.exists():
+                progress = json.loads(progress_path.read_text(encoding="utf-8"))
+                if not 0 <= progress["next_repo"] <= len(progress["repos"]):
+                    raise ValueError("Discovery progress cursor is outside the repository inventory")
+                if progress["next_repo"] == len(progress["repos"]):
+                    progress = None
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
+        resumed = progress is not None
 
-        # Phase 1: Discover by topics
-        logger.info("=== Phase 1: Topic Discovery ===")
-        self.discover_by_topics()
-
-        # Phase 2: Discover by code search
-        logger.info("\n=== Phase 2: Code Search ===")
-        self.discover_by_code_search()
+        if progress is None:
+            # Finish the inventory before starting a cycle. An interrupted search is not a snapshot.
+            logger.info("=== Phase 1: Topic Discovery ===")
+            self.discover_by_topics()
+            logger.info("\n=== Phase 2: Code Search ===")
+            self.discover_by_code_search()
+            repos_to_scan = sorted(self.discovered_repos)
+            if self.max_repos:
+                repos_to_scan = repos_to_scan[:self.max_repos]
+            if self.checkpointed:
+                if not repos_to_scan:
+                    raise RuntimeError("Full discovery returned an empty repository inventory")
+                progress = {
+                    "started_at": datetime.utcnow().isoformat() + 'Z',
+                    "repos": repos_to_scan,
+                    "next_repo": 0,
+                    "completed_at": None,
+                }
+        else:
+            repos_to_scan = progress["repos"]
+            self.discovered_repos = set(repos_to_scan)
+            logger.info("Resuming full discovery at repository %s/%s",
+                        progress["next_repo"], len(repos_to_scan))
 
         # Phase 3: Download skills from discovered repos
         logger.info("\n=== Phase 3: Download Skills ===")
         downloaded = 0
 
-        repos_to_scan = sorted(self.discovered_repos)
-        if self.max_repos:
-            repos_to_scan = repos_to_scan[:self.max_repos]
-
         logger.info(f"Scanning {len(repos_to_scan)} repositories for SKILL.md files")
 
-        for repo in repos_to_scan:
-            repo_candidate = self._ensure_repo_candidate(repo)
-            repo_candidate["selected_for_scan"] = True
-            for topic in repo_candidate["topics"]:
-                self.topic_stats[topic]["repo_selected"] += 1
-            logger.info(f"Scanning {repo}...")
-            skill_files = self.get_skill_files_from_repo(repo)
+        start = progress["next_repo"] if progress else 0
+        selected_repos = []
+        try:
+            for index in range(start, len(repos_to_scan)):
+                self._check_budget()
+                repo = repos_to_scan[index]
+                selected_repos.append(repo)
+                repo_candidate = self._ensure_repo_candidate(repo)
+                repo_candidate["selected_for_scan"] = True
+                for topic in repo_candidate["topics"]:
+                    self.topic_stats[topic]["repo_selected"] += 1
+                logger.info(f"Scanning {repo}...")
+                skill_files = self.get_skill_files_from_repo(repo)
 
-            for skill in skill_files:
-                path_candidate = self._ensure_path_candidate(repo, skill["path"])
-                path_candidate["discovered_via_repo_scan"] = True
-                if self.download_skill(repo, skill['path'], output_dir):
-                    downloaded += 1
-                    self.skills.append({
-                        'repo': repo,
-                        'path': skill['path'],
-                    })
-                    repo_candidate["downloaded_skills"] += 1
-                    path_candidate["downloaded"] = True
-                    for topic in repo_candidate["topics"]:
-                        self.topic_stats[topic]["downloaded_skills"] += 1
-                    for query in repo_candidate["code_queries"]:
-                        self.code_query_stats[query]["downloaded_skills"] += 1
-                    logger.info(f"  ✓ Downloaded: {skill['path']}")
+                for skill in skill_files:
+                    path_candidate = self._ensure_path_candidate(repo, skill["path"])
+                    path_candidate["discovered_via_repo_scan"] = True
+                    if self.download_skill(repo, skill['path'], output_dir):
+                        downloaded += 1
+                        self.skills.append({
+                            'repo': repo,
+                            'path': skill['path'],
+                        })
+                        repo_candidate["downloaded_skills"] += 1
+                        path_candidate["downloaded"] = True
+                        for topic in repo_candidate["topics"]:
+                            self.topic_stats[topic]["downloaded_skills"] += 1
+                        for query in repo_candidate["code_queries"]:
+                            self.code_query_stats[query]["downloaded_skills"] += 1
+                        logger.info(f"  ✓ Downloaded: {skill['path']}")
+                if progress is not None:
+                    progress["next_repo"] = index + 1
+        except DiscoveryBudgetExpired:
+            if progress is None:
+                raise
+            logger.info("Discovery batch budget reached; next repository is %s/%s",
+                        progress["next_repo"], len(repos_to_scan))
+
+        if resumed and progress["next_repo"] == start and downloaded == 0:
+            raise RuntimeError("Discovery batch made no progress; retry instead of reporting success")
 
         # Save discovery results
         discovered_at = datetime.utcnow().isoformat() + 'Z'
@@ -640,7 +730,7 @@ class GitHubTopicDiscovery:
                 'discovered_at': discovered_at,
                 'total_repos': len(self.discovered_repos),
                 'total_skills': len(self.skills),
-                'scanned_repos': len(repos_to_scan),
+                'scanned_repos': progress["next_repo"] - start if progress else len(selected_repos),
                 'limits': {
                     'max_repos': self.max_repos,
                     'max_topic_pages': self.max_topic_pages,
@@ -648,16 +738,26 @@ class GitHubTopicDiscovery:
                     'skip_code_search': self.skip_code_search,
                     'request_delay': self.request_delay,
                 },
-                'repos': repos_to_scan,
+                'repos': selected_repos,
                 'skills': self.skills,
             }, f, indent=2, ensure_ascii=False)
 
         candidates_written = self._write_candidates_jsonl(
             candidates_output,
             discovered_at,
-            repos_to_scan,
+            selected_repos,
         )
-        self._update_priors(priors_output, discovered_at, repos_to_scan)
+        self._update_priors(priors_output, discovered_at, selected_repos)
+
+        if progress is not None:
+            if progress["next_repo"] == len(repos_to_scan):
+                progress["completed_at"] = discovered_at
+            progress_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = progress_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(progress, indent=2) + "\n", encoding="utf-8")
+            temporary.replace(progress_path)
+            logger.info("Full discovery progress: %s/%s (complete=%s)",
+                        progress["next_repo"], len(repos_to_scan), bool(progress["completed_at"]))
 
         logger.info("\n=== Summary ===")
         logger.info(f"Repositories discovered: {len(self.discovered_repos)}")
@@ -676,6 +776,9 @@ def main():
     parser.add_argument('--token', help='GitHub token (or set GITHUB_TOKEN env)')
     parser.add_argument('--output', default='skills', help='Output directory')
     parser.add_argument('--json', default='sources/discovered.json', help='JSON output')
+    parser.add_argument('--progress', help='Persist a full discovery cycle cursor after each batch')
+    parser.add_argument('--time-budget-seconds', type=int, default=0,
+                        help='Cooperative batch budget; requires --progress (0 = unlimited)')
     parser.add_argument(
         '--max-repos',
         type=int,
@@ -717,6 +820,8 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.time_budget_seconds < 0 or (args.time_budget_seconds and not args.progress):
+        parser.error('--time-budget-seconds must be non-negative and requires --progress')
 
     discoverer = GitHubTopicDiscovery(
         token=args.token,
@@ -731,6 +836,8 @@ def main():
         output_json=args.json,
         candidates_output=args.candidates_output,
         priors_output=args.priors_output,
+        progress_path=args.progress,
+        time_budget_seconds=args.time_budget_seconds,
     )
 
 

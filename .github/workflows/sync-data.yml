@@ -4,12 +4,12 @@ on:
   schedule:
     # Run daily at 00:00 UTC
     - cron: '0 0 * * *'
-    # Run a full discovery weekly on Sunday
+    # Start a full discovery cycle on Sunday; daily runs resume unfinished cycles.
     - cron: '30 2 * * 0'
   workflow_dispatch:
     inputs:
       full_scan:
-        description: Run full discovery (slower)
+        description: Start or resume a full discovery cycle (100-minute batch)
         required: false
         type: boolean
         default: false
@@ -175,6 +175,11 @@ jobs:
     needs: preflight
     if: github.run_attempt == 1
     runs-on: ubuntu-latest
+    env:
+      FULL_DISCOVERY_PROGRESS: sources/learning/full-discovery-progress.json
+    outputs:
+      full_scan: ${{ steps.discovery.outputs.profile == 'full' }}
+      full_cycle_complete: ${{ steps.full_progress.outputs.complete }}
     steps:
       - name: Checkout core
         uses: actions/checkout@v6
@@ -223,6 +228,12 @@ jobs:
           elif [ "$EVENT_NAME" = "schedule" ] && [ "$EVENT_SCHEDULE" = "30 2 * * 0" ]; then
             profile="full"
           fi
+          if [ "$profile" != "manual-sources-only" ] && [ -f "$FULL_DISCOVERY_PROGRESS" ]; then
+            pending=$(python -c 'import json, os; p=json.load(open(os.environ["FULL_DISCOVERY_PROGRESS"])); print(str(p["next_repo"] < len(p["repos"])).lower())')
+            if [ "$pending" = "true" ]; then
+              profile="full"
+            fi
+          fi
           echo "profile=$profile" >> "$GITHUB_OUTPUT"
           echo "Discovery profile: $profile (event=$EVENT_NAME schedule=$EVENT_SCHEDULE full_scan=$INPUT_FULL_SCAN skip_discovery=$INPUT_SKIP_DISCOVERY)"
 
@@ -232,28 +243,51 @@ jobs:
       - name: Discover new skills from GitHub (full)
         if: steps.discovery.outputs.profile == 'full'
         id: discover_full
-        continue-on-error: true
-        timeout-minutes: 180
+        timeout-minutes: 120
         env:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          echo "🔍 Running full discovery via GitHub API..."
-          python scripts/discover_by_topic.py \
+          echo "🔍 Running a resumable full discovery batch via GitHub API..."
+          # Keep discovery as the step process so cancellation reaches the archive writer.
+          exec python -u scripts/discover_by_topic.py \
             --output skills \
             --json sources/discovered.json \
             --candidates-output sources/learning/discovery_candidates.jsonl \
-            --priors-output sources/learning/discovery_priors.json 2>&1 | tee discover.log
+            --priors-output sources/learning/discovery_priors.json \
+            --progress "$FULL_DISCOVERY_PROGRESS" \
+            --time-budget-seconds 6000
+
+      - name: Report full discovery progress
+        if: steps.discovery.outputs.profile == 'full'
+        id: full_progress
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          progress = json.loads(Path(os.environ["FULL_DISCOVERY_PROGRESS"]).read_text())
+          complete = progress["next_repo"] == len(progress["repos"])
+          with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
+              handle.write(f"complete={str(complete).lower()}\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as handle:
+              handle.write(
+                  f"Full discovery cycle started {progress['started_at']}: "
+                  f"{progress['next_repo']}/{len(progress['repos'])} repositories finished. "
+                  + ("Cycle complete.\n" if complete else "Batch complete; next daily run resumes.\n")
+              )
+          PY
 
       - name: Discover new skills from GitHub (daily bounded)
         if: steps.discovery.outputs.profile == 'daily-bounded'
         id: discover_daily
-        continue-on-error: true
         timeout-minutes: 60
         env:
           GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "🔍 Running bounded daily discovery..."
-          python scripts/discover_by_topic.py \
+          # Keep discovery as the step process so cancellation reaches the archive writer.
+          exec python -u scripts/discover_by_topic.py \
             --output skills \
             --json sources/discovered.json \
             --candidates-output sources/learning/discovery_candidates.jsonl \
@@ -261,7 +295,7 @@ jobs:
             --max-repos 300 \
             --max-topic-pages 2 \
             --skip-code-search \
-            --request-delay 1.0 2>&1 | tee discover.log
+            --request-delay 1.0
 
       - name: Print discovery outcome
         if: always()
@@ -926,7 +960,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          IS_FULL: ${{ github.event.schedule == '30 2 * * 0' }}
+          IS_FULL: ${{ needs.sync.outputs.full_scan == 'true' || github.event.schedule == '30 2 * * 0' }}
+          FULL_CYCLE_COMPLETE: ${{ needs.sync.outputs.full_cycle_complete }}
           PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           SYNC_RESULT: ${{ needs.sync.result }}
           PUBLISH_RESULT: ${{ needs.publish.result }}
@@ -963,6 +998,11 @@ jobs:
             exit 0
           fi
 
-          if [ "$SYNC_RESULT" = "success" ] && [ -n "$number" ]; then
+          if [ "$IS_FULL" = "true" ] && [ "$FULL_CYCLE_COMPLETE" != "true" ]; then
+            echo "Full discovery cycle is unfinished; keeping its alert open."
+            exit 0
+          fi
+
+          if [ "$SYNC_RESULT" = "success" ] && [ "$PUBLISH_RESULT" = "success" ] && [ -n "$number" ]; then
             gh issue close "$number" --comment "The latest ${scope} completed successfully; closing this alert."
           fi

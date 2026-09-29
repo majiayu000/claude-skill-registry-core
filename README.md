@@ -42,6 +42,28 @@ The largest searchable index of Claude Code skills, aggregated from GitHub and c
 - **Publish contract**: core dispatches main publish with pinned `core_sha` + `data_sha`
 - **Non-goal for main**: main does not initiate canonical syncs, archive updates, or index generation
 
+### Resumable full discovery
+
+The Sunday schedule starts a full discovery cycle. It snapshots the repository inventory and
+processes it in batches with a 100-minute discovery budget (120-minute runner timeout).
+Daily schedules resume an unfinished cycle before returning to ordinary bounded daily discovery.
+A new Sunday does not reset an unfinished inventory. GitHub search limits still apply; a cycle
+means all repositories in that snapshot, not every skill on GitHub.
+
+`sources/learning/full-discovery-progress.json` records the inventory, the next repository,
+and the cycle's start/completion timestamps. Budget exhaustion leaves an unfinished repository
+at the cursor; its already archived files are skipped on the next batch. Each batch still passes
+the full archive security checks. The cursor is committed to core only after the data repository
+push succeeds. A failed batch therefore retries from the last committed cursor rather than
+skipping data that never reached the archive. Network errors and incomplete search responses
+fail the batch; repositories confirmed unavailable are recorded in the candidate report.
+
+The Actions summary distinguishes a successful batch from a completed cycle. The weekly alert
+stays open until the entire cycle finishes and the publish job succeeds. To retry a failed batch,
+start a **new** workflow dispatch with `full_scan=true`; GitHub's **Re-run** remains reserved for
+replaying an existing immutable publish handoff. `skip_discovery=true` explicitly bypasses the
+cycle without advancing its cursor or closing its alert.
+
 ## Release, Proof, And Support
 
 - **Release status**: daily catalog refreshes are represented by live generated metadata, not GitHub Releases. GitHub Releases are reserved for intentional pipeline/API milestones.

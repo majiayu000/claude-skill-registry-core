@@ -732,6 +732,131 @@ def test_sync_data_discovery_writes_to_archive_root_not_other_category():
     assert workflow.count("--output skills") == 2
 
 
+@pytest.mark.parametrize("step_id", ["discover_full", "discover_daily"])
+def test_sync_data_discovery_failure_stops_sync(step_id):
+    workflow = read_workflow(".github/workflows/sync-data.yml")
+    step = next(step for step in workflow["jobs"]["sync"]["steps"]
+                if step.get("id") == step_id)
+
+    assert not step.get("continue-on-error", False)
+
+
+@pytest.mark.parametrize("step_id", ["discover_full", "discover_daily"])
+def test_sync_data_discovery_owns_step_process_and_preserves_exit_code(tmp_path, step_id):
+    workflow = read_workflow(".github/workflows/sync-data.yml")
+    step = next(step for step in workflow["jobs"]["sync"]["steps"]
+                if step.get("id") == step_id)
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "discover_by_topic.py").write_text(
+        "import os\nprint(f'discovery pid={os.getpid()}')\nraise SystemExit(23)\n",
+        encoding="utf-8",
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "python").symlink_to(sys.executable)
+    env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+
+    with subprocess.Popen(
+        ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
+        cwd=tmp_path, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    ) as process:
+        stdout, stderr = process.communicate(timeout=10)
+
+    assert process.returncode == 23, stderr
+    assert f"discovery pid={process.pid}" in stdout
+
+
+@pytest.mark.parametrize("cursor,schedule,skip,expected", [
+    (None, "0 0 * * *", False, "daily-bounded"),
+    (1, "0 0 * * *", False, "full"),
+    (2, "0 0 * * *", False, "daily-bounded"),
+    (1, "30 2 * * 0", False, "full"),
+    (2, "30 2 * * 0", False, "full"),
+    (1, "", True, "manual-sources-only"),
+])
+def test_sync_profile_resumes_pending_cycle(tmp_path, cursor, schedule, skip, expected):
+    progress = tmp_path / "progress.json"
+    if cursor is not None:
+        progress.write_text(json.dumps({"repos": ["acme/a", "acme/b"], "next_repo": cursor}))
+    output = tmp_path / "output"
+    step = workflow_step("sync", "Resolve discovery profile")
+    result = subprocess.run(
+        ["bash", "-e", "-c", step["run"]], cwd=tmp_path, capture_output=True, text=True,
+        env=dict(os.environ, EVENT_NAME="workflow_dispatch" if skip else "schedule",
+                 EVENT_SCHEDULE=schedule, INPUT_FULL_SCAN="false",
+                 INPUT_SKIP_DISCOVERY=str(skip).lower(), FULL_DISCOVERY_PROGRESS=str(progress),
+                 GITHUB_OUTPUT=str(output)),
+    )
+    assert result.returncode == 0, result.stderr
+    assert f"profile={expected}\n" == output.read_text()
+
+
+@pytest.mark.parametrize("cursor,complete", [(1, "false"), (2, "true")])
+def test_sync_progress_reports_batch_separately_from_cycle(tmp_path, cursor, complete):
+    progress = tmp_path / "progress.json"
+    progress.write_text(json.dumps({
+        "repos": ["acme/a", "acme/b"], "next_repo": cursor, "started_at": "2026-09-29",
+    }))
+    output, summary = tmp_path / "output", tmp_path / "summary"
+    result = subprocess.run(
+        ["bash", "-e", "-c", workflow_step("sync", "Report full discovery progress")["run"]],
+        cwd=tmp_path, capture_output=True, text=True,
+        env=dict(os.environ, FULL_DISCOVERY_PROGRESS=str(progress), GITHUB_OUTPUT=str(output),
+                 GITHUB_STEP_SUMMARY=str(summary)),
+    )
+    assert result.returncode == 0, result.stderr
+    assert output.read_text() == f"complete={complete}\n"
+    assert f"{cursor}/2 repositories finished" in summary.read_text()
+
+
+@pytest.mark.parametrize("is_full,complete,publish,action", [
+    ("true", "false", "success", None),
+    ("true", "true", "success", "close"),
+    ("true", "true", "skipped", None),
+    ("true", "true", "failure", "comment"),
+    ("false", "", "success", "close"),
+])
+def test_sync_alert_closes_only_after_complete_success(tmp_path, is_full, complete, publish, action):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_gh = bin_dir / "gh"
+    fake_gh.write_text(
+        '#!/bin/bash\nif [ "$2" = "list" ]; then\n  echo 323\n'
+        'else\n  echo "$2" >> "$ALERT_ACTIONS"\nfi\n'
+    )
+    fake_gh.chmod(0o755)
+    actions = tmp_path / "actions"
+    step = workflow_step("alert", "Open, update or close the sync alert issue")
+    result = subprocess.run(
+        ["bash", "-e", "-c", step["run"]], cwd=tmp_path, capture_output=True, text=True,
+        env=dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                 IS_FULL=is_full, FULL_CYCLE_COMPLETE=complete, PREFLIGHT_RESULT="success",
+                 SYNC_RESULT="success", PUBLISH_RESULT=publish, RUN_URL="test-run",
+                 ALERT_ACTIONS=str(actions)),
+    )
+    assert result.returncode == 0, result.stderr
+    assert (actions.read_text().strip() if actions.exists() else None) == action
+
+
+def test_full_discovery_cursor_commits_after_archive_and_health_gates():
+    workflow = read_repo_file(".github/workflows/sync-data.yml")
+    sync = read_workflow(".github/workflows/sync-data.yml")["jobs"]["sync"]
+    assert sync["env"]["FULL_DISCOVERY_PROGRESS"].startswith("sources/learning/")
+    discover = workflow_step("sync", "Discover new skills from GitHub (full)")
+    assert '--progress "$FULL_DISCOVERY_PROGRESS"' in discover["run"]
+    assert "--time-budget-seconds 6000" in discover["run"]
+    assert discover["timeout-minutes"] * 60 > 6000
+    assert sync["outputs"]["full_cycle_complete"] == "${{ steps.full_progress.outputs.complete }}"
+    assert "needs.sync.outputs.full_scan" in workflow_step(
+        "alert", "Open, update or close the sync alert issue"
+    )["env"]["IS_FULL"]
+    assert "sources/" in workflow_step("sync", "Commit & push core metadata changes")["run"]
+    assert workflow.index("Validate sync pipeline health") < workflow.index(
+        "Commit & push data repo changes"
+    ) < workflow.index("Commit & push core metadata changes")
+
+
 def test_sync_data_preflight_is_main_only_and_precedes_repository_checkout():
     workflow = read_repo_file(".github/workflows/sync-data.yml")
     parsed = read_workflow(".github/workflows/sync-data.yml")
