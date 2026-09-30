@@ -416,6 +416,37 @@ def test_publish_sync_has_observable_steps_and_cache_excludes():
     assert "-exec rm -f {} +" in cleanup_block
 
 
+def test_publish_static_pages_receives_catalog_archive_and_output_together():
+    sync_script = read_repo_file("scripts/sync_main_repo.sh")
+    command = sync_script.split('  run_step "Build static featured skill pages"', 1)[1]
+    command = (
+        'run_step "Build static featured skill pages"'
+        + command.split('\n  run_step "Remove temporary guide catalog"', 1)[0]
+    )
+    result = subprocess.run(
+        [
+            "bash",
+            "-e",
+            "-c",
+            'main_dir=/tmp/publish\nrun_step() { printf "%s\\n" "$@"; }\n' + command,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.splitlines() == [
+        "Build static featured skill pages",
+        "python",
+        "/tmp/publish/scripts/build_static_skill_pages.py",
+        "--catalog",
+        "/tmp/publish/docs/page-catalog.json",
+        "--archive",
+        "/tmp/publish/skills",
+        "--output",
+        "/tmp/publish/docs",
+    ]
+
+
 def test_publish_sync_preserves_main_owned_routing_files():
     sync_script = read_repo_file("scripts/sync_main_repo.sh")
     sync_block = sync_script[

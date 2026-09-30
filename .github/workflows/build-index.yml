@@ -342,6 +342,7 @@ jobs:
           python scripts/build_static_skill_pages.py \
             --catalog docs/page-catalog.json \
             --output docs
+          rm docs/page-catalog.json
 
       - name: Check generated artifact sizes
         run: |
