@@ -19,7 +19,7 @@ def test_homepage_declares_main_registry_as_its_public_identity():
     assert '<meta property="og:type" content="website">' in homepage
     assert '<meta property="og:title" content="Claude Skills Registry">' in homepage
     assert f'<meta property="og:url" content="{PUBLIC_SITE}">' in homepage
-    assert '<meta name="twitter:card" content="summary">' in homepage
+    assert '<meta name="twitter:card" content="summary_large_image">' in homepage
     assert '<meta name="twitter:title" content="Claude Skills Registry">' in homepage
 
 

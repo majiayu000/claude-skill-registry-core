@@ -13,11 +13,11 @@
   <a href="https://majiayu000.github.io/claude-skill-registry/"><img src="https://img.shields.io/badge/Web-Search-blue?style=flat-square" alt="Web Search"></a>
 </p>
 
-> The most comprehensive Claude Code skills registry — updated daily with the latest skills
+> A searchable Claude Code skills registry, aggregated from GitHub and community sources.
 
 ## What is this?
 
-The largest searchable index of Claude Code skills, aggregated from GitHub and community sources.
+Search skill descriptions, inspect source links and registry signals, and find installation guidance. This core repository maintains the discovery, archive validation, search-index, and site publishing pipeline.
 
 **Three ways to use:**
 1. **[Web Search](https://majiayu000.github.io/claude-skill-registry/)** - Fast browser-based search
@@ -28,7 +28,7 @@ The largest searchable index of Claude Code skills, aggregated from GitHub and c
 
 ## Highlights
 
-- **Massive Skill Index** - Deduplicated, high-quality registry (see badge for live count)
+- **Skill Index** - Deduplicated registry entries (see badge for live count)
 - **Rich Categories** - Development, Testing, DevOps, Design, and more
 - **Daily Updates** - Automated crawling/validation by core scheduled workflows
 - **Quality Indexed** - Metadata, descriptions, and star counts
@@ -88,6 +88,11 @@ For clone/update tips on large repositories, see [docs/FAST_CLONE.md](docs/FAST_
 ```bash
 # Install sk
 go install github.com/majiayu000/claude-skill-manager@latest
+# Go names the executable claude-skill-manager; expose the documented sk command.
+sk_bin_dir="$(go env GOBIN)"
+if [ -z "$sk_bin_dir" ]; then sk_bin_dir="$(go env GOPATH)/bin"; fi
+mv "$sk_bin_dir/claude-skill-manager" "$sk_bin_dir/sk"
+# Ensure sk_bin_dir is on your PATH.
 
 # Search skills
 sk search testing

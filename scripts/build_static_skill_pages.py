@@ -123,7 +123,13 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
   <meta property="og:title" content="{name} — Claude Skills Registry">
   <meta property="og:description" content="{meta_description}">
   <meta property="og:url" content="{canonical}">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="{PUBLIC_SITE}assets/registry-social-preview.png">
+  <meta property="og:image:alt" content="Claude Skills Registry — source-linked skill guides">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{name} — Claude Skills Registry">
+  <meta name="twitter:description" content="{meta_description}">
+  <meta name="twitter:image" content="{PUBLIC_SITE}assets/registry-social-preview.png">
+  <meta name="twitter:image:alt" content="Claude Skills Registry — source-linked skill guides">
   <link rel="stylesheet" href="../../css/skill-detail.css">
 </head>
 <body>
@@ -149,7 +155,7 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
       <h1>{name}</h1><p class="intro">{description}</p>
       <div class="tags">{tags}</div>
       <a class="source" href="{esc(_source_url(record))}">View source: {repo} ↗</a>
-      <section><h2>Install from source</h2><p>Install using <a href="https://github.com/majiayu000/caude-skill-manager">Skill Manager</a>:</p>
+      <section><h2>Install from source</h2><p>Install using <a href="https://github.com/majiayu000/claude-skill-manager">Skill Manager</a>:</p>
       <code>{esc(command)}</code><p class="note">Source-path status is inferred from metadata; it does not verify a live download. Scan and quality scores describe registry checks and are not a guarantee of safety.</p></section>
       <section><h2>Attribution and permissions</h2><p>{esc(license_notice)}</p><p>This guide links to the author’s instructions and includes metadata only.</p>
       <a href="{REMOVAL_URL}">Request removal or correct attribution</a></section>
@@ -222,7 +228,23 @@ def build_static_skill_pages(catalog_records: Iterable[dict[str, Any]], output_d
         detail_dir.mkdir()
         related = [item for item in categories[str(record.get("category") or "other")] if item is not record][:4]
         (detail_dir / "index.html").write_text(_render_detail_page(record, slug, related), encoding="utf-8")
-    browse = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Skill guides — Claude Skills Registry</title><link rel="canonical" href="' + PUBLIC_SITE + 'skills/"><link rel="stylesheet" href="../css/skill-detail.css"></head><body><header><a href="' + PUBLIC_SITE + '">← Search skills</a></header><main><h1>Browse skill guides</h1>'
+    browse = f'''<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Skill guides — Claude Skills Registry</title>
+<meta name="description" content="Browse skill guides by category with source links, installation commands, and registry quality and scan signals.">
+<link rel="canonical" href="{PUBLIC_SITE}skills/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Skill guides — Claude Skills Registry">
+<meta property="og:description" content="Browse source-linked skill guides and installation instructions by category.">
+<meta property="og:url" content="{PUBLIC_SITE}skills/">
+<meta property="og:image" content="{PUBLIC_SITE}assets/registry-social-preview.png">
+<meta property="og:image:alt" content="Claude Skills Registry — source-linked skill guides">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Skill guides — Claude Skills Registry">
+<meta name="twitter:description" content="Browse source-linked skill guides and installation instructions by category.">
+<meta name="twitter:image" content="{PUBLIC_SITE}assets/registry-social-preview.png">
+<meta name="twitter:image:alt" content="Claude Skills Registry — source-linked skill guides">
+<link rel="stylesheet" href="../css/skill-detail.css"></head><body><header><a href="{PUBLIC_SITE}">← Search skills</a></header><main><h1>Browse skill guides</h1>'''
     for category, items in sorted(categories.items()):
         browse += f'<section id="{html.escape(category, quote=True)}"><h2>{html.escape(category)}</h2><ul>'
         browse += ''.join(f'<li><a href="{skill_page_slug(item)}/">{html.escape(str(item["name"]))}</a></li>' for item in items) + '</ul></section>'
