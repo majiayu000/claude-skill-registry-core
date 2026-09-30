@@ -127,12 +127,17 @@ jobs:
           root = Path("replay-handoff")
           payload_path = root / "publish-dispatch-payload.json"
           evidence_path = root / "publish-dispatch-evidence.json"
-          if not payload_path.is_file() or not evidence_path.is_file():
-              raise SystemExit("Rerun requires both handoff files from the original attempt")
+          evidence_hash_path = root / "publish-dispatch-evidence.sha256"
+          if not payload_path.is_file() or not evidence_path.is_file() or not evidence_hash_path.is_file():
+              raise SystemExit("Rerun requires the complete handoff from the original attempt")
+
+          evidence_bytes = evidence_path.read_bytes()
+          if hashlib.sha256(evidence_bytes).hexdigest() != evidence_hash_path.read_text().strip():
+              raise SystemExit("Replay evidence hash mismatch")
 
           payload_bytes = payload_path.read_bytes()
           payload = json.loads(payload_bytes)
-          evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+          evidence = json.loads(evidence_bytes)
           payload_keys = {"event_type", "client_payload"}
           client_keys = {"core_repo", "core_sha", "data_repo", "data_sha"}
           evidence_keys = {
@@ -810,8 +815,10 @@ jobs:
               "full_scan": os.environ["FULL_SCAN"],
               "full_cycle_complete": os.environ["FULL_CYCLE_COMPLETE"],
           }
-          (root / "publish-dispatch-evidence.json").write_text(
-              json.dumps(evidence, indent=2) + "\n", encoding="utf-8"
+          evidence_bytes = (json.dumps(evidence, indent=2) + "\n").encode()
+          (root / "publish-dispatch-evidence.json").write_bytes(evidence_bytes)
+          (root / "publish-dispatch-evidence.sha256").write_text(
+              hashlib.sha256(evidence_bytes).hexdigest() + "\n", encoding="utf-8"
           )
           print(
               "Prepared immutable publish handoff "
@@ -866,11 +873,15 @@ jobs:
           root = Path("sync-publish-handoff")
           payload_path = root / "publish-dispatch-payload.json"
           evidence_path = root / "publish-dispatch-evidence.json"
-          if not payload_path.is_file() or not evidence_path.is_file():
+          evidence_hash_path = root / "publish-dispatch-evidence.sha256"
+          if not payload_path.is_file() or not evidence_path.is_file() or not evidence_hash_path.is_file():
               raise SystemExit("Publish handoff is missing required files")
+          evidence_bytes = evidence_path.read_bytes()
+          if hashlib.sha256(evidence_bytes).hexdigest() != evidence_hash_path.read_text().strip():
+              raise SystemExit("Publish evidence hash mismatch")
           payload_bytes = payload_path.read_bytes()
           payload = json.loads(payload_bytes)
-          evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+          evidence = json.loads(evidence_bytes)
           payload_keys = {"event_type", "client_payload"}
           client_keys = {"core_repo", "core_sha", "data_repo", "data_sha"}
           evidence_keys = {
@@ -962,6 +973,7 @@ jobs:
     if: ${{ always() && github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       issues: write
     steps:
       - name: Open, update or close the sync alert issue
@@ -975,7 +987,9 @@ jobs:
           SYNC_RESULT: ${{ needs.sync.result }}
           PUBLISH_RESULT: ${{ needs.publish.result }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
+          set -euo pipefail
           # The weekly full run and the daily run fail at different gates, so they track separate
           # issues. Sharing one would let the next daily success close a weekly failure unseen.
           if [ "$IS_FULL" = "true" ]; then
@@ -1015,5 +1029,26 @@ jobs:
 
           if [ "$PREFLIGHT_RESULT" = "success" ] && [ "$PUBLISH_RESULT" = "success" ] && [ -n "$number" ] && \
               { [ "$SYNC_RESULT" = "success" ] || { [ "$RUN_ATTEMPT" -gt 1 ] && [ "$SYNC_RESULT" = "skipped" ]; }; }; then
+            if [ "$RUN_ATTEMPT" -gt 1 ]; then
+              # Run numbers retain creation order even when an older run is replayed later.
+              failure_runs=$(
+                {
+                  gh api "repos/$GH_REPO/issues/$number" --jq '.body'
+                  gh api "repos/$GH_REPO/issues/$number/comments" --paginate --jq '.[].body'
+                } | python -c 'import os, re, sys
+          run_url = os.environ["RUN_URL"]
+          prefix, run_id = run_url.rsplit("/", 1)
+          runs = set(re.findall(re.escape(prefix + "/") + r"([0-9]+)\b", sys.stdin.read()))
+          print(" ".join(sorted(runs - {run_id})))'
+              )
+              for failure_run in $failure_runs; do
+                newer_failure=$(gh api "repos/$GH_REPO/actions/runs/$failure_run" \
+                  --jq "(.run_number | tonumber) > $RUN_NUMBER")
+                if [ "$newer_failure" = "true" ]; then
+                  echo "A newer scheduled run also failed; keeping its alert open."
+                  exit 0
+                fi
+              done
+            fi
             gh issue close "$number" --comment "The latest ${scope} completed successfully; closing this alert."
           fi
