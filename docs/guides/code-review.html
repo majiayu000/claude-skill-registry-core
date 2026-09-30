@@ -46,9 +46,13 @@
     <span id="copy-status" role="status" aria-live="polite"></span>
     <p>This installs only <code>code-review</code> into
       <code>.claude/skills/code-review/</code> in the current project.
+      With <code>--copy</code>, files go directly to that directory;
+      <code>.agents/skills/code-review/</code> appears in the installer's summary
+      but is not created by this command.
       The command does not use the global installation flag.</p>
-    <p class="note">If this project already has a skill named <code>code-review</code>,
-      inspect it before running the command: this installation can replace it.</p>
+    <p class="note">If this project already has
+      <code>.claude/skills/code-review/</code>, inspect it before running the
+      command: this installation can replace it.</p>
 
     <h2>3. Check the installation</h2>
     <pre><code>npx --yes skills@1.7.0 list --agent claude-code</code></pre>
@@ -60,7 +64,9 @@
     <p>Start a new Claude Code session in that project. With uncommitted changes
       available, send:</p>
     <pre><code>Use the code-review skill to review my uncommitted changes.
-Read both staged and unstaged diffs and follow this repository's instructions.
+Follow this repository's instructions.
+Check git status --short --untracked-files=all.
+Read both staged and unstaged diffs and the contents of untracked files.
 Report concrete bugs and missing tests with file locations and reasons.
 Do not edit files. If no actionable issues are found, say so.</code></pre>
     <p>Check whether each finding cites the actual diff and explains a reproducible
