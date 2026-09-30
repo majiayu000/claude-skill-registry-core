@@ -342,6 +342,8 @@ class GitHubTopicDiscovery:
 
     def get_skill_files_from_repo(self, repo):
         """Find all SKILL.md files in a repository"""
+        if is_registry_repo(repo):
+            return []
         skills = []
 
         # First try to search the repo for SKILL.md files
