@@ -101,9 +101,11 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
     repo = esc(record.get("repo") or "")
     tags = "".join(f'<span class="tag">{esc(tag)}</span>' for tag in record.get("tags", []))
     copies = record.get("copies", [record])
-    copy_links = "".join(f'<li><a href="{esc(_source_url(copy))}">{esc(copy.get("repo"))}</a></li>' for copy in copies[:10])
+    copy_links = "".join(f'<li><a href="{esc(_source_url(copy))}">{esc(copy.get("install") or copy.get("repo"))}</a></li>' for copy in copies[:10])
     similar = "".join(f'<a class="related" href="../{skill_page_slug(item)}/"><strong>{esc(item["name"])}</strong><span>{esc(item.get("description", ""))[:160]}</span></a>' for item in related)
     license_name = record.get("license") or "Not declared in registry metadata"
+    if license_name == "NOASSERTION":
+        license_name = "Not declared in registry metadata"
     license_notice = "Check the original repository for permission and license terms before reuse. Registry metadata does not grant a license."
     install = str(record.get("install") or record.get("repo") or "")
     command = f"sk install {shlex.quote(install)} --branch {shlex.quote(str(record.get('branch') or 'main'))}"
@@ -131,8 +133,8 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
       <div class="terminal">&gt;_</div>
       <h2>Signals</h2>
       <dl><dt>Quality score</dt><dd>{esc(record.get('quality_grade', 'unknown'))} · {esc(record.get('quality_score', 0))}/100</dd>
-      <dt>Registry scan</dt><dd>{esc(record.get('security_status', 'unknown'))}</dd>
-      <dt>Source path</dt><dd>{esc(record.get('install_status', 'unknown'))}</dd>
+      <dt>Registry scan</dt><dd>{esc(str(record.get('security_status', 'unknown')).replace('_', ' '))}</dd>
+      <dt>Source path</dt><dd>{esc(str(record.get('install_status', 'unknown')).replace('_', ' '))}</dd>
       <dt>Trust score</dt><dd>{esc(record.get('trust_score', 0))}/100</dd></dl>
       <h2>Metadata</h2>
       <dl><dt>Category</dt><dd>{esc(record.get('category', 'other'))}</dd>

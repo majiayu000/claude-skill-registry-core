@@ -218,3 +218,15 @@ def test_install_command_quotes_source_arguments(tmp_path):
     detail = (tmp_path / "skills" / skill_page_slug(record) / "index.html").read_text()
     command = html.unescape(re.search(r"<code>(.*?)</code>", detail).group(1))
     assert shlex.split(command) == ["sk", "install", record["install"], "--branch", record["branch"]]
+
+
+def test_unknown_license_is_explained_and_copy_paths_are_distinct(tmp_path):
+    first = skill("copies", repo="acme/repo", install="acme/repo/skills/copies", content_fingerprint="x", license="NOASSERTION")
+    second = skill("copies", repo="acme/repo", install="acme/repo/.claude/skills/copies", content_fingerprint="x", license="NOASSERTION")
+    records = group_skill_copies([first, second])
+    build_static_skill_pages(records, tmp_path)
+    detail = (tmp_path / "skills" / records[0]["page_slug"] / "index.html").read_text()
+    assert "NOASSERTION" not in detail
+    assert "Not declared in registry metadata" in detail
+    assert "acme/repo/skills/copies" in detail
+    assert "acme/repo/.claude/skills/copies" in detail
