@@ -846,15 +846,15 @@ def test_sync_progress_reports_batch_separately_from_cycle(tmp_path, cursor, com
 
 
 @pytest.mark.parametrize("is_full,complete,preflight,sync,publish,attempt,failed_number,action", [
-    ("true", "false", "success", "success", "success", "1", "", None),
+    ("true", "false", "success", "success", "success", "1", "", "comment"),
     ("true", "true", "success", "success", "success", "1", "", "close"),
     ("true", "true", "success", "success", "skipped", "1", "", None),
     ("true", "true", "success", "success", "failure", "1", "", "comment"),
     ("false", "", "success", "success", "success", "1", "", "close"),
     ("false", "", "success", "skipped", "success", "2", "", "close"),
     ("true", "true", "success", "skipped", "success", "2", "", "close"),
-    ("true", "false", "success", "skipped", "success", "2", "", None),
-    ("true", "", "success", "skipped", "success", "2", "", None),
+    ("true", "false", "success", "skipped", "success", "2", "", "comment"),
+    ("true", "", "success", "skipped", "success", "2", "", "comment"),
     ("false", "", "success", "skipped", "success", "1", "", None),
     ("true", "true", "success", "skipped", "failure", "2", "", "comment"),
     ("false", "", "failure", "skipped", "skipped", "2", "", "comment"),
@@ -908,14 +908,31 @@ fi
     assert (actions.read_text().strip() if actions.exists() else None) == action
 
 
-def test_sync_alert_replay_lookup_failure_does_not_close(tmp_path):
+@pytest.mark.parametrize("lookup_failure", ["body", "comments", "run"])
+def test_sync_alert_replay_lookup_failure_does_not_close(tmp_path, lookup_failure):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake_gh = bin_dir / "gh"
     fake_gh.write_text(
-        '#!/bin/bash\nif [ "$2" = "list" ]; then\n  echo 323\n'
-        'elif [ "$1" = "api" ]; then\n  exit 23\n'
-        'else\n  touch "$ALERT_ACTIONS"\nfi\n'
+        """#!/bin/bash
+if [ "$2" = "list" ]; then
+  echo 323
+elif [ "$1" = "api" ]; then
+  case "$2" in
+    */issues/323)
+      [ "$LOOKUP_FAILURE" != "body" ] || exit 23
+      echo "Failed run: https://github.com/Owner/Core/actions/runs/5678" ;;
+    */issues/323/comments)
+      [ "$LOOKUP_FAILURE" != "comments" ] || exit 23 ;;
+    */actions/runs/5678)
+      [ "$LOOKUP_FAILURE" != "run" ] || exit 23
+      echo false ;;
+    *) exit 24 ;;
+  esac
+else
+  touch "$ALERT_ACTIONS"
+fi
+"""
     )
     fake_gh.chmod(0o755)
     actions = tmp_path / "actions"
@@ -924,10 +941,57 @@ def test_sync_alert_replay_lookup_failure_does_not_close(tmp_path):
         dict(PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}", GH_REPO="Owner/Core",
              IS_FULL="false", FULL_CYCLE_COMPLETE="", PREFLIGHT_RESULT="success",
              SYNC_RESULT="skipped", PUBLISH_RESULT="success", RUN_ATTEMPT="2", RUN_NUMBER="10",
-             RUN_URL="https://github.com/Owner/Core/actions/runs/1234", ALERT_ACTIONS=str(actions)),
+             RUN_URL="https://github.com/Owner/Core/actions/runs/1234", ALERT_ACTIONS=str(actions),
+             LOOKUP_FAILURE=lookup_failure),
     )
     assert result.returncode == 23, result.stderr
     assert not actions.exists()
+
+
+@pytest.mark.parametrize("attempt,sync", [("1", "success"), ("2", "skipped")])
+def test_sync_alert_old_replay_preserves_newer_unfinished_cycle(tmp_path, attempt, sync):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_gh = bin_dir / "gh"
+    fake_gh.write_text(
+        """#!/bin/bash
+if [ "$1" = "api" ]; then
+  case "$2" in
+    */issues/323) echo "Failed run: https://github.com/Owner/Core/actions/runs/1234" ;;
+    */issues/323/comments) cat "$ALERT_HISTORY" ;;
+    */actions/runs/5678) echo true ;;
+    *) exit 24 ;;
+  esac
+elif [ "$2" = "list" ]; then
+  echo 323
+elif [ "$2" = "comment" ]; then
+  echo "$5" >> "$ALERT_HISTORY"
+else
+  echo "$2" >> "$ALERT_ACTIONS"
+fi
+"""
+    )
+    fake_gh.chmod(0o755)
+    actions, history = tmp_path / "actions", tmp_path / "history"
+    history.touch()
+    step = workflow_step("alert", "Open, update or close the sync alert issue")
+    env = dict(PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}", GH_REPO="Owner/Core",
+               IS_FULL="true", PREFLIGHT_RESULT="success", PUBLISH_RESULT="success",
+               ALERT_ACTIONS=str(actions), ALERT_HISTORY=str(history))
+    newer_url = "https://github.com/Owner/Core/actions/runs/5678"
+    unfinished = run_workflow_script(
+        step, tmp_path, dict(env, FULL_CYCLE_COMPLETE="false", SYNC_RESULT=sync,
+                             RUN_ATTEMPT=attempt, RUN_NUMBER="11", RUN_URL=newer_url),
+    )
+    assert unfinished.returncode == 0, unfinished.stderr
+    replay = run_workflow_script(
+        step, tmp_path, dict(env, FULL_CYCLE_COMPLETE="true", SYNC_RESULT="skipped",
+                             RUN_ATTEMPT="2", RUN_NUMBER="10",
+                             RUN_URL="https://github.com/Owner/Core/actions/runs/1234"),
+    )
+    assert replay.returncode == 0, replay.stderr
+    assert not actions.exists(), actions.read_text() if actions.exists() else ""
+    assert newer_url in history.read_text()
 
 
 def test_full_discovery_cursor_commits_after_archive_and_health_gates():

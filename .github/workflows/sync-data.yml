@@ -1023,6 +1023,9 @@ jobs:
           fi
 
           if [ "$IS_FULL" = "true" ] && [ "$FULL_CYCLE_COMPLETE" != "true" ]; then
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --body "The scheduled ${scope} has not finished its full discovery cycle: ${RUN_URL}"
+            fi
             echo "Full discovery cycle is unfinished; keeping its alert open."
             exit 0
           fi
@@ -1031,11 +1034,10 @@ jobs:
               { [ "$SYNC_RESULT" = "success" ] || { [ "$RUN_ATTEMPT" -gt 1 ] && [ "$SYNC_RESULT" = "skipped" ]; }; }; then
             if [ "$RUN_ATTEMPT" -gt 1 ]; then
               # Run numbers retain creation order even when an older run is replayed later.
+              alert_body=$(gh api "repos/$GH_REPO/issues/$number" --jq '.body')
+              alert_comments=$(gh api "repos/$GH_REPO/issues/$number/comments" --paginate --jq '.[].body')
               failure_runs=$(
-                {
-                  gh api "repos/$GH_REPO/issues/$number" --jq '.body'
-                  gh api "repos/$GH_REPO/issues/$number/comments" --paginate --jq '.[].body'
-                } | python -c 'import os, re, sys
+                printf '%s\n%s\n' "$alert_body" "$alert_comments" | python -c 'import os, re, sys
           run_url = os.environ["RUN_URL"]
           prefix, run_id = run_url.rsplit("/", 1)
           runs = set(re.findall(re.escape(prefix + "/") + r"([0-9]+)\b", sys.stdin.read()))
@@ -1045,7 +1047,7 @@ jobs:
                 newer_failure=$(gh api "repos/$GH_REPO/actions/runs/$failure_run" \
                   --jq "(.run_number | tonumber) > $RUN_NUMBER")
                 if [ "$newer_failure" = "true" ]; then
-                  echo "A newer scheduled run also failed; keeping its alert open."
+                  echo "A newer scheduled run still needs recovery; keeping its alert open."
                   exit 0
                 fi
               done
