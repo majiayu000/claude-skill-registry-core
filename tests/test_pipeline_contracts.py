@@ -744,6 +744,69 @@ def test_sync_data_security_scope_fails_closed_on_git_errors():
     assert "security-scan-targets.txt" in scope
 
 
+@pytest.mark.parametrize("security_mode,archive_change", [
+    ("full", "unchanged"), ("full", "added"), ("full", "removed"), ("incremental", "added"),
+])
+def test_sync_data_security_scan_uses_snapshot_and_rejects_full_archive_drift(
+    tmp_path, security_mode, archive_change
+):
+    skills = tmp_path / "skills"
+    original = skills / "development/demo/SKILL.md"
+    original.parent.mkdir(parents=True)
+    original.write_text("---\nname: demo\ndescription: Demo.\n---\n", encoding="utf-8")
+    for directory in ("scripts", "schema", "sources"):
+        (tmp_path / directory).symlink_to(ROOT / directory, target_is_directory=True)
+    env = dict(os.environ, PATH=f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}")
+    targets = tmp_path / "targets.bin"
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts/resolve_security_scope.py"),
+         "--skills-dir", str(skills), "--mode", "full", "--output", str(targets)],
+        check=True, capture_output=True, text=True,
+    )
+    if archive_change == "added":
+        added = skills / "development/new/SKILL.md"
+        added.parent.mkdir()
+        added.write_text("---\nname: new\ndescription: New.\n---\n", encoding="utf-8")
+    elif archive_change == "removed":
+        original.unlink()
+
+    step_name = "Security scan (skills full)" if security_mode == "full" else (
+        "Security scan (skills daily incremental)"
+    )
+    scan = workflow_step("sync", step_name)["run"].replace(
+        "${{ steps.security_scope.outputs.file_list }}", str(targets)
+    )
+    result = subprocess.run(
+        ["bash", "-eo", "pipefail", "-c", scan], cwd=tmp_path, env=env,
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads((tmp_path / "security-report.json").read_text())
+    assert {skill["path"] for skill in report["skills"]} == (
+        set() if archive_change == "removed" else {"development/demo/SKILL.md"}
+    )
+
+    health_env = dict(
+        env, PROFILE="full" if security_mode == "full" else "daily-bounded",
+        DISCOVER_FULL_OUTCOME="success", DOWNLOAD_FULL_OUTCOME="success",
+        DISCOVER_DAILY_OUTCOME="success", DOWNLOAD_DAILY_OUTCOME="success",
+        SECURITY_MODE=security_mode, SECURITY_FULL_OUTCOME="success",
+        SECURITY_DAILY_OUTCOME="success", SECURITY_TARGET_LIST=str(targets),
+    )
+    health = subprocess.run(
+        ["bash", "-eo", "pipefail", "-c",
+         workflow_step("sync", "Validate sync pipeline health")["run"]],
+        cwd=tmp_path, env=health_env, capture_output=True, text=True,
+    )
+    if archive_change == "unchanged" or security_mode == "incremental":
+        assert health.returncode == 0, health.stdout + health.stderr
+    else:
+        assert health.returncode != 0
+        assert "security archive path drift:" in health.stdout
+        drift_path = "development/new/SKILL.md" if archive_change == "added" else "development/demo/SKILL.md"
+        assert drift_path in health.stdout
+
+
 def test_sync_data_cleans_ci_archive_leftovers_before_discovery():
     workflow = read_repo_file(".github/workflows/sync-data.yml")
 

@@ -10,6 +10,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from security_scope import SecurityScopeError, discover_scan_targets
+
 BLOCKING_OUTCOMES = {"failure", "cancelled", "timed_out"}
 ALLOWED_OUTCOMES = {"success", "skipped", "not-run", ""}
 REQUIRED_SECURITY_KEYS = {"total", "passed", "failed"}
@@ -26,6 +28,7 @@ class PipelineHealthInput:
     security_report: Path
     require_security_report: bool
     expected_security_paths: Path | None = None
+    full_security_skills_dir: Path | None = None
 
 
 def normalize_outcome(value: str) -> str:
@@ -42,7 +45,9 @@ def _validate_step(step_name: str, outcome: str) -> list[str]:
 
 
 def _validate_security_report(
-    report_path: Path, expected_paths_path: Path | None = None
+    report_path: Path,
+    expected_paths_path: Path | None = None,
+    full_security_skills_dir: Path | None = None,
 ) -> list[str]:
     if not report_path.exists():
         return [f"required security report is missing: {report_path}"]
@@ -138,6 +143,20 @@ def _validate_security_report(
             expected_paths = {chunk.decode("utf-8") for chunk in chunks if chunk}
         except UnicodeDecodeError:
             return ["expected security path list contains a non-UTF-8 path"]
+        if full_security_skills_dir is not None:
+            root = full_security_skills_dir.resolve()
+            try:
+                current_paths = {
+                    target.relative_to(root).as_posix() for target in discover_scan_targets(root)
+                }
+            except (OSError, SecurityScopeError) as exc:
+                return [f"cannot inspect full security archive: {exc}"]
+            if current_paths != expected_paths:
+                return [
+                    "security archive path drift: "
+                    f"missing={sorted(expected_paths - current_paths)}, "
+                    f"unexpected={sorted(current_paths - expected_paths)}"
+                ]
         report_path_set = set(report_paths)
         if report_path_set != expected_paths:
             missing_paths = sorted(expected_paths - report_path_set)
@@ -166,6 +185,7 @@ def validate_pipeline_health(pipeline_input: PipelineHealthInput) -> list[str]:
             _validate_security_report(
                 pipeline_input.security_report,
                 expected_paths_path=pipeline_input.expected_security_paths,
+                full_security_skills_dir=pipeline_input.full_security_skills_dir,
             )
         )
 
@@ -182,6 +202,10 @@ def parse_args() -> PipelineHealthInput:
     parser.add_argument("--security-report", default="security-report.json")
     parser.add_argument("--require-security-report", action="store_true")
     parser.add_argument("--expected-security-paths")
+    parser.add_argument(
+        "--full-security-skills-dir", type=Path,
+        help="Recheck the full archive against the resolved security path list",
+    )
     args = parser.parse_args()
 
     return PipelineHealthInput(
@@ -193,6 +217,7 @@ def parse_args() -> PipelineHealthInput:
         expected_security_paths=(
             Path(args.expected_security_paths) if args.expected_security_paths else None
         ),
+        full_security_skills_dir=args.full_security_skills_dir,
     )
 
 

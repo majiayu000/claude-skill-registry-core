@@ -214,3 +214,68 @@ def test_validate_pipeline_health_rejects_missing_security_decision(tmp_path):
     )
 
     assert errors == ["security report missing security_decision for development/demo/SKILL.md"]
+
+
+def _full_security_archive(tmp_path):
+    skills_dir = tmp_path / "skills"
+    skill = skills_dir / "development" / "demo" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("---\nname: demo\ndescription: Demo.\n---\n", encoding="utf-8")
+    report = tmp_path / "security-report.json"
+    report.write_text(json.dumps(_security_report()), encoding="utf-8")
+    expected = tmp_path / "expected-paths.bin"
+    expected.write_bytes(b"development/demo/SKILL.md\0")
+    return PipelineHealthInput(
+        discovery_outcome="success",
+        download_outcome="success",
+        security_outcome="success",
+        security_report=report,
+        require_security_report=True,
+        expected_security_paths=expected,
+        full_security_skills_dir=skills_dir,
+    )
+
+
+def test_validate_pipeline_health_accepts_unchanged_full_archive(tmp_path):
+    pipeline_input = _full_security_archive(tmp_path)
+    bundled = pipeline_input.full_security_skills_dir / "development/demo/references/SKILL.md"
+    bundled.parent.mkdir()
+    bundled.write_text("# Bundled reference\n", encoding="utf-8")
+    (bundled.parent.parent / "metadata.json").write_text(
+        json.dumps({"bundled_files": ["references/SKILL.md"]}), encoding="utf-8"
+    )
+
+    assert validate_pipeline_health(pipeline_input) == []
+
+
+def test_validate_pipeline_health_rejects_skill_added_after_full_scan(tmp_path):
+    pipeline_input = _full_security_archive(tmp_path)
+    added = pipeline_input.full_security_skills_dir / "development/new/SKILL.md"
+    added.parent.mkdir()
+    added.write_text("---\nname: new\ndescription: New.\n---\n", encoding="utf-8")
+
+    assert validate_pipeline_health(pipeline_input) == [
+        "security archive path drift: missing=[], unexpected=['development/new/SKILL.md']"
+    ]
+
+
+def test_validate_pipeline_health_rejects_skill_removed_after_full_scan(tmp_path):
+    pipeline_input = _full_security_archive(tmp_path)
+    (pipeline_input.full_security_skills_dir / "development/demo/SKILL.md").unlink()
+
+    assert validate_pipeline_health(pipeline_input) == [
+        "security archive path drift: missing=['development/demo/SKILL.md'], unexpected=[]"
+    ]
+
+
+def test_validate_pipeline_health_rejects_symlink_in_full_archive(tmp_path):
+    pipeline_input = _full_security_archive(tmp_path)
+    linked = pipeline_input.full_security_skills_dir / "development/linked/SKILL.md"
+    linked.parent.mkdir()
+    linked.symlink_to(pipeline_input.full_security_skills_dir / "development/demo/SKILL.md")
+
+    errors = validate_pipeline_health(pipeline_input)
+
+    assert len(errors) == 1
+    assert "cannot inspect full security archive: security scope contains a symlink:" in errors[0]
+    assert "development/linked/SKILL.md" in errors[0]

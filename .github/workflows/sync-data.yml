@@ -466,7 +466,11 @@ jobs:
         id: security_full
         run: |
           echo "🔒 Running full security scan on skills..."
-          python scripts/security_scanner.py skills/ --quiet --output security-report.json
+          python scripts/security_scanner.py \
+            skills/ \
+            --quiet \
+            --output security-report.json \
+            --file-list "${{ steps.security_scope.outputs.file_list }}"
 
       - name: Security scan (skills daily incremental)
         if: steps.security_scope.outputs.mode == 'incremental'
@@ -616,8 +620,10 @@ jobs:
             download_outcome="$DOWNLOAD_DAILY_OUTCOME"
           fi
 
+          health_scope_args=()
           if [ "$SECURITY_MODE" = "full" ]; then
             security_outcome="$SECURITY_FULL_OUTCOME"
+            health_scope_args=(--full-security-skills-dir skills)
           else
             security_outcome="$SECURITY_DAILY_OUTCOME"
           fi
@@ -628,6 +634,7 @@ jobs:
             --security-outcome "${security_outcome:-not-run}" \
             --security-report security-report.json \
             --require-security-report \
+            "${health_scope_args[@]}" \
             --expected-security-paths "$SECURITY_TARGET_LIST"
 
       - name: Verify bundled asset liveness
