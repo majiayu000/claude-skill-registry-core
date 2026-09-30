@@ -83,11 +83,14 @@ def skill_page_slug(record: dict[str, Any]) -> str:
     return f"{base[:90]}-{suffix}"
 
 
-def _source_url(record: dict[str, Any]) -> str:
+def _source_url(record: dict[str, Any], *, directory: bool = False) -> str:
     repo = quote(str(record.get("repo") or ""), safe="/")
     branch = quote(str(record.get("branch") or "main"), safe="")
     path = quote(str(record.get("path") or "").strip("/"), safe="/")
-    return f"https://github.com/{repo}/blob/{branch}/{path + '/' if path else ''}SKILL.md"
+    base = f"https://github.com/{repo}/{'tree' if directory else 'blob'}/{branch}"
+    if directory:
+        return f"{base}/{path}" if path else base
+    return f"{base}/{path + '/' if path else ''}SKILL.md"
 
 
 def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[str, Any]]) -> str:
@@ -107,8 +110,7 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
     if license_name == "NOASSERTION":
         license_name = "Not declared in registry metadata"
     license_notice = "Check the original repository for permission and license terms before reuse. Registry metadata does not grant a license."
-    install = str(record.get("install") or record.get("repo") or "")
-    command = f"sk install {shlex.quote(install)} --branch {shlex.quote(str(record.get('branch') or 'main'))}"
+    command = f"sk install {shlex.quote(_source_url(record, directory=True))}"
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>

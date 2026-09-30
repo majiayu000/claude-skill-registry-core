@@ -213,11 +213,15 @@ def test_cli_uses_catalog_and_rejects_invalid_payload(tmp_path, monkeypatch, cap
 def test_install_command_quotes_source_arguments(tmp_path):
     import html
     import shlex
-    record = skill("quoted", install="acme/repo/a space; touch /tmp/unsafe", branch="feat/space $(id)")
+    record = skill("quoted", path="skills/a space; touch /tmp/unsafe", branch="feat/space $(id)")
     build_static_skill_pages([record], tmp_path)
     detail = (tmp_path / "skills" / skill_page_slug(record) / "index.html").read_text()
     command = html.unescape(re.search(r"<code>(.*?)</code>", detail).group(1))
-    assert shlex.split(command) == ["sk", "install", record["install"], "--branch", record["branch"]]
+    args = shlex.split(command)
+    assert args[:2] == ["sk", "install"]
+    assert len(args) == 3
+    assert args[2] == "https://github.com/acme/skills/tree/feat%2Fspace%20%24%28id%29/skills/a%20space%3B%20touch%20/tmp/unsafe"
+    assert "--branch" not in command
 
 
 def test_unknown_license_is_explained_and_copy_paths_are_distinct(tmp_path):
