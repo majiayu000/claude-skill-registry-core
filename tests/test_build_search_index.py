@@ -1219,3 +1219,16 @@ def test_scan_repairs_block_scalar_description_and_retains_legal_metadata(tmp_pa
     assert scan_registry_skills(archive) == []
     assert utils.is_registry_repo("https://github.com/majiayu000/claude-skill-registry-data")
     assert not utils.is_registry_repo("other/claude-skill-registry")
+
+
+@pytest.mark.parametrize("location", ["", "."])
+@pytest.mark.parametrize("field", ["github_path", "path"])
+def test_scan_preserves_declared_repository_root_instead_of_archive_folder(tmp_path, location, field):
+    archive = tmp_path / "archive"
+    folder = archive / "development" / "example-archived-name"
+    folder.mkdir(parents=True)
+    (folder / "SKILL.md").write_text("# Example\n\nA useful root-mounted skill for focused development work.\n")
+    (folder / "metadata.json").write_text(json.dumps({"name":"example", "repo":"acme/root", field:location}))
+    records = scan_skills_v2(archive)
+    assert records[0]["path"] == ""
+    assert records[0]["install"] == "acme/root"

@@ -315,7 +315,14 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
         category = resolve_category(metadata.get("category", category_name), allow_unknown=True)
 
         repo = metadata.get("repo", "")
-        github_path = metadata.get("github_path") or metadata.get("path") or "/".join(rel_parts)
+        if "github_path" in metadata:
+            github_path = metadata["github_path"] or ""
+        elif "path" in metadata:
+            github_path = metadata["path"] or ""
+        else:
+            github_path = "/".join(rel_parts)
+        if github_path == ".":
+            github_path = ""
         github_branch = metadata.get("github_branch") or metadata.get("branch") or "main"
         asset_fields = verified_asset_fields(metadata, skill_dir, skills_dir)
         if asset_fields:
