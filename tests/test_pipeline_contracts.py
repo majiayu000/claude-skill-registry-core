@@ -232,7 +232,9 @@ def valid_sync_env() -> dict[str, str]:
     }
 
 
-def build_valid_handoff(tmp_path: Path) -> tuple[Path, bytes, dict]:
+def build_valid_handoff(
+    tmp_path: Path, full_scan: str = "false", full_cycle_complete: str = ""
+) -> tuple[Path, bytes, dict]:
     step = workflow_step("sync", "Build immutable publish handoff")
     env = {
         "RUN_ID": "1234",
@@ -241,6 +243,8 @@ def build_valid_handoff(tmp_path: Path) -> tuple[Path, bytes, dict]:
         "DATA_REPO": "Owner/Data",
         "DATA_SHA": "b" * 40,
         "REGISTRY_MAIN_REPO": "Owner/Main",
+        "FULL_SCAN": full_scan,
+        "FULL_CYCLE_COMPLETE": full_cycle_complete,
     }
     result = run_workflow_script(step, tmp_path, env)
     assert result.returncode == 0, result.stderr
@@ -841,14 +845,24 @@ def test_sync_progress_reports_batch_separately_from_cycle(tmp_path, cursor, com
     assert f"{cursor}/2 repositories finished" in summary.read_text()
 
 
-@pytest.mark.parametrize("is_full,complete,publish,action", [
-    ("true", "false", "success", None),
-    ("true", "true", "success", "close"),
-    ("true", "true", "skipped", None),
-    ("true", "true", "failure", "comment"),
-    ("false", "", "success", "close"),
+@pytest.mark.parametrize("is_full,complete,preflight,sync,publish,attempt,action", [
+    ("true", "false", "success", "success", "success", "1", None),
+    ("true", "true", "success", "success", "success", "1", "close"),
+    ("true", "true", "success", "success", "skipped", "1", None),
+    ("true", "true", "success", "success", "failure", "1", "comment"),
+    ("false", "", "success", "success", "success", "1", "close"),
+    ("false", "", "success", "skipped", "success", "2", "close"),
+    ("true", "true", "success", "skipped", "success", "2", "close"),
+    ("true", "false", "success", "skipped", "success", "2", None),
+    ("true", "", "success", "skipped", "success", "2", None),
+    ("false", "", "success", "skipped", "success", "1", None),
+    ("true", "true", "success", "skipped", "failure", "2", "comment"),
+    ("false", "", "failure", "skipped", "skipped", "2", "comment"),
+    ("false", "", "cancelled", "skipped", "skipped", "2", None),
 ])
-def test_sync_alert_closes_only_after_complete_success(tmp_path, is_full, complete, publish, action):
+def test_sync_alert_closes_only_after_complete_success(
+    tmp_path, is_full, complete, preflight, sync, publish, attempt, action
+):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake_gh = bin_dir / "gh"
@@ -862,8 +876,8 @@ def test_sync_alert_closes_only_after_complete_success(tmp_path, is_full, comple
     result = subprocess.run(
         ["bash", "-e", "-c", step["run"]], cwd=tmp_path, capture_output=True, text=True,
         env=dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
-                 IS_FULL=is_full, FULL_CYCLE_COMPLETE=complete, PREFLIGHT_RESULT="success",
-                 SYNC_RESULT="success", PUBLISH_RESULT=publish, RUN_URL="test-run",
+                 IS_FULL=is_full, FULL_CYCLE_COMPLETE=complete, PREFLIGHT_RESULT=preflight,
+                 SYNC_RESULT=sync, PUBLISH_RESULT=publish, RUN_ATTEMPT=attempt, RUN_URL="test-run",
                  ALERT_ACTIONS=str(actions)),
     )
     assert result.returncode == 0, result.stderr
@@ -1122,6 +1136,8 @@ def test_sync_data_handoff_generator_executes_with_exact_payload_bytes_and_hash(
         "data_sha": "b" * 40,
         "event_type": "publish_from_core",
         "payload_sha256": hashlib.sha256(expected).hexdigest(),
+        "full_scan": "false",
+        "full_cycle_complete": "",
     }
     assert sorted(path.name for path in root.iterdir()) == [
         "publish-dispatch-evidence.json",
@@ -1131,7 +1147,7 @@ def test_sync_data_handoff_generator_executes_with_exact_payload_bytes_and_hash(
 
 @pytest.mark.parametrize(
     "corruption",
-    ["missing", "invalid_json", "hash_mismatch", "extra_key", "field_mismatch"],
+    ["missing", "invalid_json", "hash_mismatch", "extra_key", "field_mismatch", "missing_cycle_state"],
 )
 @pytest.mark.parametrize(
     ("job_name", "step_name", "handoff_dir"),
@@ -1161,6 +1177,10 @@ def test_sync_data_handoff_validators_execute_and_reject_corruption(
     elif corruption == "extra_key":
         evidence["unexpected"] = "rejected"
         evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    elif corruption == "missing_cycle_state":
+        evidence.pop("full_scan")
+        evidence.pop("full_cycle_complete")
+        evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
     else:
         payload = json.loads(payload_bytes)
         payload["client_payload"]["core_sha"] = "c" * 40
@@ -1181,8 +1201,13 @@ def test_sync_data_handoff_validators_execute_and_reject_corruption(
     assert result.returncode != 0
 
 
-def test_sync_data_preflight_replay_validator_executes_and_accepts_valid_handoff(tmp_path):
-    root, _, _ = build_valid_handoff(tmp_path)
+@pytest.mark.parametrize("full_scan,complete", [
+    ("false", ""), ("true", "false"), ("true", "true"),
+])
+def test_sync_data_preflight_replay_validator_executes_and_accepts_valid_handoff(
+    tmp_path, full_scan, complete
+):
+    root, _, _ = build_valid_handoff(tmp_path, full_scan, complete)
     root.rename(tmp_path / "replay-handoff")
     preflight = read_workflow(".github/workflows/sync-data.yml")["jobs"]["preflight"]
     step = workflow_step("preflight", "Validate replay handoff before mutation boundary")
@@ -1202,8 +1227,13 @@ def test_sync_data_preflight_replay_validator_executes_and_accepts_valid_handoff
     )
 
 
-def test_sync_data_handoff_validator_executes_and_exports_verified_fields(tmp_path):
-    _, _, evidence = build_valid_handoff(tmp_path)
+@pytest.mark.parametrize("full_scan,complete", [
+    ("false", ""), ("true", "false"), ("true", "true"),
+])
+def test_sync_data_handoff_validator_executes_and_exports_verified_fields(
+    tmp_path, full_scan, complete
+):
+    _, _, evidence = build_valid_handoff(tmp_path, full_scan, complete)
     step = workflow_step("publish", "Validate immutable publish handoff")
     env = {
         "EXPECTED_RUN_ID": "1234",
@@ -1221,8 +1251,26 @@ def test_sync_data_handoff_validator_executes_and_exports_verified_fields(tmp_pa
     assert result.returncode == 0, result.stderr
     assert outputs == {
         key: str(evidence[key])
-        for key in ("target_repo", "core_sha", "data_sha", "payload_sha256")
+        for key in ("target_repo", "core_sha", "data_sha", "payload_sha256", "full_scan", "full_cycle_complete")
     }
+
+    publish = read_workflow(".github/workflows/sync-data.yml")["jobs"]["publish"]
+    assert publish["outputs"] == {
+        key: "${{ steps.handoff.outputs." + key + " }}"
+        for key in ("full_scan", "full_cycle_complete")
+    }
+    handoff = workflow_step("sync", "Build immutable publish handoff")
+    assert handoff["env"]["FULL_SCAN"] == "${{ steps.discovery.outputs.profile == 'full' }}"
+    assert handoff["env"]["FULL_CYCLE_COMPLETE"] == "${{ steps.full_progress.outputs.complete }}"
+    alert = workflow_step("alert", "Open, update or close the sync alert issue")
+    assert alert["env"]["IS_FULL"] == (
+        "${{ needs.sync.outputs.full_scan == 'true' || needs.publish.outputs.full_scan == 'true' "
+        "|| github.event.schedule == '30 2 * * 0' }}"
+    )
+    assert alert["env"]["FULL_CYCLE_COMPLETE"] == (
+        "${{ needs.sync.outputs.full_cycle_complete || needs.publish.outputs.full_cycle_complete }}"
+    )
+    assert alert["env"]["RUN_ATTEMPT"] == "${{ github.run_attempt }}"
 
 
 def test_sync_data_dispatch_non_2xx_fails_and_suppresses_build_index(tmp_path):

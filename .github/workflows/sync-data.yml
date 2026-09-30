@@ -138,6 +138,7 @@ jobs:
           evidence_keys = {
               "schema_version", "run_id", "run_attempt", "target_repo", "core_repo",
               "core_sha", "data_repo", "data_sha", "event_type", "payload_sha256",
+              "full_scan", "full_cycle_complete",
           }
           if set(payload) != payload_keys or set(payload.get("client_payload", {})) != client_keys:
               raise SystemExit("Replay payload has unexpected or missing fields")
@@ -765,6 +766,8 @@ jobs:
           DATA_REPO: ${{ vars.REGISTRY_DATA_REPO }}
           DATA_SHA: ${{ steps.refs.outputs.data_sha }}
           REGISTRY_MAIN_REPO: ${{ vars.REGISTRY_MAIN_REPO }}
+          FULL_SCAN: ${{ steps.discovery.outputs.profile == 'full' }}
+          FULL_CYCLE_COMPLETE: ${{ steps.full_progress.outputs.complete }}
         run: |
           mkdir -p sync-publish-handoff
           python - <<'PY'
@@ -804,6 +807,8 @@ jobs:
               "data_sha": data_sha,
               "event_type": "publish_from_core",
               "payload_sha256": hashlib.sha256(payload_bytes).hexdigest(),
+              "full_scan": os.environ["FULL_SCAN"],
+              "full_cycle_complete": os.environ["FULL_CYCLE_COMPLETE"],
           }
           (root / "publish-dispatch-evidence.json").write_text(
               json.dumps(evidence, indent=2) + "\n", encoding="utf-8"
@@ -832,6 +837,9 @@ jobs:
           (github.run_attempt > 1 && needs.sync.result == 'skipped'))
       }}
     runs-on: ubuntu-latest
+    outputs:
+      full_scan: ${{ steps.handoff.outputs.full_scan }}
+      full_cycle_complete: ${{ steps.handoff.outputs.full_cycle_complete }}
     steps:
       - name: Download immutable publish handoff
         uses: actions/download-artifact@v7
@@ -868,6 +876,7 @@ jobs:
           evidence_keys = {
               "schema_version", "run_id", "run_attempt", "target_repo", "core_repo",
               "core_sha", "data_repo", "data_sha", "event_type", "payload_sha256",
+              "full_scan", "full_cycle_complete",
           }
           if set(payload) != payload_keys or set(payload.get("client_payload", {})) != client_keys:
               raise SystemExit("Publish payload has unexpected or missing fields")
@@ -898,7 +907,7 @@ jobs:
           if hashlib.sha256(payload_bytes).hexdigest() != evidence["payload_sha256"]:
               raise SystemExit("Publish payload hash mismatch")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              for key in ("target_repo", "core_sha", "data_sha", "payload_sha256"):
+              for key in ("target_repo", "core_sha", "data_sha", "payload_sha256", "full_scan", "full_cycle_complete"):
                   output.write(f"{key}={evidence[key]}\n")
           print(f"Validated immutable publish handoff ({evidence['payload_sha256']})")
           PY
@@ -960,11 +969,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          IS_FULL: ${{ needs.sync.outputs.full_scan == 'true' || github.event.schedule == '30 2 * * 0' }}
-          FULL_CYCLE_COMPLETE: ${{ needs.sync.outputs.full_cycle_complete }}
+          IS_FULL: ${{ needs.sync.outputs.full_scan == 'true' || needs.publish.outputs.full_scan == 'true' || github.event.schedule == '30 2 * * 0' }}
+          FULL_CYCLE_COMPLETE: ${{ needs.sync.outputs.full_cycle_complete || needs.publish.outputs.full_cycle_complete }}
           PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           SYNC_RESULT: ${{ needs.sync.result }}
           PUBLISH_RESULT: ${{ needs.publish.result }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           # The weekly full run and the daily run fail at different gates, so they track separate
           # issues. Sharing one would let the next daily success close a weekly failure unseen.
@@ -1003,6 +1013,7 @@ jobs:
             exit 0
           fi
 
-          if [ "$SYNC_RESULT" = "success" ] && [ "$PUBLISH_RESULT" = "success" ] && [ -n "$number" ]; then
+          if [ "$PREFLIGHT_RESULT" = "success" ] && [ "$PUBLISH_RESULT" = "success" ] && [ -n "$number" ] && \
+              { [ "$SYNC_RESULT" = "success" ] || { [ "$RUN_ATTEMPT" -gt 1 ] && [ "$SYNC_RESULT" = "skipped" ]; }; }; then
             gh issue close "$number" --comment "The latest ${scope} completed successfully; closing this alert."
           fi
