@@ -23,6 +23,7 @@ from utils import (
     classify_category_from_semantics,
     ensure_unique_dir,
     extract_frontmatter,
+    is_registry_repo,
     normalize_name,
     skill_semantic_fields,
 )
@@ -252,6 +253,8 @@ class GitHubTopicDiscovery:
 
                 for repo in items:
                     full_name = repo['full_name']
+                    if is_registry_repo(full_name):
+                        continue
                     stars = int(repo.get('stargazers_count') or 0)
                     candidate = self._ensure_repo_candidate(full_name)
                     candidate["topic_hits"] += 1
@@ -305,6 +308,8 @@ class GitHubTopicDiscovery:
 
                 for item in items:
                     repo = item['repository']['full_name']
+                    if is_registry_repo(repo):
+                        continue
                     path = item['path']
                     if not self._is_skill_md_path(path):
                         continue

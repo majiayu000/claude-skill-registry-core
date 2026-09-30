@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from build_static_skill_pages import group_skill_copies, select_featured_skills
 from category_taxonomy import get_category_code, get_taxonomy, resolve_category
 from index_artifacts import write_category_artifacts, write_search_artifacts, write_signal_artifacts
 from plugin_index import build_plugins_index, load_plugins_with_fallback
@@ -41,6 +42,7 @@ from search_sources import (
     scan_skills_v2,
     validated_published_asset_fields,
 )
+from utils import is_registry_repo
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -232,6 +234,8 @@ def build_search_index(
     ranking_records_by_id: Dict[str, Dict[str, Any]] = {}
 
     for skill in skills:
+        if is_registry_repo(skill.get("repo", "")):
+            continue
         name = skill.get("name", "")
         description = skill.get("description", "")
         category = resolve_category(skill.get("category", "other"), allow_unknown=True)
@@ -278,7 +282,10 @@ def build_search_index(
         # Full record
         full_record = {
             "name": name,
-            "description": truncate_text(description, 200),
+            "description": truncate_text(description, 500),
+            "content_fingerprint": skill.get("content_fingerprint", ""),
+            "license": skill.get("license", ""),
+            "author": skill.get("author", ""),
             "repo": repo,
             "path": path,
             "branch": branch,
@@ -438,6 +445,26 @@ def build_search_index(
             x.get("name", ""),
         )
     )
+    independent_skills = group_skill_copies(
+        records["full"] for records in records_by_key.values()
+    )
+    page_records = select_featured_skills(independent_skills)
+    safe_write_json(output_dir / "page-catalog.json", {
+        "schema_version": 1,
+        "updated_at": utc_now_isoformat(),
+        "independent_skill_count": len(independent_skills),
+        "count": len(page_records),
+        "skills": page_records,
+    })
+    page_by_install = {
+        (copy["install"], copy["branch"]): f"skills/{record['page_slug']}/"
+        for record in page_records for copy in record["copies"]
+    }
+    for records in records_by_key.values():
+        source_key = (records["full"]["install"], records["full"]["branch"])
+        if source_key in page_by_install:
+            records["mini"]["u"] = page_by_install[source_key]
+
     featured_skills = featured_skills[:100]
     all_lite_skills = sorted(
         (records["lite"] for records in records_by_key.values()),
@@ -694,6 +721,8 @@ def build_search_index(
             {"repo": repo, "count": count} for repo, count in repo_counts.most_common(10)
         ],
         "featured_count": len(featured_skills),
+        "independent_skill_count": len(independent_skills),
+        "static_skill_page_count": len(page_records),
         "asset_state_counts": dict(sorted(asset_state_counts.items())),
         "asset_liveness_counts": dict(sorted(asset_liveness_counts.items())),
         "index_size_bytes": search_artifacts.index_size_bytes,

@@ -17,6 +17,18 @@ from category_taxonomy import category_keywords, resolve_category
 logger = logging.getLogger(__name__)
 
 _DIR_CACHE = {}
+REGISTRY_REPOS = {
+    "majiayu000/claude-skill-registry",
+    "majiayu000/claude-skill-registry-core",
+    "majiayu000/claude-skill-registry-data",
+    "majiayu000/skills-registry-web",
+}
+
+
+def is_registry_repo(repo: str) -> bool:
+    """Exclude this registry's own mirrors from skill collection."""
+    return normalize_repo(repo).casefold() in REGISTRY_REPOS
+
 
 PERMISSIVE_LICENSES = {
     "0BSD",

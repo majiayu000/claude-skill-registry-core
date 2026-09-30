@@ -16,7 +16,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from discover_by_topic import GitHubTopicDiscovery
 from sync_download import download_skills as download_skills
 from sync_pipeline_support import _source_count, logger
-from utils import build_skill_key, iter_source_skills
+from utils import build_skill_key, is_registry_repo, iter_source_skills
 
 from crawler.skillsmp_sync import SkillsMPSync
 
@@ -110,6 +110,8 @@ def build_unified_registry(
         for skill in iter_source_skills(source):
             # Create unique key
             repo = skill.get("repo", "")
+            if is_registry_repo(repo):
+                continue
             name = skill.get("name", "")
             path = skill.get("path", "")
             if isinstance(path, str) and path.strip().strip("/") == ".":

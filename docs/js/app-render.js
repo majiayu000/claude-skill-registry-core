@@ -77,7 +77,7 @@ function createLeaderboardCard(skill, rank) {
             <div class="leaderboard-info">
                 <div class="leaderboard-header">
                     <span class="skill-name">
-                        ${escapeHtml(name)}
+                        ${skill.u ? `<a href="${escapeHtml(skill.u)}" onclick="event.stopPropagation()">${escapeHtml(name)}</a>` : escapeHtml(name)}
                         ${isOfficial ? '<span class="official-badge" title="Official Anthropic Skill">✓</span>' : ''}
                     </span>
                     <span class="skill-stars">⭐ ${stars.toLocaleString()}</span>
@@ -405,7 +405,7 @@ function createSkillCard(skill, isFeatured = false, showFavoriteBtn = true) {
         <div class="skill-card" data-install="${escapeHtml(install)}" onclick="showSkillDetail(this)">
             <div class="skill-header">
                 <span class="skill-name">
-                    ${escapeHtml(name)}
+                    ${skill.u ? `<a href="${escapeHtml(skill.u)}" onclick="event.stopPropagation()">${escapeHtml(name)}</a>` : escapeHtml(name)}
                     ${isOfficial ? '<span class="official-badge" title="Official Anthropic Skill">✓</span>' : ''}
                 </span>
                 <div class="skill-header-right">
@@ -500,6 +500,7 @@ async function showSkillDetail(card) {
             </button>
         </div>
         <p style="margin-bottom: 1rem; color: var(--text-secondary);">${escapeHtml(skill.d)}</p>
+        ${skill.u ? `<p><a href="${escapeHtml(skill.u)}">Open full skill guide →</a></p>` : ''}
 
         <div style="margin-bottom: 1rem;">
             <strong>Category:</strong> ${escapeHtml(categoryDisplayName(skill.c))}<br>

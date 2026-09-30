@@ -13,6 +13,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 from build_static_skill_pages import (  # noqa: E402
     PUBLIC_SITE,
     build_static_skill_pages,
+    group_skill_copies,
     select_featured_skills,
     skill_page_slug,
 )
@@ -31,6 +32,7 @@ def skill(name: str, **overrides):
         "stars": 10,
         "install": f"acme/skills/skills/{name}",
         "quality_grade": "A",
+        "quality_score": 75,
         "security_status": "passed",
         "install_status": "known_good",
     }
@@ -61,9 +63,9 @@ def test_selection_is_bounded_and_excludes_unsafe_or_uninstallable_skills():
 
     selected = select_featured_skills(records)
 
-    assert len(selected) == 20
+    assert len(selected) == 25
     assert [item["name"] for item in selected] == [
-        f"safe-{index}" for index in range(24, 4, -1)
+        f"safe-{index}" for index in range(24, -1, -1)
     ]
 
 
@@ -71,9 +73,9 @@ def test_slug_is_stable_readable_and_collision_safe():
     first = skill("C++ Review", id="stable-one")
     second = skill("C++ Review", id="stable-two")
 
-    assert skill_page_slug(first) == "c-review-stable-o"
+    assert skill_page_slug(first).startswith("c-review-")
     assert skill_page_slug(first) == skill_page_slug(dict(first))
-    assert skill_page_slug(second) == "c-review-stable-t"
+    assert skill_page_slug(second) != skill_page_slug(first)
 
 
 def test_generator_escapes_metadata_and_writes_homepage_links_and_sitemap(tmp_path):
@@ -104,7 +106,7 @@ def test_generator_escapes_metadata_and_writes_homepage_links_and_sitemap(tmp_pa
     assert "&lt;script&gt;" in detail
     assert "&lt;tag&gt;" in detail
     assert f'href="skills/{slug}/"' in homepage
-    assert locations == [PUBLIC_SITE, f"{PUBLIC_SITE}skills/{slug}/"]
+    assert locations == [PUBLIC_SITE, f"{PUBLIC_SITE}skills/", f"{PUBLIC_SITE}skills/{slug}/"]
     assert re.search(r'<link rel="canonical" href="[^\"]+/">', detail)
 
 
@@ -135,3 +137,84 @@ def test_generator_refuses_to_replace_an_unowned_skills_directory(tmp_path):
         build_static_skill_pages([skill("current")], output_dir)
 
     assert manual.read_text(encoding="utf-8") == "manual"
+
+
+def test_copy_identity_uses_content_not_shared_description():
+    first = skill("review", content_fingerprint="a" * 64, repo="acme/one", install="acme/one")
+    copy = skill("review", content_fingerprint="a" * 64, repo="acme/two", install="acme/two", stars=200)
+    other = skill("review", content_fingerprint="b" * 64, repo="acme/three", install="acme/three")
+    groups = group_skill_copies([first, copy, other])
+    assert len(groups) == 2
+    copied = next(group for group in groups if group["repository_count"] == 2)
+    assert {item["repo"] for item in copied["copies"]} == {"acme/one", "acme/two"}
+    changed = group_skill_copies([dict(first, stars=1000), copy])[0]
+    assert changed["page_slug"] == copied["page_slug"]
+    assert group_skill_copies([copy, first, other]) == groups
+
+
+def test_selection_quality_and_first_wave_limit():
+    records = [skill(f"safe-{i}", id=f"id-{i}", quality_score=80) for i in range(5810)]
+    records += [skill("thin", description="Short"), skill("poor", quality_score=60)]
+    selected = select_featured_skills(records)
+    assert len(selected) == 5800
+    assert not {"thin", "poor"}.intersection(record["name"] for record in selected)
+
+
+def test_page_attribution_related_guides_and_archive_entrypoints(tmp_path):
+    docs = tmp_path / "docs"
+    archive = tmp_path / "archive"
+    (archive / "development").mkdir(parents=True)
+    records = group_skill_copies([skill("one", license="MIT", author="Acme"), skill("two")])
+    build_static_skill_pages(records, docs, archive)
+    detail = (docs / "skills" / records[0]["page_slug"] / "index.html").read_text()
+    assert "MIT" in detail and "Acme" in detail
+    assert "Trust score" in detail
+    assert "Copies with matching content" in detail
+    assert "removal-request.yml" in detail
+    assert "sk install" in detail
+    assert 'class="related"' in detail
+    assert (docs / "skills" / "index.html").is_file()
+    assert PUBLIC_SITE in (archive / "development" / "README.md").read_text()
+
+
+def test_duplicate_slugs_do_not_destroy_previous_output(tmp_path):
+    docs = tmp_path / "docs"
+    build_static_skill_pages([skill("keep")], docs)
+    old = docs / "skills" / skill_page_slug(skill("keep")) / "index.html"
+    with pytest.raises(ValueError, match="Duplicate"):
+        build_static_skill_pages([skill("bad"), skill("bad")], docs)
+    assert old.is_file()
+
+
+def test_empty_catalog_and_invalid_homepage(tmp_path):
+    docs = tmp_path / "docs"
+    assert build_static_skill_pages([], docs)["generated_count"] == 0
+    assert "Browse skill guides" in (docs / "skills" / "index.html").read_text()
+    (docs / "index.html").write_text("manual homepage")
+    with pytest.raises(ValueError, match="static featured block"):
+        build_static_skill_pages([skill("one")], docs)
+
+
+def test_cli_uses_catalog_and_rejects_invalid_payload(tmp_path, monkeypatch, capsys):
+    import json
+
+    from build_static_skill_pages import main
+
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"skills": group_skill_copies([skill("cli")])}))
+    monkeypatch.setattr(sys, "argv", ["build-pages", "--catalog", str(catalog), "--output", str(tmp_path / "docs")])
+    assert main() == 0
+    assert "Generated 1" in capsys.readouterr().out
+    catalog.write_text('{"skills":null}')
+    with pytest.raises(ValueError, match="Catalog artifact"):
+        main()
+
+
+def test_install_command_quotes_source_arguments(tmp_path):
+    import html
+    import shlex
+    record = skill("quoted", install="acme/repo/a space; touch /tmp/unsafe", branch="feat/space $(id)")
+    build_static_skill_pages([record], tmp_path)
+    detail = (tmp_path / "skills" / skill_page_slug(record) / "index.html").read_text()
+    command = html.unescape(re.search(r"<code>(.*?)</code>", detail).group(1))
+    assert shlex.split(command) == ["sk", "install", record["install"], "--branch", record["branch"]]

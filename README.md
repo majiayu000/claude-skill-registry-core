@@ -440,3 +440,7 @@ Third-party skills under `skills/**` keep their original licenses and copyright 
 <p align="center">
   Made with ❤️ for the Claude Code community
 </p>
+
+### Author requests
+
+Third-party content retains its original ownership and license. Authors can [request removal or attribution corrections](REMOVAL.md). Public skill guides include metadata and source links; they do not republish instruction bodies.

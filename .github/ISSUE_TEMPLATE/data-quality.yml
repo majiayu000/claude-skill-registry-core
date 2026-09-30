@@ -7,7 +7,7 @@ body:
     id: skill
     attributes:
       label: Skill or artifact URL
-      placeholder: https://majiayu000.github.io/claude-skill-registry-core/...
+      placeholder: https://majiayu000.github.io/claude-skill-registry/...
     validations:
       required: true
   - type: dropdown

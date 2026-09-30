@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Source loaders for search index generation."""
 
+import hashlib
 import json
 import logging
 import re
@@ -17,7 +18,9 @@ from utils import (
     extract_description,
     get_repo_suffix,
     is_declared_bundled_skill_file,
+    is_registry_repo,
     load_metadata,
+    split_frontmatter_content,
 )
 
 logger = logging.getLogger(__name__)
@@ -276,6 +279,20 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
         category_name = rel_parts[0] if rel_parts else "other"
         metadata = load_metadata(skill_dir)
         dir_name = skill_dir.name
+        if is_registry_repo(metadata.get("repo", "")):
+            continue
+        content = ""
+        try:
+            content = skill_md.read_text(encoding="utf-8")
+        except Exception as exc:
+            logger.warning("Failed to read skill content from %s: %s", skill_md, exc)
+        _frontmatter, body = split_frontmatter_content(content)
+        normalized_body = body.replace("\r\n", "\n").strip()
+        content_fingerprint = (
+            hashlib.sha256(normalized_body.encode("utf-8")).hexdigest()
+            if normalized_body else ""
+        )
+
 
         name = metadata.get("name") or dir_name
 
@@ -286,7 +303,7 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
                 name = dir_name[: -(len(suffix) + 1)]
 
         description = metadata.get("description", "")
-        if not description:
+        if not description or str(description).strip() in {"|", ">", "|-", ">-", "|+", ">+"}:
             try:
                 content = skill_md.read_text(encoding="utf-8")
                 description = extract_description(content)
@@ -326,6 +343,9 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
         skill_entry = {
             "name": name,
             "dir_name": dir_name,
+            "content_fingerprint": content_fingerprint,
+            "license": metadata.get("license", ""),
+            "author": metadata.get("author", ""),
             "description": description,
             "repo": repo,
             "path": github_path,

@@ -1171,3 +1171,46 @@ def test_unvalidated_asset_claims_are_removed_from_registry_fallback_and_build(t
     shard = json.loads((output_dir / manifest["shards"][0]["path"]).read_text())
     assert "a" not in shard["s"][0]
     assert "l" not in shard["s"][0]
+
+
+def test_public_catalog_excludes_registry_and_groups_exact_body_copies(tmp_path):
+    skills = [
+        _skill(repo="acme/original", install="acme/original", content_fingerprint="a" * 64, security_status="passed"),
+        _skill(repo="acme/copy", install="acme/copy", content_fingerprint="a" * 64, security_status="passed"),
+        _skill(repo="acme/different", install="acme/different", content_fingerprint="b" * 64, security_status="passed"),
+        _skill(repo="majiayu000/claude-skill-registry", install="majiayu000/claude-skill-registry", security_status="passed"),
+    ]
+    stats = build_search_index(skills, tmp_path)
+    catalog = json.loads((tmp_path / "page-catalog.json").read_text())
+    assert stats["independent_skill_count"] == 2
+    assert stats["static_skill_page_count"] == 2
+    assert stats["indexed_skill_count_scan_shape"] == 3
+    assert catalog["count"] == 2
+    manifest = json.loads((tmp_path / "search-index-manifest.json").read_text())
+    records = []
+    for shard in manifest["shards"]:
+        records.extend(json.loads((tmp_path / shard["path"]).read_text())["s"])
+    assert len(records) == 3
+    assert all(record["u"].startswith("skills/") for record in records)
+    assert len({record["u"] for record in records}) == 2
+
+
+def test_scan_repairs_block_scalar_description_and_retains_legal_metadata(tmp_path):
+    import utils
+    archive = tmp_path / "archive"
+    skill_dir = archive / "development" / "example"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text('---\nname: example\ndescription: |\n  First description line\n  Second description line\n---\n\n# Instructions\nUseful workflow body.\n')
+    (skill_dir / "metadata.json").write_text(json.dumps({"repo":"acme/example", "name":"example", "description":"|", "license":"MIT", "author":"Acme"}))
+    records = scan_skills_v2(archive)
+    assert "First description line" in records[0]["description"]
+    assert "Second description line" in records[0]["description"]
+    assert records[0]["license"] == "MIT"
+    assert len(records[0]["content_fingerprint"]) == 64
+    registry = scan_registry_skills(archive)
+    assert "First description line" in registry[0]["description"]
+    (skill_dir / "metadata.json").write_text(json.dumps({"repo":"MAJIAYU000/CLAUDE-SKILL-REGISTRY-CORE"}))
+    assert scan_skills_v2(archive) == []
+    assert scan_registry_skills(archive) == []
+    assert utils.is_registry_repo("https://github.com/majiayu000/claude-skill-registry-data")
+    assert not utils.is_registry_repo("other/claude-skill-registry")
