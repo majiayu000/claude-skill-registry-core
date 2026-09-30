@@ -15,7 +15,7 @@ from pathlib import Path
 
 from archive_preflight import iter_canonical_archive_paths
 from plugin_index import load_plugins_from_source
-from search_sources import verified_asset_fields
+from search_sources import metadata_source_path, verified_asset_fields
 from utils import (
     extract_description,
     is_declared_bundled_skill_file,
@@ -308,7 +308,7 @@ def scan_skills(skills_dir: Path) -> list:
 
         # Repo/path/branch normalization across different metadata formats
         repo = metadata.get("repo", "")
-        github_path = metadata.get("github_path") or metadata.get("path") or "/".join(rel_parts)
+        github_path = metadata_source_path(metadata, "/".join(rel_parts))
         github_branch = metadata.get("github_branch") or metadata.get("branch") or "main"
 
         skill_entry = {

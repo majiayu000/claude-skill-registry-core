@@ -60,6 +60,12 @@ def is_root_mounted_path(path: str) -> bool:
     return stripped == "" or stripped == "."
 
 
+def metadata_source_path(metadata: dict, archive_path: str) -> str:
+    """Honor an explicit upstream root; archive folders are not source paths."""
+    path = metadata.get("github_path", metadata.get("path", archive_path))
+    return "" if is_root_mounted_path(path) else path
+
+
 def has_install_location(path: str) -> bool:
     """True when path identifies a real install location (subdir or repo root)."""
     return bool(path) or is_root_mounted_path(path)
@@ -315,14 +321,7 @@ def scan_skills_v2(skills_dir: Path) -> List[Dict]:
         category = resolve_category(metadata.get("category", category_name), allow_unknown=True)
 
         repo = metadata.get("repo", "")
-        if "github_path" in metadata:
-            github_path = metadata["github_path"] or ""
-        elif "path" in metadata:
-            github_path = metadata["path"] or ""
-        else:
-            github_path = "/".join(rel_parts)
-        if github_path == ".":
-            github_path = ""
+        github_path = metadata_source_path(metadata, "/".join(rel_parts))
         github_branch = metadata.get("github_branch") or metadata.get("branch") or "main"
         asset_fields = verified_asset_fields(metadata, skill_dir, skills_dir)
         if asset_fields:

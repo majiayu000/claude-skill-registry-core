@@ -1232,3 +1232,5 @@ def test_scan_preserves_declared_repository_root_instead_of_archive_folder(tmp_p
     records = scan_skills_v2(archive)
     assert records[0]["path"] == ""
     assert records[0]["install"] == "acme/root"
+    registry_records = scan_registry_skills(archive)
+    assert registry_records[0]["path"] == ""
