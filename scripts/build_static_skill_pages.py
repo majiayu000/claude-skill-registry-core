@@ -159,6 +159,8 @@ def _update_homepage(output_dir: Path, records: list[dict[str, Any]]) -> None:
 
 def _write_sitemap(output_dir: Path, slugs: list[str]) -> None:
     urls = [PUBLIC_SITE, *(f"{PUBLIC_SITE}skills/{slug}/" for slug in slugs)]
+    if (output_dir / "guides" / "code-review.html").is_file():
+        urls.append(f"{PUBLIC_SITE}guides/code-review.html")
     rows = "\n".join(f"  <url><loc>{html.escape(url)}</loc></url>" for url in urls)
     (output_dir / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n'
