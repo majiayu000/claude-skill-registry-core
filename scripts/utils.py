@@ -475,8 +475,9 @@ def extract_frontmatter(content: str) -> dict:
 def extract_description(content: str, max_length: int = 200) -> str:
     """Extract description from SKILL.md content (frontmatter or first paragraph)."""
     fm = extract_frontmatter(content)
-    if fm.get("description"):
-        return str(fm["description"])[:max_length]
+    description = fm.get("description")
+    if description and str(description).strip() not in {"|", ">", "|-", ">-", "|+", ">+"}:
+        return str(description)[:max_length]
 
     lines = content.split("\n")
     in_frontmatter = False
