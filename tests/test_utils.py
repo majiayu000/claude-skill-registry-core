@@ -617,3 +617,10 @@ def test_guess_category_picks_dominant_keyword_family(utils, snippet, expected):
 
 def test_guess_category_returns_other_when_no_match(utils):
     assert utils.guess_category("entirely-unrelated-mumble-jumble") == "other"
+
+
+def test_extract_description_ignores_literal_yaml_block_indicators():
+    from scripts.utils import extract_description
+    for indicator in ("|", ">", "|-", ">-", "|+", ">+"):
+        content = f'---\nname: example\ndescription: "{indicator}"\n---\n\n# Example\n\nThis is a useful skill description from the actual body.\n'
+        assert extract_description(content).startswith("This is a useful skill")

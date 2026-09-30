@@ -181,8 +181,10 @@ if [[ "$rebuild" -eq 1 ]]; then
     --security-report "$security_report_path"
 
   run_step "Build static featured skill pages" python "$main_dir/scripts/build_static_skill_pages.py" \
-    --featured "$main_dir/docs/featured.json" \
+    --catalog "$main_dir/docs/page-catalog.json" \
+    --archive "$main_dir/skills" \
     --output "$main_dir/docs"
+  run_step "Remove temporary guide catalog" rm "$main_dir/docs/page-catalog.json"
   rm -f "$security_report_path"
   security_report_path=""
 

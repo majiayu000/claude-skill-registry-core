@@ -1,0 +1,39 @@
+name: Author removal or attribution request
+description: Ask us to remove your archived content or correct its attribution.
+title: "[Removal] "
+body:
+  - type: input
+    id: upstream
+    attributes:
+      label: Original repository or work URL
+    validations:
+      required: true
+  - type: textarea
+    id: affected
+    attributes:
+      label: Registry URLs to remove or correct
+      description: Include skill pages, archive paths, and any known copies.
+    validations:
+      required: true
+  - type: textarea
+    id: authority
+    attributes:
+      label: Evidence of authorship or authorization
+      description: Link to public ownership evidence. Do not post passwords, credentials, private identity documents, or other sensitive information.
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Requested action
+      options:
+        - Remove archive and site listing
+        - Remove archive only
+        - Correct attribution
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Explain what you want changed and why.

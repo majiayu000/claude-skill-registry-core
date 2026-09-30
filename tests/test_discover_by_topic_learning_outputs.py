@@ -582,3 +582,14 @@ def test_search_validation_failure_on_existing_repo_still_fails(monkeypatch):
                         lambda url, **kwargs: existing if "/repos/" in url else response)
     with pytest.raises(module.requests.HTTPError):
         discovery.get_skill_files_from_repo("acme/demo")
+
+
+def test_registry_repo_from_existing_snapshot_never_fetches_skill_inventory(monkeypatch):
+    module = load_module()
+    discovery = module.GitHubTopicDiscovery(request_delay=0.0)
+    def unexpected_request(*args, **kwargs):
+        pytest.fail("Persisted registry candidates must not make inventory requests")
+    monkeypatch.setattr(discovery, "_request", unexpected_request)
+    assert discovery.get_skill_files_from_repo("majiayu000/claude-skill-registry") == []
+    assert discovery.get_skill_files_from_repo("majiayu000/claude-skill-registry-core") == []
+    assert discovery.get_skill_files_from_repo("majiayu000/claude-skill-registry-data") == []

@@ -1,7 +1,7 @@
 {
-  "discovered_at": "2026-09-29T05:07:41.509283Z",
+  "discovered_at": "2026-09-30T04:51:16.175572Z",
   "total_repos": 300,
-  "total_skills": 122,
+  "total_skills": 15,
   "scanned_repos": 300,
   "limits": {
     "max_repos": 300,
@@ -16,7 +16,6 @@
     "23blocks-OS/ai-maestro",
     "AlpacaLabsLLC/skills-for-architects",
     "Appllama/appllama-skills",
-    "Ar9av/PaperOrchestra",
     "Ark0N/Codeman",
     "Ashad001/remotion-transitions",
     "AsiaOstrich/universal-dev-skills",
@@ -74,7 +73,6 @@
     "Rtur2003/Claude-Code-Promts-Skills",
     "Ryze-AI-Adgent/open-seo-mcp-skills",
     "SamJHudson01/Carmack-Council",
-    "SamurAIGPT/Generative-Media-Skills",
     "ScrapeCreators/social-media-research-skills",
     "Shanyin-ai/shanyin-screenwriting-master",
     "SnailSploit/Claude-Red",
@@ -186,13 +184,13 @@
     "itsmostafa/aws-agent-skills",
     "jabrena/plinth",
     "jangviktor-web/nihaixia",
-    "jaredrhod/ai-memory-vault",
     "jeecgboot/skills",
     "jezweb/claude-skills",
     "jiweiyeah/Skills-Manager",
     "joetawil7/first-pass",
     "joeyvansommeren/journey-mapper",
     "jomeswang/agnes-ai-skill",
+    "kaankiziltug/logo-design-skill",
     "karanb192/awesome-claude-skills",
     "karanb192/itr-wala",
     "kazukinagata/shinkoku",
@@ -202,6 +200,7 @@
     "khendzel/skills-janitor",
     "kishormorol/cli-faq-shortcuts",
     "kromahlusenii-ops/ham",
+    "laolaoshiren/claude-code-skills-zh",
     "levi-qiao/longgraph-skill",
     "levnikolaevich/claude-code-skills",
     "liarjsdev/liarjs-skills",
@@ -285,6 +284,7 @@
     "tdimino/claude-code-minoan",
     "teng-lin/notebooklm-py",
     "thedotmack/claude-mem",
+    "theogbrand/yoink",
     "timescale/pg-aiguide",
     "titanwings/distilly",
     "tonone-ai/tonone",
@@ -314,492 +314,64 @@
   ],
   "skills": [
     {
-      "repo": "OneMoh/html-explainer",
-      "path": "SKILL.md"
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/fictiv/SKILL.md"
     },
     {
-      "repo": "aaddrick/building-with-typesafe-jev",
-      "path": "skills/building-with-typesafe-jev/SKILL.md"
-    },
-    {
-      "repo": "alexgreensh/anidoodle",
-      "path": "skills/anidoodle/SKILL.md"
-    },
-    {
-      "repo": "alexgreensh/anidoodle",
-      "path": "plugins/anidoodle/skills/anidoodle/SKILL.md"
-    },
-    {
-      "repo": "gooseworks-ai/goose-skills",
-      "path": "skills/ads/capabilities/caption-burn/SKILL.md"
-    },
-    {
-      "repo": "gooseworks-ai/goose-skills",
-      "path": "skills/ads/capabilities/footage-cutlist/SKILL.md"
-    },
-    {
-      "repo": "gooseworks-ai/goose-skills",
-      "path": "skills/ads/capabilities/compose-creator-layer/SKILL.md"
-    },
-    {
-      "repo": "jezweb/claude-skills",
-      "path": "archive/plugins/cloudflare/skills/db-seed/SKILL.md"
-    },
-    {
-      "repo": "jezweb/claude-skills",
-      "path": "archive/plugins/cloudflare/skills/d1-migration/SKILL.md"
-    },
-    {
-      "repo": "jezweb/claude-skills",
-      "path": "archive/plugins/cloudflare/skills/tanstack-start/SKILL.md"
-    },
-    {
-      "repo": "jezweb/claude-skills",
-      "path": "archive/plugins/cloudflare/skills/cloudflare-api/SKILL.md"
-    },
-    {
-      "repo": "jezweb/claude-skills",
-      "path": "archive/plugins/cloudflare/skills/d1-drizzle-schema/SKILL.md"
-    },
-    {
-      "repo": "jezweb/claude-skills",
-      "path": "archive/plugins/cloudflare/skills/hono-api-scaffolder/SKILL.md"
-    },
-    {
-      "repo": "jezweb/claude-skills",
-      "path": "archive/plugins/cloudflare/skills/cloudflare-worker-builder/SKILL.md"
-    },
-    {
-      "repo": "mohitagw15856/pm-claude-skills",
-      "path": "skills/dating-profile-doctor/SKILL.md"
+      "repo": "kaankiziltug/logo-design-skill",
+      "path": "skills/logo-design/SKILL.md"
     },
     {
       "repo": "reticlehq/reticle",
-      "path": "skills/verify-keyboard-access/SKILL.md"
+      "path": "skills/verify-form-validation/SKILL.md"
     },
     {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario/SKILL.md"
+      "repo": "rse/ase",
+      "path": "plugin/skills/ase-repo-diff/SKILL.md"
     },
     {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-3d/SKILL.md"
+      "repo": "rse/ase",
+      "path": "plugin/skills/ase-repo-merge/SKILL.md"
     },
     {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-wan/SKILL.md"
+      "repo": "rse/ase",
+      "path": "plugin/skills/ase-repo-commit/SKILL.md"
     },
     {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-ugc/SKILL.md"
+      "repo": "rse/ase",
+      "path": "plugin/skills/ase-repo-review/SKILL.md"
     },
     {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-veo/SKILL.md"
+      "repo": "rse/ase",
+      "path": "plugin/skills/ase-repo-dissect/SKILL.md"
     },
     {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-vidu/SKILL.md"
+      "repo": "rse/ase",
+      "path": "plugin/skills/ase-repo-resolve/SKILL.md"
     },
     {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-reve/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-rodin/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-audio/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-meshy/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-video/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-image/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-kling/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-report/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-runway/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-sonilo/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-sparc3d/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-fan-cam/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-formats/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-textures/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-ideogram/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-skyboxes/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-seedance/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-seedream/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-ace-step/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-video-ads/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-brand-kit/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-mai-image/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-gpt-image/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-workflows/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-3d-worlds/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-luma-video/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-luma-image/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-moderation/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-elevenlabs/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-team-admin/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-orbit-views/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-game-assets/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-storyboards/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-inspiration/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-consistency/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-gemini-omni/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-refine-loop/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": ".agents/skills/skill-creator/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-text-overlay/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-quality-gate/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-gemini-image/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-image-editing/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-product-shots/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-minimax-music/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-minimax-video/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-video-editing/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-caption-studio/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-asset-analysis/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-video-assembly/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": ".agents/skills/skills-validate/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-model-training/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": ".agents/skills/skills-pr-handle/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-admin-analytics/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/maya/scenario-maya-fx/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-patina-retexture/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-identity-library/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": ".agents/skills/skill-development/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": ".agents/skills/skills-pr-summary/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-model-comparison/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-sprite-animation/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-grok-imagine-image/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-workflow-authoring/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-grok-imagine-video/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/maya/scenario-maya-groom/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-seedance-storyboard/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/scenario-seedance-music-video/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/maya/scenario-maya-expert/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": ".agents/skills/skills-squash-message/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/maya/scenario-maya-rigging/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/maya/scenario-maya-lookdev/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/maya/scenario-maya-animation/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/blender/scenario-blender-hair/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/zbrush/scenario-zbrush-expert/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/maya/scenario-maya-deformation/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/zbrush/scenario-zbrush-stylized/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/blender/scenario-blender-expert/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/maya/scenario-maya-retopology-uv/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/game-engines/unity/scenario-unity-2d/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/zbrush/scenario-zbrush-sculpting/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/blender/scenario-blender-rigging/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/game-engines/unity/scenario-unity-ui/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/zbrush/scenario-zbrush-pose-print/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/game-engines/unity/scenario-unity-web/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/zbrush/scenario-zbrush-automation/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/game-engines/unity/scenario-unity-vfx/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/blender/scenario-blender-uv-baking/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/blender/scenario-blender-animation/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/blender/scenario-blender-sculpting/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/game-engines/unreal/scenario-unreal-vfx/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/blender/scenario-blender-retopology/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/zbrush/scenario-zbrush-paint-render/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/dcc/zbrush/scenario-zbrush-hard-surface/SKILL.md"
-    },
-    {
-      "repo": "scenario-labs/skills",
-      "path": "skills/game-engines/unity/scenario-unity-mobile/SKILL.md"
+      "repo": "rse/ase",
+      "path": "plugin/skills/ase-repo-changelog/SKILL.md"
     },
     {
       "repo": "serejaris/personal-corp-os",
-      "path": "skills/harness/SKILL.md"
+      "path": "skills/daily/SKILL.md"
     },
     {
-      "repo": "undefined-ui/second-brain-os",
-      "path": "plugins/agents-course/skills/gate-check/SKILL.md"
+      "repo": "serejaris/personal-corp-os",
+      "path": "skills/retro/SKILL.md"
     },
     {
-      "repo": "undefined-ui/second-brain-os",
-      "path": "plugins/agents-course/skills/context-audit/SKILL.md"
+      "repo": "serejaris/personal-corp-os",
+      "path": "skills/avatar/SKILL.md"
     },
     {
-      "repo": "undefined-ui/second-brain-os",
-      "path": "plugins/agents-course/skills/harness-audit/SKILL.md"
+      "repo": "serejaris/personal-corp-os",
+      "path": "skills/corp-new/SKILL.md"
     },
     {
-      "repo": "undefined-ui/second-brain-os",
-      "path": "plugins/agents-course/skills/evals-bootstrap/SKILL.md"
-    },
-    {
-      "repo": "undefined-ui/second-brain-os",
-      "path": "plugins/agents-course/skills/goal-test/SKILL.md"
-    },
-    {
-      "repo": "wshobson/agents",
-      "path": "plugins/incident-response/skills/connectivity-triage/SKILL.md"
+      "repo": "sickn33/agentic-awesome-skills",
+      "path": "skills/beatra/SKILL.md"
     }
   ]
 }

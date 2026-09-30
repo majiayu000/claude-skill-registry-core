@@ -340,8 +340,9 @@ jobs:
       - name: Build static featured skill pages
         run: |
           python scripts/build_static_skill_pages.py \
-            --featured docs/featured.json \
+            --catalog docs/page-catalog.json \
             --output docs
+          rm docs/page-catalog.json
 
       - name: Check generated artifact sizes
         run: |

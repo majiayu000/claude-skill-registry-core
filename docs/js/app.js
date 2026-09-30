@@ -189,7 +189,8 @@ function normalizeSkillRecord(skill) {
         g: Array.isArray(skill.tags) ? skill.tags.slice(0, 5) : [],
         r: Number(skill.stars || 0),
         i: skill.install || skill.id || skill.name || '',
-        b: skill.branch || 'main'
+        b: skill.branch || 'main',
+        u: skill.u || ''
     };
 }
 

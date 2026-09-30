@@ -17,6 +17,18 @@ from category_taxonomy import category_keywords, resolve_category
 logger = logging.getLogger(__name__)
 
 _DIR_CACHE = {}
+REGISTRY_REPOS = {
+    "majiayu000/claude-skill-registry",
+    "majiayu000/claude-skill-registry-core",
+    "majiayu000/claude-skill-registry-data",
+    "majiayu000/skills-registry-web",
+}
+
+
+def is_registry_repo(repo: str) -> bool:
+    """Exclude this registry's own mirrors from skill collection."""
+    return normalize_repo(repo).casefold() in REGISTRY_REPOS
+
 
 PERMISSIVE_LICENSES = {
     "0BSD",
@@ -463,8 +475,9 @@ def extract_frontmatter(content: str) -> dict:
 def extract_description(content: str, max_length: int = 200) -> str:
     """Extract description from SKILL.md content (frontmatter or first paragraph)."""
     fm = extract_frontmatter(content)
-    if fm.get("description"):
-        return str(fm["description"])[:max_length]
+    description = fm.get("description")
+    if description and str(description).strip() not in {"|", ">", "|-", ">-", "|+", ">+"}:
+        return str(description)[:max_length]
 
     lines = content.split("\n")
     in_frontmatter = False

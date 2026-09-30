@@ -15,10 +15,11 @@ from pathlib import Path
 
 from archive_preflight import iter_canonical_archive_paths
 from plugin_index import load_plugins_from_source
-from search_sources import verified_asset_fields
+from search_sources import metadata_source_path, verified_asset_fields
 from utils import (
     extract_description,
     is_declared_bundled_skill_file,
+    is_registry_repo,
     load_metadata,
     normalize_category,
 )
@@ -282,6 +283,8 @@ def scan_skills(skills_dir: Path) -> list:
         rel_parts = rel_dir.parts
 
         metadata = load_metadata(skill_dir)
+        if is_registry_repo(metadata.get("repo", "")):
+            continue
 
         # Determine name
         name = metadata.get("name") or (rel_parts[-1] if rel_parts else skill_dir.name)
@@ -293,7 +296,9 @@ def scan_skills(skills_dir: Path) -> list:
         # Read SKILL.md for description
         try:
             content = skill_md.read_text(encoding="utf-8")
-            description = metadata.get("description") or extract_description(content)
+            description = metadata.get("description")
+            if not description or str(description).strip() in {"|", ">", "|-", ">-", "|+", ">+"}:
+                description = extract_description(content)
         except UnicodeDecodeError as e:
             logger.warning(f"Encoding error reading {skill_md}: {e}")
             description = ""
@@ -303,7 +308,7 @@ def scan_skills(skills_dir: Path) -> list:
 
         # Repo/path/branch normalization across different metadata formats
         repo = metadata.get("repo", "")
-        github_path = metadata.get("github_path") or metadata.get("path") or "/".join(rel_parts)
+        github_path = metadata_source_path(metadata, "/".join(rel_parts))
         github_branch = metadata.get("github_branch") or metadata.get("branch") or "main"
 
         skill_entry = {
