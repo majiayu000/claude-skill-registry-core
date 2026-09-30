@@ -50,10 +50,17 @@ def matching_exception(finding: Finding, exceptions: list[dict]) -> dict | None:
     """Return the reviewed exception covering this finding, if any.
 
     A finding is only excused by an exact signature match, so a new signature on an
-    already reviewed path still fails the scan.
+    already reviewed path still fails the scan. Match the entire path one segment
+    at a time so globs cannot cover additional directories.
     """
+    path_parts = finding.path.split("/")
     for entry in exceptions:
-        if entry["signature"] == finding.signature and fnmatch(finding.path, entry["path"]):
+        if entry["signature"] != finding.signature:
+            continue
+        pattern_parts = entry["path"].split("/")
+        if len(path_parts) == len(pattern_parts) and all(
+            fnmatch(part, pattern) for part, pattern in zip(path_parts, pattern_parts, strict=True)
+        ):
             return entry
     return None
 

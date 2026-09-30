@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def _load_module():
     scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
@@ -84,7 +86,11 @@ def test_unreviewed_finding_fails_and_names_the_file(tmp_path, monkeypatch, caps
     assert "Unreviewed ClamAV finding: skills/other/dropper/SKILL.md: Win.Trojan.Agent-1" in output
 
 
-def test_new_signature_on_a_reviewed_path_still_fails(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "exception_path",
+    ["skills/devops/web-xss-stored/SKILL.md", "skills/devops/web-xss-stored*/SKILL.md"],
+)
+def test_new_signature_on_a_reviewed_path_still_fails(tmp_path, monkeypatch, exception_path):
     module = _load_module()
     report = tmp_path / "clamav-report.txt"
     _write_report(report, "skills/devops/web-xss-stored/SKILL.md: Win.Trojan.Agent-1 FOUND")
@@ -92,7 +98,7 @@ def test_new_signature_on_a_reviewed_path_still_fails(tmp_path, monkeypatch):
     _write_exceptions(
         exceptions,
         {
-            "path": "skills/devops/web-xss-stored/SKILL.md",
+            "path": exception_path,
             "signature": SIGNATURE,
             "reason": "Quoted XSS payloads in a pentest teaching note.",
         },
@@ -101,12 +107,13 @@ def test_new_signature_on_a_reviewed_path_still_fails(tmp_path, monkeypatch):
     assert _run(module, tmp_path, monkeypatch, report, exceptions) == 1
 
 
-def test_exception_paths_accept_globs_for_renamed_archive_directories(tmp_path, monkeypatch):
+@pytest.mark.parametrize("directory", ["web-xss-stored", "web-xss-stored-ajtazer-heckit"])
+def test_exception_paths_accept_globs_for_renamed_archive_directories(tmp_path, monkeypatch, directory):
     module = _load_module()
     report = tmp_path / "clamav-report.txt"
     _write_report(
         report,
-        f"skills/devops/web-xss-stored-ajtazer-heckit/SKILL.md: {SIGNATURE} FOUND",
+        f"skills/devops/{directory}/SKILL.md: {SIGNATURE} FOUND",
     )
     exceptions = tmp_path / "clamav-exceptions.json"
     _write_exceptions(
@@ -119,6 +126,36 @@ def test_exception_paths_accept_globs_for_renamed_archive_directories(tmp_path, 
     )
 
     assert _run(module, tmp_path, monkeypatch, report, exceptions) == 0
+
+
+@pytest.mark.parametrize(
+    "finding_path",
+    [
+        "skills/devops/web-xss-stored/evil/SKILL.md",
+        "skills/devops/web-xss-stored/a/b/SKILL.md",
+        "skills/devops/web-xss-stored-x/nested/SKILL.md",
+        "prefix/skills/devops/web-xss-stored/SKILL.md",
+        "/skills/devops/web-xss-stored/SKILL.md",
+    ],
+)
+def test_exception_globs_do_not_excuse_other_path_depths(tmp_path, monkeypatch, capsys, finding_path):
+    module = _load_module()
+    report = tmp_path / "clamav-report.txt"
+    _write_report(report, f"{finding_path}: {SIGNATURE} FOUND")
+    exceptions = tmp_path / "clamav-exceptions.json"
+    _write_exceptions(
+        exceptions,
+        {
+            "path": "skills/devops/web-xss-stored*/SKILL.md",
+            "signature": SIGNATURE,
+            "reason": "Quoted XSS payloads in a pentest teaching note.",
+        },
+    )
+
+    assert _run(module, tmp_path, monkeypatch, report, exceptions) == 1
+    output = capsys.readouterr().out
+    assert f"Unreviewed ClamAV finding: {finding_path}: {SIGNATURE}" in output
+    assert "1 total, 0 reviewed, 1 unreviewed" in output
 
 
 def test_missing_report_fails_closed(tmp_path, monkeypatch, capsys):
