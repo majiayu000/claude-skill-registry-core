@@ -109,7 +109,7 @@ remove_local_artifacts_under() {
 }
 
 sync_core_to_main() {
-  # Keep main-owned workflows and repository routing docs/templates stable.
+  # Keep main-owned workflows, their security tests, and routing docs/templates stable.
   # Mirroring a new workflow file from core requires token workflow scope in the
   # publish repo and breaks scheduled publish.
   rsync -a --delete \
@@ -123,6 +123,7 @@ sync_core_to_main() {
     --exclude '.github/PULL_REQUEST_TEMPLATE.md' \
     --exclude '.github/workflows/*.yml' \
     --exclude '.github/workflows/*.yaml' \
+    --exclude 'tests/test_publish_from_core_workflow.py' \
     --exclude '.ruff_cache' \
     --exclude '.pytest_cache' \
     --exclude '.mypy_cache' \

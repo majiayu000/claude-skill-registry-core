@@ -2,6 +2,7 @@ import gzip
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -460,6 +461,56 @@ def test_publish_sync_preserves_main_owned_routing_files():
     assert "--exclude '.github/ISSUE_TEMPLATE/**'" in sync_block
     assert "--exclude '.github/PULL_REQUEST_TEMPLATE.md'" in sync_block
     assert "--delete-excluded" not in sync_block
+
+
+def test_publish_sync_preserves_main_owned_tests_during_repeated_sync(tmp_path):
+    core = tmp_path / "core"
+    data = tmp_path / "data"
+    main = tmp_path / "main"
+    for path in (core, data, main):
+        path.mkdir()
+    for directory in ("scripts", "schema", "taxonomy"):
+        shutil.copytree(ROOT / directory, core / directory)
+
+    (core / "tests").mkdir()
+    (main / "tests").mkdir()
+    owned = main / "tests/test_publish_from_core_workflow.py"
+    owned.write_text("# main-owned workflow security tests\n", encoding="utf-8")
+    expected_owned = owned.read_bytes()
+    mirrored = "tests/test_pipeline_contracts.py"
+    (core / mirrored).write_text("# current core tests\n", encoding="utf-8")
+    (main / mirrored).write_text("# previous core tests\n", encoding="utf-8")
+    stale = main / "tests/test_obsolete_core.py"
+    stale.write_text("# obsolete core tests\n", encoding="utf-8")
+    workflow = main / ".github/workflows/publish-from-core.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text("# main-owned publish workflow\n", encoding="utf-8")
+    (data / "archived-skill.md").write_text("# archive fixture\n", encoding="utf-8")
+
+    for revision in ("first", "second"):
+        (core / mirrored).write_text(f"# {revision} core tests\n", encoding="utf-8")
+        result = subprocess.run(
+            [
+                "bash", str(core / "scripts/sync_main_repo.sh"),
+                "--core", str(core), "--data", str(data), "--main", str(main),
+                "--no-rebuild",
+            ],
+            cwd=main,
+            env={
+                **os.environ,
+                "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}",
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert owned.is_file(), result.stdout + result.stderr
+        assert owned.read_bytes() == expected_owned
+        assert (main / mirrored).read_bytes() == (core / mirrored).read_bytes()
+        assert not stale.exists()
+        assert workflow.read_text(encoding="utf-8") == "# main-owned publish workflow\n"
+        assert (main / "skills/archived-skill.md").is_file()
 
 
 def test_publish_sync_metadata_compliance_is_advisory_for_historical_notices():
