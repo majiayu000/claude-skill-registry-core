@@ -463,7 +463,8 @@ def build_search_index(
     for records in records_by_key.values():
         source_key = (records["full"]["install"], records["full"]["branch"])
         if source_key in page_by_install:
-            records["mini"]["u"] = page_by_install[source_key]
+            for view in ("mini", "lite", "full"):
+                records[view]["u"] = page_by_install[source_key]
 
     featured_skills = featured_skills[:100]
     all_lite_skills = sorted(
@@ -553,6 +554,7 @@ def build_search_index(
         "quality_score",
         "trust_score",
         "compatible_agents",
+        "u",
     )
     detail_shards: Dict[str, List[Dict[str, Any]]] = {}
     for skill in all_lite_skills:

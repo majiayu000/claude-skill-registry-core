@@ -1193,6 +1193,11 @@ def test_public_catalog_excludes_registry_and_groups_exact_body_copies(tmp_path)
     assert len(records) == 3
     assert all(record["u"].startswith("skills/") for record in records)
     assert len({record["u"] for record in records}) == 2
+    lite = json.loads((tmp_path / "search-index-lite.json").read_text())
+    assert all(record["u"].startswith("skills/") for record in lite["skills"])
+    assert len({record["u"] for record in lite["skills"]}) == 2
+    featured = json.loads((tmp_path / "featured.json").read_text())
+    assert all(record["u"].startswith("skills/") for record in featured["skills"])
 
 
 def test_scan_repairs_block_scalar_description_and_retains_legal_metadata(tmp_path):
