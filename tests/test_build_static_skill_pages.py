@@ -106,7 +106,7 @@ def test_generator_escapes_metadata_and_writes_homepage_links_and_sitemap(tmp_pa
     assert "&lt;script&gt;" in detail
     assert "&lt;tag&gt;" in detail
     assert f'href="skills/{slug}/"' in homepage
-    assert locations == [PUBLIC_SITE, f"{PUBLIC_SITE}skills/", f"{PUBLIC_SITE}skills/{slug}/"]
+    assert locations == [PUBLIC_SITE, f"{PUBLIC_SITE}choose-a-skill.html", f"{PUBLIC_SITE}skills/", f"{PUBLIC_SITE}skills/{slug}/"]
     assert re.search(r'<link rel="canonical" href="[^\"]+/">', detail)
 
 
@@ -149,6 +149,7 @@ def test_generator_includes_code_review_guide_in_regenerated_sitemap(tmp_path):
         locations = [node.text for node in sitemap.findall("sm:url/sm:loc", namespace)]
         assert locations == [
             PUBLIC_SITE,
+            f"{PUBLIC_SITE}choose-a-skill.html",
             f"{PUBLIC_SITE}skills/",
             f"{PUBLIC_SITE}skills/{skill_page_slug(record)}/",
             guide_url,

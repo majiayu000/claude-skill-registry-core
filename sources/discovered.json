@@ -1,7 +1,7 @@
 {
-  "discovered_at": "2026-09-30T04:51:16.175572Z",
+  "discovered_at": "2026-10-01T05:03:22.731280Z",
   "total_repos": 300,
-  "total_skills": 15,
+  "total_skills": 19,
   "scanned_repos": 300,
   "limits": {
     "max_repos": 300,
@@ -184,6 +184,7 @@
     "itsmostafa/aws-agent-skills",
     "jabrena/plinth",
     "jangviktor-web/nihaixia",
+    "jaredrhod/ai-memory-vault",
     "jeecgboot/skills",
     "jezweb/claude-skills",
     "jiweiyeah/Skills-Manager",
@@ -216,7 +217,6 @@
     "mattgierhart/PRD-driven-context-engineering",
     "meshy-dev/meshy-3d-agent",
     "mex-memory/mex",
-    "mhattingpete/claude-skills-marketplace",
     "michael-denyer/pstack-claude",
     "michtio/craftcms-claude-skills",
     "microsoft/power-platform-skills",
@@ -315,63 +315,79 @@
   "skills": [
     {
       "repo": "K-Dense-AI/scientific-agent-skills",
-      "path": "skills/fictiv/SKILL.md"
+      "path": "skills/pybamm/SKILL.md"
     },
     {
-      "repo": "kaankiziltug/logo-design-skill",
-      "path": "skills/logo-design/SKILL.md"
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/relion/SKILL.md"
     },
     {
-      "repo": "reticlehq/reticle",
-      "path": "skills/verify-form-validation/SKILL.md"
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/mageck/SKILL.md"
     },
     {
-      "repo": "rse/ase",
-      "path": "plugin/skills/ase-repo-diff/SKILL.md"
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/flowkit/SKILL.md"
     },
     {
-      "repo": "rse/ase",
-      "path": "plugin/skills/ase-repo-merge/SKILL.md"
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/cantera/SKILL.md"
     },
     {
-      "repo": "rse/ase",
-      "path": "plugin/skills/ase-repo-commit/SKILL.md"
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/nmrglue/SKILL.md"
     },
     {
-      "repo": "rse/ase",
-      "path": "plugin/skills/ase-repo-review/SKILL.md"
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/tellurium/SKILL.md"
     },
     {
-      "repo": "rse/ase",
-      "path": "plugin/skills/ase-repo-dissect/SKILL.md"
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "path": "skills/pycalphad/SKILL.md"
     },
     {
-      "repo": "rse/ase",
-      "path": "plugin/skills/ase-repo-resolve/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills/ux-writing/SKILL.md"
     },
     {
-      "repo": "rse/ase",
-      "path": "plugin/skills/ase-repo-changelog/SKILL.md"
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills-v2/ux-writing/SKILL.md"
+    },
+    {
+      "repo": "cgallic/kai-cmo-harness",
+      "path": "harness/skills/kai-motion-spot/SKILL.md"
+    },
+    {
+      "repo": "fcakyon/claude-codex-settings",
+      "path": "plugins/test-audit/skills/test-audit/SKILL.md"
+    },
+    {
+      "repo": "oxylabs/agent-skills",
+      "path": "skills/agent-browser/SKILL.md"
+    },
+    {
+      "repo": "scdenney/open-science-skills",
+      "path": "codex/beamer/SKILL.md"
+    },
+    {
+      "repo": "scdenney/open-science-skills",
+      "path": "plugin/skills/beamer/SKILL.md"
     },
     {
       "repo": "serejaris/personal-corp-os",
-      "path": "skills/daily/SKILL.md"
+      "path": "skills/make-3d/SKILL.md"
     },
     {
       "repo": "serejaris/personal-corp-os",
-      "path": "skills/retro/SKILL.md"
+      "path": "skills/benchmark/SKILL.md"
     },
     {
       "repo": "serejaris/personal-corp-os",
-      "path": "skills/avatar/SKILL.md"
+      "path": "skills/make-landing/SKILL.md"
     },
     {
-      "repo": "serejaris/personal-corp-os",
-      "path": "skills/corp-new/SKILL.md"
-    },
-    {
-      "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/beatra/SKILL.md"
+      "repo": "thedotmack/claude-mem",
+      "path": "plugin/skills/handoff/SKILL.md"
     }
   ]
 }

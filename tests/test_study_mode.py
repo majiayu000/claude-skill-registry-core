@@ -80,7 +80,7 @@ def test_study_mode_is_query_gated_and_has_no_network_sender():
     html = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
     source = (ROOT / "docs" / "js" / "study-mode.js").read_text(encoding="utf-8")
 
-    assert '<script src="js/study-mode.js"></script>' in html
+    assert '<script defer src="js/study-mode.js"></script>' in html
     assert 'id="study-panel"' in html
     assert "params.get('study') !== '1'" in source
     assert "fetch(" not in source
