@@ -106,7 +106,7 @@ def test_generator_escapes_metadata_and_writes_homepage_links_and_sitemap(tmp_pa
     assert "&lt;script&gt;" in detail
     assert "&lt;tag&gt;" in detail
     assert f'href="skills/{slug}/"' in homepage
-    assert locations == [PUBLIC_SITE, f"{PUBLIC_SITE}skills/", f"{PUBLIC_SITE}skills/{slug}/"]
+    assert locations == [PUBLIC_SITE, f"{PUBLIC_SITE}choose-a-skill.html", f"{PUBLIC_SITE}skills/", f"{PUBLIC_SITE}skills/{slug}/"]
     assert re.search(r'<link rel="canonical" href="[^\"]+/">', detail)
 
 

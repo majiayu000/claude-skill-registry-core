@@ -19,6 +19,8 @@
 
 Search skill descriptions, inspect source links and registry signals, and find installation guidance. This core repository maintains the discovery, archive validation, search-index, and site publishing pipeline.
 
+Read the [choose and install one skill guide](https://majiayu000.github.io/claude-skill-registry/choose-a-skill.html) for source selection, licenses and troubleshooting.
+
 **Three ways to use:**
 1. **[Web Search](https://majiayu000.github.io/claude-skill-registry/)** - Fast browser-based search
 2. **[sk CLI](https://github.com/majiayu000/claude-skill-manager)** - Terminal package manager

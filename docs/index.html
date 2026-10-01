@@ -17,6 +17,10 @@
     <meta name="twitter:image:alt" content="Claude Skills Registry — search skills and inspect source links">
     <meta name="twitter:title" content="Claude Skills Registry">
     <meta name="twitter:description" content="Search and discover Claude Code skills, browse source-linked installation guides, and inspect registry metadata and scan signals.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600;700&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600;700&amp;display=swap"></noscript>
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
 </head>
@@ -34,6 +38,7 @@
                 </button>
             </div>
             <p class="tagline">Search <span id="total-count">skills</span> for Claude Code</p>
+            <p><a href="choose-a-skill.html">How to choose and install one skill</a> · <a href="skills/">Browse source-linked guides</a></p>
         </header>
 
         <section class="study-panel hidden" id="study-panel" aria-live="polite">
@@ -296,12 +301,12 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/supabase-client.js"></script>
-    <script src="js/study-mode.js"></script>
-    <script src="js/app-render.js"></script>
-    <script src="js/artifact-api.js"></script>
-    <script src="js/app.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="js/supabase-client.js"></script>
+    <script defer src="js/study-mode.js"></script>
+    <script defer src="js/app-render.js"></script>
+    <script defer src="js/artifact-api.js"></script>
+    <script defer src="js/app.js"></script>
 </body>
 </html>
