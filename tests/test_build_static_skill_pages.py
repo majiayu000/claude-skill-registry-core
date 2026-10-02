@@ -127,6 +127,36 @@ def test_generator_removes_only_stale_generated_skill_pages(tmp_path):
     assert keep.read_text(encoding="utf-8") == "keep"
 
 
+def test_generator_includes_code_review_guide_in_regenerated_sitemap(tmp_path):
+    output_dir = tmp_path / "docs"
+    guide_path = output_dir / "guides" / "code-review.html"
+    guide_path.parent.mkdir(parents=True)
+    guide = (ROOT / "docs" / "guides" / "code-review.html").read_bytes()
+    guide_path.write_bytes(guide)
+    guide_url = f"{PUBLIC_SITE}guides/code-review.html"
+    (output_dir / "sitemap.xml").write_text(
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"<url><loc>{guide_url}</loc></url></urlset>",
+        encoding="utf-8",
+    )
+    record = skill("current")
+
+    for _ in range(2):
+        build_static_skill_pages([record], output_dir)
+
+        sitemap = ElementTree.parse(output_dir / "sitemap.xml")
+        namespace = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        locations = [node.text for node in sitemap.findall("sm:url/sm:loc", namespace)]
+        assert locations == [
+            PUBLIC_SITE,
+            f"{PUBLIC_SITE}choose-a-skill.html",
+            f"{PUBLIC_SITE}skills/",
+            f"{PUBLIC_SITE}skills/{skill_page_slug(record)}/",
+            guide_url,
+        ]
+        assert guide_path.read_bytes() == guide
+
+
 def test_generator_refuses_to_replace_an_unowned_skills_directory(tmp_path):
     output_dir = tmp_path / "docs"
     manual = output_dir / "skills" / "manual" / "index.html"

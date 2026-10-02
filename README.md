@@ -81,6 +81,11 @@ curl https://majiayu000.github.io/claude-skill-registry/search-index-lite.json
 
 ### Option 1: Web Search
 
+For a complete first installation, follow the
+[code review setup guide](https://majiayu000.github.io/claude-skill-registry/guides/code-review.html).
+It covers skill selection, project-local installation, verification, a first
+review prompt, and removal.
+
 Visit [https://majiayu000.github.io/claude-skill-registry/](https://majiayu000.github.io/claude-skill-registry/)
 
 For clone/update tips on large repositories, see [docs/FAST_CLONE.md](docs/FAST_CLONE.md).
