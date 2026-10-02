@@ -363,7 +363,8 @@ class GitHubTopicDiscovery:
         except IncompleteDiscoveryResults:
             # An incomplete per-repo index can still have a complete authoritative tree.
             metadata = self._request(f"{GITHUB_API}/repos/{repo}")
-            branch = quote(metadata["default_branch"], safe="")
+            default_branch = metadata["default_branch"]
+            branch = quote(default_branch, safe="")
             tree = self._request(
                 f"{GITHUB_API}/repos/{repo}/git/trees/{branch}", {"recursive": "1"}
             )
@@ -374,6 +375,7 @@ class GitHubTopicDiscovery:
                     "repo": repo,
                     "path": entry["path"],
                     "html_url": f"https://github.com/{repo}/blob/{branch}/{quote(entry['path'])}",
+                    "branch": default_branch,
                 }
                 for entry in tree["tree"]
                 if entry["type"] == "blob" and self._is_skill_md_path(entry["path"])
@@ -407,7 +409,7 @@ class GitHubTopicDiscovery:
 
         return skills
 
-    def download_skill(self, repo, path, output_dir):
+    def download_skill(self, repo, path, output_dir, branch=None):
         """Download a SKILL.md file"""
         self._check_budget()
         output_dir = Path(output_dir)
@@ -440,9 +442,10 @@ class GitHubTopicDiscovery:
         skill_dir = normalize_name(skill_dir)
 
         # Try to fetch content
-        for branch in ['main', 'master']:
+        branches = [branch] if branch is not None else ['main', 'master']
+        for branch in branches:
             self._check_budget()
-            url = f"{GITHUB_RAW}/{repo}/{branch}/{path}"
+            url = f"{GITHUB_RAW}/{repo}/{quote(branch, safe='')}/{quote(path)}"
             try:
                 resp = self.session.get(url, timeout=15)
                 if self.checkpointed and resp.status_code not in (200, 404):
@@ -728,7 +731,7 @@ class GitHubTopicDiscovery:
                 for skill in skill_files:
                     path_candidate = self._ensure_path_candidate(repo, skill["path"])
                     path_candidate["discovered_via_repo_scan"] = True
-                    if self.download_skill(repo, skill['path'], output_dir):
+                    if self.download_skill(repo, skill['path'], output_dir, branch=skill.get('branch')):
                         downloaded += 1
                         self.skills.append({
                             'repo': repo,

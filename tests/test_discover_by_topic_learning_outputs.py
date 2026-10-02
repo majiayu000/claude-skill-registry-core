@@ -628,7 +628,7 @@ def test_incomplete_repo_search_reads_complete_default_branch_tree(monkeypatch, 
     encoded_branch = branch.replace("/", "%2F")
     assert skills == [
         {"repo": "acme/demo", "path": path,
-         "html_url": f"https://github.com/acme/demo/blob/{encoded_branch}/{path}"}
+         "html_url": f"https://github.com/acme/demo/blob/{encoded_branch}/{path}", "branch": branch}
         for path in ["skills/solana-token-research/SKILL.md", "templates/skill/SKILL.md"]
     ]
     assert calls == [
@@ -680,3 +680,65 @@ def test_incomplete_repo_search_tree_failure_cannot_complete_inventory(monkeypat
         error, match = module.requests.HTTPError, None
     with pytest.raises(error, match=match):
         discovery.get_skill_files_from_repo("acme/demo")
+
+
+@pytest.mark.parametrize("outcome", ["success", "403", "500", "timeout", "security_rejection"])
+def test_incomplete_tree_default_branch_downloads_before_completing_cycle(tmp_path, monkeypatch, outcome):
+    import json
+
+    module = load_module()
+    fake_inventory(monkeypatch, module, ["acme/demo"])
+    paths = batch_paths(tmp_path)
+    branch = "feature/skills"
+    skill_paths = ["skills/first/SKILL.md", "skills/second skill/SKILL.md"]
+    calls = []
+    safe = "---\nname: demo\ndescription: Safe example.\n---\n# Demo\n"
+    unsafe = safe + "```python\nimport subprocess\nsubprocess.run('echo unsafe', shell=True)\n```\n"
+
+    def get(session, url, **kwargs):
+        calls.append(url)
+        response = module.requests.Response()
+        response.status_code = 200
+        if url.endswith("/search/code"):
+            payload = {"incomplete_results": True, "items": []}
+        elif "/git/trees/" in url:
+            payload = {"truncated": False, "tree": [{"type": "blob", "path": p} for p in skill_paths]}
+        elif url.startswith(module.GITHUB_RAW):
+            if "/feature%2Fskills/" not in url:
+                response.status_code = 404
+                response._content = b"not found"
+                return response
+            if outcome == "timeout":
+                raise module.requests.Timeout("raw content unavailable")
+            if outcome in {"403", "500"}:
+                response.status_code = int(outcome)
+            response._content = (unsafe if outcome == "security_rejection" else safe).encode()
+            return response
+        else:
+            payload = {"default_branch": branch}
+        response._content = json.dumps(payload).encode()
+        return response
+
+    monkeypatch.setattr(module.requests.Session, "get", get)
+    discovery = module.GitHubTopicDiscovery(request_delay=0)
+    if outcome in {"403", "500", "timeout"}:
+        error = module.requests.Timeout if outcome == "timeout" else module.requests.HTTPError
+        with pytest.raises(error):
+            discovery.run(**paths)
+        assert not paths["progress_path"].exists()
+        assert not paths["output_json"].exists()
+        assert not list(paths["output_dir"].rglob("SKILL.md"))
+    else:
+        discovery.run(**paths)
+        state = json.loads(paths["progress_path"].read_text())
+        assert state["next_repo"] == 1 and state["completed_at"]
+        archived = list(paths["output_dir"].rglob("SKILL.md"))
+        assert len(archived) == (2 if outcome == "success" else 0)
+        if outcome == "success":
+            assert all(p.read_text() == safe for p in archived)
+            metadata = [json.loads(p.read_text()) for p in paths["output_dir"].rglob("metadata.json")]
+            assert {m["path"] for m in metadata} == set(skill_paths)
+            assert all(m["github_branch"] == branch for m in metadata)
+    raw_calls = [u for u in calls if u.startswith(module.GITHUB_RAW)]
+    expected = [f"{module.GITHUB_RAW}/acme/demo/feature%2Fskills/{module.quote(p)}" for p in skill_paths]
+    assert raw_calls == (expected[:1] if outcome in {"403", "500", "timeout"} else expected)
