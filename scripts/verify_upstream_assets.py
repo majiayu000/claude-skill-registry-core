@@ -164,7 +164,11 @@ def _actual_bundled_files(skill_dir: Path) -> list[str]:
 
 def _looks_like_target(metadata: object, skill_dir: Path) -> bool:
     if isinstance(metadata, dict):
-        return any(field in metadata for field in VERIFICATION_EVIDENCE_FIELDS)
+        if not any(field in metadata for field in VERIFICATION_EVIDENCE_FIELDS):
+            return False
+        if (metadata.get("archive_mode") == "directory"
+                or metadata.get("bundled_files") or "bundled_file_blobs" in metadata):
+            return True
     return any(
         path.is_file() and path.name not in {"SKILL.md", "metadata.json"}
         for path in skill_dir.rglob("*")
@@ -257,83 +261,23 @@ def load_targets(skills_dir: Path) -> tuple[list[Target], list[dict]]:
     seen = set()
     metadata_paths = []
     try:
-        list(iter_canonical_archive_paths(skills_dir))
+        canonical_paths = sorted(iter_canonical_archive_paths(skills_dir, strict_registry=True))
     except ValueError as exc:
         return [], [{"stable_key": str(skills_dir), "status": "local_error", "error": str(exc)}]
-    try:
-        category_paths = sorted(root.iterdir())
-    except OSError as exc:
-        return [], [{"stable_key": str(skills_dir), "status": "local_error", "error": str(exc)}]
-    if has_case_conflicting_paths(
-        path.name for path in category_paths if path.is_dir() or path.is_symlink()
-    ):
-        return [], [
-            {
-                "stable_key": str(skills_dir),
-                "status": "local_error",
-                "error": "canonical archive contains case-conflicting category paths",
-            }
-        ]
-    for category_path in category_paths:
-        if category_path.is_symlink():
-            errors.append(
-                {
-                    "stable_key": relative_path(category_path, root),
-                    "status": "local_error",
-                    "error": "canonical archive category directory cannot be a symlink",
-                }
-            )
-            continue
-        if not category_path.is_dir():
-            continue
-        try:
-            skill_paths = sorted(category_path.iterdir())
-        except OSError as exc:
-            errors.append(
-                {
-                    "stable_key": relative_path(category_path, root),
-                    "status": "local_error",
-                    "error": str(exc)[:500],
-                }
-            )
-            continue
-        if has_case_conflicting_paths(
-            path.name for path in skill_paths if path.is_dir() or path.is_symlink()
-        ):
-            errors.append(
-                {
-                    "stable_key": relative_path(category_path, root),
-                    "status": "local_error",
-                    "error": "canonical archive contains case-conflicting skill paths",
-                }
-            )
-            continue
-        for skill_path in skill_paths:
-            if skill_path.is_symlink():
+    for relative_dir in canonical_paths:
+        skill_path = root / relative_dir
+        metadata_path = skill_path / "metadata.json"
+        if not metadata_path.is_file():
+            if _looks_like_target(None, skill_path):
                 errors.append(
                     {
-                        "stable_key": relative_path(skill_path, root),
+                        "stable_key": relative_dir,
                         "status": "local_error",
-                        "error": "canonical archive skill directory cannot be a symlink",
+                        "error": "metadata.json must be a regular file",
                     }
                 )
-            elif skill_path.is_dir():
-                metadata_path = skill_path / "metadata.json"
-                if (
-                    metadata_path.is_symlink()
-                    or not metadata_path.exists()
-                    or not metadata_path.is_file()
-                ):
-                    if _looks_like_target(None, skill_path):
-                        errors.append(
-                            {
-                                "stable_key": relative_path(skill_path, root),
-                                "status": "local_error",
-                                "error": "metadata.json must be a regular file",
-                            }
-                        )
-                    continue
-                metadata_paths.append(metadata_path)
+            continue
+        metadata_paths.append(metadata_path)
     for metadata_path in metadata_paths:
         skill_dir = metadata_path.parent
         try:

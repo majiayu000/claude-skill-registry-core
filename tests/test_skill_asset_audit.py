@@ -843,13 +843,12 @@ class TestAssetLiveness:
         targets, errors = liveness.load_targets(skills)
 
         assert targets == []
-        assert errors == [
-            {
-                "stable_key": "dev/alpha",
-                "status": "local_error",
-                "error": "metadata.json must be a regular file",
-            }
-        ]
+        assert len(errors) == 1 and errors[0]["status"] == "local_error"
+        assert "metadata.json must be a regular file" in errors[0]["error"]
+        if metadata_state == "missing":
+            assert errors[0]["stable_key"] == "dev/alpha"
+        else:
+            assert "dev/alpha/metadata.json" in errors[0]["error"]
 
     @pytest.mark.parametrize(
         "change,error",
@@ -1217,3 +1216,52 @@ class TestGitHubClient:
         )
         with pytest.raises(liveness.GitHubApiError, match="truncated or malformed"):
             liveness.GitHubClient().tree("acme/tools", "a" * 40)
+
+
+def test_asset_liveness_skips_current_standalone_provenance(tmp_path):
+    from sync_download_support import build_archived_skill_metadata
+
+    skills = tmp_path / "skills"
+    skill_dir = skills / "dev" / "standalone"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# Standalone skill")
+    metadata = build_archived_skill_metadata(
+        {}, name="standalone", repo="acme/tools", resolved_path="skills/standalone/SKILL.md",
+        branch="main", dir_name="standalone", bundled_files=[], commit_sha="a" * 40,
+        assets_verified_at="2026-09-14T04:15:24Z",
+    )
+    assert metadata["archive_mode"] == "skill-md"
+    (skill_dir / "metadata.json").write_text(json.dumps(metadata))
+
+    assert liveness.load_targets(skills) == ([], [])
+
+
+def test_asset_liveness_uses_canonical_inventory_without_nonarchive_directories(tmp_path):
+    skills = tmp_path / "skills"
+    make_verified_asset(skills, "alpha")
+    for directory in [".git/hooks", "migration-artifacts/old-batch", "docs/notes"]:
+        path = skills / directory
+        path.mkdir(parents=True)
+        (path / "record.txt").write_text("nonarchive record")
+    targets, errors = liveness.load_targets(skills)
+
+    assert errors == []
+    assert [t.stable_key for t in targets] == ["acme/tools:skills/alpha/SKILL.md"]
+
+
+@pytest.mark.parametrize("defect", ["missing_manifest", "missing_asset", "missing_proof"])
+def test_asset_liveness_still_rejects_current_bundle_errors(tmp_path, defect):
+    skills = tmp_path / "skills"
+    metadata_path = make_verified_asset(skills, "alpha")
+    metadata = json.loads(metadata_path.read_text())
+    if defect == "missing_manifest":
+        metadata.pop("bundled_files")
+    elif defect == "missing_asset":
+        (metadata_path.parent / "scripts/run.py").unlink()
+    else:
+        metadata.pop("github_commit_sha")
+    metadata_path.write_text(json.dumps(metadata))
+    targets, errors = liveness.load_targets(skills)
+
+    assert targets == []
+    assert len(errors) == 1 and errors[0]["status"] == "local_error"
