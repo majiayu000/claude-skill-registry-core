@@ -13,6 +13,7 @@ import time
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 from security_blocklist import blocked_metadata_source, load_security_blocklist
@@ -52,6 +53,10 @@ CODE_SEARCH_QUERIES = [
 
 class DiscoveryBudgetExpired(Exception):
     """Stop a batch before the runner's hard timeout, without completing its current repo."""
+
+
+class IncompleteDiscoveryResults(RuntimeError):
+    """The search index did not return a complete discovery result."""
 
 
 class GitHubTopicDiscovery:
@@ -215,7 +220,7 @@ class GitHubTopicDiscovery:
                 resp.raise_for_status()
                 result = resp.json()
                 if self.checkpointed and result.get("incomplete_results"):
-                    raise RuntimeError("GitHub returned incomplete discovery results; retry this batch")
+                    raise IncompleteDiscoveryResults("GitHub returned incomplete discovery results; retry this batch")
                 return result
             except DiscoveryBudgetExpired:
                 raise
@@ -355,6 +360,24 @@ class GitHubTopicDiscovery:
 
         try:
             result = self._request(url, params)
+        except IncompleteDiscoveryResults:
+            # An incomplete per-repo index can still have a complete authoritative tree.
+            metadata = self._request(f"{GITHUB_API}/repos/{repo}")
+            branch = quote(metadata["default_branch"], safe="")
+            tree = self._request(
+                f"{GITHUB_API}/repos/{repo}/git/trees/{branch}", {"recursive": "1"}
+            )
+            if tree["truncated"] is not False:
+                raise RuntimeError(f"GitHub returned a truncated tree for {repo}; cannot complete repository discovery") from None
+            return [
+                {
+                    "repo": repo,
+                    "path": entry["path"],
+                    "html_url": f"https://github.com/{repo}/blob/{branch}/{quote(entry['path'])}",
+                }
+                for entry in tree["tree"]
+                if entry["type"] == "blob" and self._is_skill_md_path(entry["path"])
+            ]
         except requests.HTTPError as exc:
             # A repository can disappear or become private between batches.
             if exc.response is None or exc.response.status_code not in (404, 422):
