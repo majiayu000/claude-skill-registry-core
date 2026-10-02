@@ -1265,3 +1265,34 @@ def test_asset_liveness_still_rejects_current_bundle_errors(tmp_path, defect):
 
     assert targets == []
     assert len(errors) == 1 and errors[0]["status"] == "local_error"
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("asset_liveness", "live"),
+        ("assets_liveness_checked_at", "2026-08-08T00:00:00Z"),
+        ("assets_liveness_sha", "b" * 40),
+    ],
+)
+def test_retained_liveness_evidence_cannot_hide_an_empty_bundle(tmp_path, field, value):
+    skills = tmp_path / "skills"
+    make_verified_asset(skills, "valid")
+    metadata_path = make_verified_asset(skills, "empty")
+    (metadata_path.parent / "scripts/run.py").unlink()
+    metadata = json.loads(metadata_path.read_text())
+    metadata.update({"archive_mode": "skill-md", "bundled_files": [], field: value})
+    metadata.pop("bundled_file_blobs")
+    metadata_path.write_text(json.dumps(metadata))
+    client = FakeLivenessClient({"skills/valid/SKILL.md", "skills/valid/scripts/run.py"})
+    report_path = tmp_path / "report.json"
+
+    result = liveness.main(
+        ["--skills-dir", str(skills), "--report", str(report_path)], client=client
+    )
+
+    assert result == 1
+    report = json.loads(report_path.read_text())
+    assert report["summary"] == {"local_error": 1, "live": 1}
+    assert report["rows"][0]["error"] == "bundled_files must be a non-empty list"
+    assert report["gate"]["errors"] == ["canonical archive validation failed"]
