@@ -43,6 +43,8 @@ def load_exceptions(path: Path) -> list[dict]:
         )
         if missing:
             raise ValueError(f"{path} entries need path, signature and reason: {entry!r}")
+        if "**" in entry["path"]:
+            raise ValueError(f"{path} recursive ** globs are not supported: {entry['path']}")
     return exceptions
 
 

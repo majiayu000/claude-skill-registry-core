@@ -158,6 +158,30 @@ def test_exception_globs_do_not_excuse_other_path_depths(tmp_path, monkeypatch, 
     assert "1 total, 0 reviewed, 1 unreviewed" in output
 
 
+@pytest.mark.parametrize(
+    "exception_path",
+    [
+        "skills/devops/**/SKILL.md",
+        "skills/devops/web-xss-stored**/SKILL.md",
+        "skills/**/web-xss-stored/SKILL.md",
+    ],
+)
+def test_recursive_exception_globs_fail_closed(tmp_path, monkeypatch, capsys, exception_path):
+    module = _load_module()
+    report = tmp_path / "clamav-report.txt"
+    _write_report(report, f"skills/devops/web-xss-stored/SKILL.md: {SIGNATURE} FOUND")
+    exceptions = tmp_path / "clamav-exceptions.json"
+    _write_exceptions(
+        exceptions,
+        {"path": exception_path, "signature": SIGNATURE, "reason": "reviewed fixture"},
+    )
+
+    assert _run(module, tmp_path, monkeypatch, report, exceptions) == 1
+    output = capsys.readouterr().out
+    assert "Unusable ClamAV exception list" in output
+    assert "recursive ** globs are not supported" in output
+
+
 def test_missing_report_fails_closed(tmp_path, monkeypatch, capsys):
     module = _load_module()
     exceptions = tmp_path / "clamav-exceptions.json"
