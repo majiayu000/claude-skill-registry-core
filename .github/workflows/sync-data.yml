@@ -669,14 +669,6 @@ jobs:
           path: asset-liveness-report.json
           if-no-files-found: error
 
-      - name: Copy security report to docs
-        run: |
-          if [ -f security-report.json ]; then
-            cp security-report.json docs/security-report.json
-          else
-            echo "::warning::security-report.json missing; skip docs copy."
-          fi
-
       - name: Rebuild registry.json from archive
         run: |
           python scripts/rebuild_registry.py --skills-dir skills --registry registry.json --skip-categories

@@ -766,6 +766,46 @@ def test_sync_data_runs_generated_size_guard_after_registry_rebuild():
     assert "--include docs" in workflow
 
 
+@pytest.mark.parametrize("oversized_docs_artifact", [False, True])
+def test_sync_data_keeps_large_raw_security_report_outside_publish_artifacts(
+    tmp_path, oversized_docs_artifact,
+):
+    steps = yaml.safe_load(read_repo_file(".github/workflows/sync-data.yml"))["jobs"]["sync"]["steps"]
+    names = [step.get("name") for step in steps]
+    upload = steps[names.index("Upload security report")]
+    assert upload["with"]["path"] == "security-report.json"
+    assert "--security-report security-report.json" in steps[
+        names.index("Validate sync pipeline health")
+    ]["run"]
+
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "scripts").mkdir()
+    shutil.copyfile(ROOT / "scripts/check_generated_file_sizes.py",
+                    tmp_path / "scripts/check_generated_file_sizes.py")
+    raw_report = tmp_path / "security-report.json"
+    with raw_report.open("wb") as handle:
+        handle.truncate(266250501)
+    if oversized_docs_artifact:
+        with (tmp_path / "docs/unrelated.json").open("wb") as handle:
+            handle.truncate(266250501)
+
+    for step in steps[names.index("Upload bundled asset liveness report") + 1:
+                      names.index("Rebuild registry.json from archive")]:
+        if "run" in step:
+            subprocess.run(["bash", "-e", "-c", step["run"]], cwd=tmp_path, check=True)
+    result = subprocess.run(
+        ["bash", "-e", "-c", steps[names.index("Check generated artifact sizes")]["run"]],
+        cwd=tmp_path,
+        env={**os.environ, "PATH": f"{Path(sys.executable).parent}:{os.environ['PATH']}"},
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == (1 if oversized_docs_artifact else 0), result.stdout + result.stderr
+    assert raw_report.stat().st_size == 266250501
+    assert not (tmp_path / "docs/security-report.json").exists()
+    if oversized_docs_artifact:
+        assert "failure 253.92 MiB docs/unrelated.json" in result.stdout
+
+
 def test_sync_data_checks_sources_and_archive_categories():
     workflow = read_repo_file(".github/workflows/sync-data.yml")
 
