@@ -164,6 +164,11 @@ def _actual_bundled_files(skill_dir: Path) -> list[str]:
 
 def _looks_like_target(metadata: object, skill_dir: Path) -> bool:
     if isinstance(metadata, dict):
+        if any(
+            field in metadata
+            for field in ("asset_liveness", "assets_liveness_checked_at", "assets_liveness_sha")
+        ):
+            return True
         if not any(field in metadata for field in VERIFICATION_EVIDENCE_FIELDS):
             return False
         if (metadata.get("archive_mode") == "directory"
