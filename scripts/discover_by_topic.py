@@ -196,17 +196,19 @@ class GitHubTopicDiscovery:
         if self.deadline is not None and time.monotonic() + wait >= self.deadline:
             raise DiscoveryBudgetExpired()
 
-    def _request(self, url, params=None):
+    def _request(self, url, params=None, *, raw=False):
         """Make a rate-limited request with bounded retries for transient failures."""
         transient_retries = 0
         while True:
-            self._check_budget(self.request_delay)
-            if self.request_delay > 0:
+            self._check_budget(0 if raw else self.request_delay)
+            if not raw and self.request_delay > 0:
                 time.sleep(self.request_delay)
             try:
-                resp = self.session.get(url, params=params, timeout=30)
+                resp = self.session.get(url, params=params, timeout=15 if raw else 30)
+                if raw and (not self.checkpointed or resp.status_code in (200, 404)):
+                    return resp
 
-                if resp.status_code == 403:
+                if not raw and resp.status_code == 403:
                     reset = int(resp.headers.get('X-RateLimit-Reset', 0))
                     if reset:
                         wait = max(0, reset - time.time() + 1)
@@ -461,24 +463,9 @@ class GitHubTopicDiscovery:
             self._check_budget()
             url = f"{GITHUB_RAW}/{repo}/{quote(branch, safe='')}/{quote(path)}"
             try:
-                for transient_retry in range(4):
-                    self._check_budget()
-                    try:
-                        resp = self.session.get(url, timeout=15)
-                        if self.checkpointed and resp.status_code not in (200, 404):
-                            resp.raise_for_status()
-                        break
-                    except (requests.Timeout, requests.ConnectionError, requests.HTTPError) as e:
-                        transient = isinstance(e, (requests.Timeout, requests.ConnectionError)) or (
-                            e.response is not None and 500 <= e.response.status_code < 600
-                        )
-                        if not transient or transient_retry == 3:
-                            raise
-                        wait = 2 ** transient_retry
-                        self._check_budget(wait)
-                        logger.warning("Transient raw request failure; retrying in %ss (%s/3)",
-                                       wait, transient_retry + 1)
-                        time.sleep(wait)
+                resp = self._request(url, raw=True)
+                if resp is None:
+                    continue
                 if resp.status_code == 200:
                     content = resp.text
 
