@@ -197,7 +197,8 @@ class GitHubTopicDiscovery:
             raise DiscoveryBudgetExpired()
 
     def _request(self, url, params=None):
-        """Make rate-limited request"""
+        """Make a rate-limited request with bounded retries for transient failures."""
+        transient_retries = 0
         while True:
             self._check_budget(self.request_delay)
             if self.request_delay > 0:
@@ -225,6 +226,19 @@ class GitHubTopicDiscovery:
             except DiscoveryBudgetExpired:
                 raise
             except Exception as e:
+                transient = isinstance(e, (requests.Timeout, requests.ConnectionError)) or (
+                    isinstance(e, requests.HTTPError)
+                    and e.response is not None
+                    and 500 <= e.response.status_code < 600
+                )
+                if transient and transient_retries < 3:
+                    wait = 2 ** transient_retries
+                    self._check_budget(wait)
+                    transient_retries += 1
+                    logger.warning("Transient GitHub request failure; retrying in %ss (%s/3)",
+                                   wait, transient_retries)
+                    time.sleep(wait)
+                    continue
                 if self.checkpointed:
                     raise
                 logger.error(f"Request failed: {e}")

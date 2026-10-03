@@ -521,11 +521,100 @@ def test_rate_limit_wait_cannot_overrun_batch_budget(monkeypatch):
         discovery._request("https://api.github.com/search/code")
 
 
+@pytest.mark.parametrize("failure", [500, 502, 503, 504, "timeout", "connection"])
+def test_transient_api_failure_retries_the_same_request(monkeypatch, failure):
+    module = load_module()
+    discovery = module.GitHubTopicDiscovery(request_delay=0)
+    discovery.checkpointed = True
+    response = module.requests.Response()
+    response.status_code = failure if isinstance(failure, int) else 200
+    response._content = b'{"items": []}'
+    calls, waits = [], []
+
+    def get(url, **kwargs):
+        calls.append((url, kwargs))
+        if len(calls) == 1:
+            if failure == "timeout":
+                raise module.requests.Timeout("temporary timeout")
+            if failure == "connection":
+                raise module.requests.ConnectionError("temporary connection failure")
+            return response
+        success = module.requests.Response()
+        success.status_code = 200
+        success._content = b'{"items": []}'
+        return success
+
+    monkeypatch.setattr(discovery.session, "get", get)
+    monkeypatch.setattr(module.time, "sleep", waits.append)
+    url = "https://api.github.com/search/code"
+    params = {"q": "filename:SKILL.md repo:acme/demo", "per_page": 100}
+
+    assert discovery._request(url, params) == {"items": []}
+    assert calls == [(url, {"params": params, "timeout": 30})] * 2
+    assert waits == [1]
+
+
+@pytest.mark.parametrize("failure", [503, "timeout", "connection"])
+def test_exhausted_api_retries_fail_without_advancing_full_cycle(tmp_path, monkeypatch, failure):
+    module = load_module()
+    discovery = module.GitHubTopicDiscovery(request_delay=0)
+    paths = batch_paths(tmp_path)
+    paths["time_budget_seconds"] = 0
+    original = '{"repos": ["acme/demo"], "next_repo": 0}'
+    paths["progress_path"].write_text(original)
+    response = module.requests.Response()
+    response.status_code = 503
+    response.url = "https://api.github.com/search/code?q=filename%3ASKILL.md+repo%3Aacme%2Fdemo"
+    error = (module.requests.Timeout("upstream timed out") if failure == "timeout"
+             else module.requests.ConnectionError("upstream disconnected"))
+    calls, waits = [], []
+
+    def get(url, **kwargs):
+        calls.append(url)
+        if failure != 503:
+            raise error
+        return response
+
+    monkeypatch.setattr(discovery.session, "get", get)
+    monkeypatch.setattr(module.time, "sleep", waits.append)
+    expected_error = module.requests.HTTPError if failure == 503 else type(error)
+    with pytest.raises(expected_error) as raised:
+        discovery.run(**paths)
+
+    if failure == 503:
+        assert raised.value.response is response
+        assert raised.value.response.status_code == 503
+        assert response.url in str(raised.value)
+    else:
+        assert raised.value is error
+    assert len(calls) == 4
+    assert waits == [1, 2, 4]
+    assert paths["progress_path"].read_text() == original
+    assert not paths["output_json"].exists()
+    assert not discovery.repo_candidates["acme/demo"].get("unavailable")
+
+
+def test_transient_retry_wait_cannot_overrun_batch_budget(monkeypatch):
+    module = load_module()
+    discovery = module.GitHubTopicDiscovery(request_delay=0)
+    discovery.checkpointed = True
+    discovery.deadline = 1
+    response = module.requests.Response()
+    response.status_code = 503
+    monkeypatch.setattr(discovery.session, "get", lambda *args, **kwargs: response)
+    monkeypatch.setattr(module.time, "monotonic", lambda: 0)
+    monkeypatch.setattr(module.time, "sleep", lambda _: pytest.fail("must not sleep past budget"))
+
+    with pytest.raises(module.DiscoveryBudgetExpired):
+        discovery._request("https://api.github.com/search/code")
+
+
 @pytest.mark.parametrize("stage", ["request", "download"])
 def test_checkpointed_network_failure_is_not_treated_as_completed(stage, tmp_path, monkeypatch):
     module = load_module()
     discovery = module.GitHubTopicDiscovery(request_delay=0)
     discovery.checkpointed = True
+    monkeypatch.setattr(module.time, "sleep", lambda _: None)
 
     def timeout(*args, **kwargs):
         raise module.requests.Timeout("upstream timed out")
@@ -555,6 +644,7 @@ def test_repo_removed_between_batches_is_explicitly_recorded(status, monkeypatch
     module = load_module()
     discovery = module.GitHubTopicDiscovery(request_delay=0)
     discovery.checkpointed = True
+    monkeypatch.setattr(module.time, "sleep", lambda _: None)
     response = module.requests.Response()
     response.status_code = status
     missing = module.requests.Response()
@@ -645,6 +735,7 @@ def test_incomplete_repo_search_tree_failure_cannot_complete_inventory(monkeypat
     module = load_module()
     discovery = module.GitHubTopicDiscovery(request_delay=0)
     discovery.checkpointed = True
+    monkeypatch.setattr(module.time, "sleep", lambda _: None)
 
     def get(url, **kwargs):
         is_tree = "/git/trees/" in url
