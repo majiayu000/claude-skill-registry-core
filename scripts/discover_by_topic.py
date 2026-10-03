@@ -461,9 +461,24 @@ class GitHubTopicDiscovery:
             self._check_budget()
             url = f"{GITHUB_RAW}/{repo}/{quote(branch, safe='')}/{quote(path)}"
             try:
-                resp = self.session.get(url, timeout=15)
-                if self.checkpointed and resp.status_code not in (200, 404):
-                    resp.raise_for_status()
+                for transient_retry in range(4):
+                    self._check_budget()
+                    try:
+                        resp = self.session.get(url, timeout=15)
+                        if self.checkpointed and resp.status_code not in (200, 404):
+                            resp.raise_for_status()
+                        break
+                    except (requests.Timeout, requests.ConnectionError, requests.HTTPError) as e:
+                        transient = isinstance(e, (requests.Timeout, requests.ConnectionError)) or (
+                            e.response is not None and 500 <= e.response.status_code < 600
+                        )
+                        if not transient or transient_retry == 3:
+                            raise
+                        wait = 2 ** transient_retry
+                        self._check_budget(wait)
+                        logger.warning("Transient raw request failure; retrying in %ss (%s/3)",
+                                       wait, transient_retry + 1)
+                        time.sleep(wait)
                 if resp.status_code == 200:
                     content = resp.text
 
