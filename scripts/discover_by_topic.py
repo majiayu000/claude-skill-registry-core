@@ -205,10 +205,12 @@ class GitHubTopicDiscovery:
                 time.sleep(self.request_delay)
             try:
                 resp = self.session.get(url, params=params, timeout=15 if raw else 30)
-                if raw and (not self.checkpointed or resp.status_code in (200, 404)):
+                if raw:
+                    if self.checkpointed and resp.status_code not in (200, 404):
+                        resp.raise_for_status()
                     return resp
 
-                if not raw and resp.status_code == 403:
+                if resp.status_code == 403:
                     reset = int(resp.headers.get('X-RateLimit-Reset', 0))
                     if reset:
                         wait = max(0, reset - time.time() + 1)

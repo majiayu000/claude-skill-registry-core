@@ -954,3 +954,19 @@ def test_noncheckpointed_raw_http_failure_keeps_branch_fallback(tmp_path, monkey
     assert discovery.download_skill("acme/demo", "SKILL.md", tmp_path) is True
     assert calls == [(f"https://raw.githubusercontent.com/acme/demo/{branch}/SKILL.md", {"params": None, "timeout": 15})
                      for branch in ["main", "master"]]
+
+
+@pytest.mark.parametrize("checkpointed", [False, True])
+def test_raw_201_returns_false_without_json_parsing(tmp_path, monkeypatch, checkpointed):
+    module = load_module()
+    discovery = module.GitHubTopicDiscovery(request_delay=0)
+    discovery.checkpointed = checkpointed
+    response = module.requests.Response()
+    response.status_code = 201
+    response._content = b"accepted, but not a SKILL.md response"
+    discovery.session = FakeSession(response)
+    monkeypatch.setattr(module.time, "sleep", lambda _: pytest.fail("201 must not retry"))
+
+    assert discovery.download_skill("acme/demo", "SKILL.md", tmp_path, branch="main") is False
+    assert discovery.session.calls == 1
+    assert not list(tmp_path.rglob("SKILL.md"))
