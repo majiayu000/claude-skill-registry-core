@@ -78,12 +78,12 @@
    - 发现新 skills
    - 下载/更新归档
    - 安全扫描（skills）
-   - 生成 `docs/security-report.json` + 写入 `docs/stats.json`
+   - 原始 `security-report.json` 供流水线健康检查使用，并上传为 workflow artifact
    - 重建 registry.json
    - 推送 data + core 变更
 
 2. **Build Index** (`build-index.yml` in core)
-   - 基于 archive + `registry.json` 生成搜索索引
+   - 基于 archive + `registry.json` 生成搜索索引、`docs/stats.json` 和 `docs/security-shards/`
    - 发布 GitHub Pages
 
 3. **Publish Main Artifact** (`publish-from-core.yml` in main)
