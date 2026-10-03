@@ -66,7 +66,7 @@ def skill_key(skill: dict) -> str:
     if repo:
         root_key = build_skill_key(repo, path)
         if root_key == repo:
-            return build_skill_key(repo, path, name=skill.get("name") or "")
+            return root_key if path else build_skill_key(repo, path, name=skill.get("name") or "")
         return f"{repo}:{path}"
     name = skill.get("name") or ""
     category = sanitize_category(skill.get("category") or "other")

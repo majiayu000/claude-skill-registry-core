@@ -2821,7 +2821,12 @@ def test_filter_pending_skills_prefilters_no_repo_and_cooldown():
 
 def test_filter_pending_skills_skips_existing_root_skill():
     module = load_module()
-    source = {"repo": "acme/root-skill", "name": "root-skill", "category": "development"}
+    source = {
+        "repo": "acme/root-skill",
+        "path": "SKILL.md",
+        "name": "root-skill",
+        "category": "development",
+    }
     archived = {**source, "path": "SKILL.md"}
 
     filtered, skipped, skipped_rows = module.filter_pending_skills(
@@ -2834,6 +2839,66 @@ def test_filter_pending_skills_skips_existing_root_skill():
     assert filtered == []
     assert skipped == {"existing": 1, "no_repo": 0, "cooldown_not_found": 0}
     assert skipped_rows == []
+
+
+@pytest.mark.parametrize("path", ["SKILL.md", "skill.md", "."])
+@pytest.mark.parametrize("source_name", ["", "renamed"])
+def test_download_skips_existing_root_archive_when_display_name_changes(
+    tmp_path, monkeypatch, path, source_name
+):
+    module = load_module()
+    output_dir = tmp_path / "skills"
+    archive = output_dir / "development" / "unknown-acme-demo"
+    archive.mkdir(parents=True)
+    metadata = {
+        "repo": "acme/demo",
+        "path": "SKILL.md",
+        "name": "unknown",
+        "category": "development",
+        "archive_mode": "directory",
+        "bundled_files": ["LICENSE", "README.md"],
+        "github_commit_sha": "a" * 40,
+    }
+    (archive / "metadata.json").write_text(json.dumps(metadata))
+    (archive / "SKILL.md").write_text("---\nname: demo\ndescription: Demo.\n---\n# Demo\n")
+    (archive / "LICENSE").write_text("MIT license notice")
+    (archive / "README.md").write_text("Supporting documentation")
+    before = {p.name: p.read_bytes() for p in archive.iterdir()}
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text(json.dumps({"skills": [{
+        "repo": "acme/demo", "path": path, "name": source_name,
+        "category": "development",
+    }]}))
+
+    def unexpected_session(*args, **kwargs):
+        pytest.fail("Existing root archive must be skipped before any network session")
+
+    monkeypatch.setitem(sys.modules, "aiohttp", types.SimpleNamespace(
+        TCPConnector=lambda *args, **kwargs: object(),
+        ClientTimeout=lambda *args, **kwargs: object(),
+        ClientSession=unexpected_session,
+        ClientError=OSError,
+    ))
+    stats = asyncio.run(module.download_skills(
+        registry_path, output_dir, github_token="", pin_commit_sha=True,
+    ))
+
+    assert stats["pending_before_shard"] == 0
+    assert stats["total"] == 1
+    assert stats["downloaded"] == stats["failed"] == 0
+    assert {p.name: p.read_bytes() for p in archive.iterdir()} == before
+
+
+def test_skill_key_preserves_pathless_names_and_nonroot_source_paths():
+    module = load_module()
+    assert module.skill_key({"repo": "acme/demo", "name": "nested"}) == "acme/demo:name:nested"
+    assert module.skill_key({"repo": "acme/demo", "name": "other"}) == "acme/demo:name:other"
+    assert module.skill_key({"repo": "acme/demo", "path": "skills/one/SKILL.md"}) != (
+        module.skill_key({"repo": "acme/demo", "path": "skills/two/SKILL.md"})
+    )
+    assert module.skill_key({"name": "nested", "category": "development"}) == (
+        "development:nested"
+    )
 
 
 def test_filter_pending_skills_keeps_pathless_skill_with_different_root_name():
