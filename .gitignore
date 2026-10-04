@@ -37,6 +37,7 @@ security-report.json
 reputation-report.json
 metadata-compliance-report.json
 THIRD_PARTY_NOTICES.generated.md
+THIRD_PARTY_NOTICES.generated.d/
 registry.json.bak
 registry.json.tmp
 
