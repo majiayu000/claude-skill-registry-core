@@ -99,7 +99,8 @@ remove_local_artifacts_under() {
     "$root/.venv" \
     "$root/node_modules" \
     "$root/metadata-compliance-report.json" \
-    "$root/THIRD_PARTY_NOTICES.generated.md"
+    "$root/THIRD_PARTY_NOTICES.generated.md" \
+    "$root/THIRD_PARTY_NOTICES.generated.d"
   find "$root" \
     \( -path "$root/.git" -o -path "$root/skills" \) -prune \
     -o -name '__pycache__' -type d -prune -exec rm -rf {} +
@@ -135,6 +136,7 @@ sync_core_to_main() {
     --exclude '.DS_Store' \
     --exclude 'metadata-compliance-report.json' \
     --exclude 'THIRD_PARTY_NOTICES.generated.md' \
+    --exclude 'THIRD_PARTY_NOTICES.generated.d' \
     "$core_dir/" "$main_dir/"
   remove_local_artifacts_under "$main_dir"
 }
@@ -213,5 +215,10 @@ run_step "Generate third-party notices (advisory full-archive metadata scan)" py
   --metadata-schema "$main_dir/schema/metadata.schema.json" \
   --notices "$main_dir/THIRD_PARTY_NOTICES.md" \
   --report-only
+
+run_step "Check published notice sizes" python "$main_dir/scripts/check_generated_file_sizes.py" \
+  --root "$main_dir" \
+  --include THIRD_PARTY_NOTICES.md \
+  --include THIRD_PARTY_NOTICES.d
 
 log "Done."

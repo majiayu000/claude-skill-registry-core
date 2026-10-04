@@ -181,6 +181,9 @@ def validate_single_metadata(
     return errors, warnings, entry
 
 
+NOTICES_PART_MAX_BYTES = 8 * 1024 * 1024
+
+
 def write_notices(path: Path, rows: List[Dict], scanned_count: int) -> None:
     generated_at = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     distribution_counts = Counter((row.get("distribution") or "unknown") for row in rows)
@@ -202,6 +205,17 @@ def write_notices(path: Path, rows: List[Dict], scanned_count: int) -> None:
         "",
     ]
 
+    parts_dir = path.with_suffix(".d")
+    table_header = (
+        "# Third-Party Notice Entries\n\n"
+        "| Skill | Local path | Repo | Author | License | Copyright | Distribution | Source | Permission note |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+    )
+    header_bytes = len(table_header.encode("utf-8"))
+    parts = []
+    part_rows = []
+    part_bytes = header_bytes
+
     if not rows:
         lines.extend(
             [
@@ -216,8 +230,6 @@ def write_notices(path: Path, rows: List[Dict], scanned_count: int) -> None:
             [
                 "## Entries",
                 "",
-                "| Skill | Local path | Repo | Author | License | Copyright | Distribution | Source | Permission note |",
-                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
             ]
         )
         for row in sorted(rows, key=lambda item: (item.get("repo", ""), item.get("name", ""))):
@@ -230,9 +242,22 @@ def write_notices(path: Path, rows: List[Dict], scanned_count: int) -> None:
             distribution = str(row.get("distribution", "")).replace("|", "\\|")
             source_url = str(row.get("source_url", ""))
             permission_note = str(row.get("permission_note", "")).replace("|", "\\|")
-            lines.append(
-                f"| {name} | {local_path} | {repo} | {author} | {license_name} | {copyright_notice} | {distribution} | {source_url} | {permission_note} |"
+            notice_row = (
+                f"| {name} | {local_path} | {repo} | {author} | {license_name} | {copyright_notice} | {distribution} | {source_url} | {permission_note} |\n"
             )
+            row_bytes = len(notice_row.encode("utf-8"))
+            if header_bytes + row_bytes > NOTICES_PART_MAX_BYTES:
+                raise ValueError(f"Notice row exceeds {NOTICES_PART_MAX_BYTES} bytes: {local_path}")
+            if part_bytes + row_bytes > NOTICES_PART_MAX_BYTES:
+                parts.append(table_header + "".join(part_rows))
+                part_rows = []
+                part_bytes = header_bytes
+            part_rows.append(notice_row)
+            part_bytes += row_bytes
+        parts.append(table_header + "".join(part_rows))
+        for number in range(1, len(parts) + 1):
+            filename = f"part-{number:05d}.md"
+            lines.append(f"- [Notice entries {number}]({parts_dir.name}/{filename})")
         lines.append("")
 
         license_names = sorted(
@@ -249,6 +274,13 @@ def write_notices(path: Path, rows: List[Dict], scanned_count: int) -> None:
                 lines.extend(LICENSE_NOTICE_TEXTS[license_name])
                 lines.append("")
 
+    if parts_dir.exists():
+        for old_part in parts_dir.glob("part-*.md"):
+            old_part.unlink()
+    if parts:
+        parts_dir.mkdir(parents=True, exist_ok=True)
+        for number, content in enumerate(parts, 1):
+            (parts_dir / f"part-{number:05d}.md").write_text(content, encoding="utf-8")
     path.write_text("\n".join(lines), encoding="utf-8")
 
 

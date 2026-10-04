@@ -605,6 +605,7 @@ jobs:
           path: |
             metadata-compliance-report.json
             THIRD_PARTY_NOTICES.generated.md
+            THIRD_PARTY_NOTICES.generated.d/**
 
       - name: Validate sync pipeline health
         env:
