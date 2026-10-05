@@ -61,6 +61,56 @@ def test_completion_before_last_alert_does_not_close_weekly_issue():
     assert result["action"] == "none"
 
 
+def test_completed_handoff_recovers_its_own_publish_failure():
+    result = decide(
+        run_attempt=2, results=dict(OK, sync="skipped"), progress=progress(2),
+        published_progress=progress(4, completed_at="2026-10-01T00:00:00Z"),
+        weekly_issue_last_alert_at=datetime(2026, 10, 4, tzinfo=timezone.utc),
+        run_url="https://github.com/owner/core/actions/runs/1234",
+        weekly_issue_last_alert_run_url="https://github.com/owner/core/actions/runs/1234",
+    )
+    assert result["action"] == "close"
+    assert result["title"] == alert.WEEKLY_TITLE
+
+
+@pytest.mark.parametrize("attempt,origin", [(1, "1234"), (2, "5678"), (2, "")])
+def test_recovery_requires_current_run_in_latest_alert(attempt, origin):
+    result = decide(
+        event_name="workflow_dispatch", run_attempt=attempt,
+        results=dict(OK, sync="skipped" if attempt > 1 else "success"),
+        progress=progress(4, completed_at="2026-10-01T00:00:00Z"),
+        weekly_issue_last_alert_at=datetime(2026, 10, 4, tzinfo=timezone.utc),
+        run_url="https://github.com/owner/core/actions/runs/1234",
+        weekly_issue_last_alert_run_url=f"https://github.com/owner/core/actions/runs/{origin}" if origin else "",
+    )
+    assert result["action"] == "none"
+
+
+def test_incomplete_handoff_cannot_use_originating_failure_exception():
+    result = decide(
+        run_attempt=2, results=dict(OK, sync="skipped"),
+        progress=progress(4, completed_at="2026-10-05T04:36:22Z"),
+        published_progress=progress(2),
+        weekly_issue_last_alert_at=datetime(2026, 10, 4, tzinfo=timezone.utc),
+        run_url="https://github.com/owner/core/actions/runs/1234",
+        weekly_issue_last_alert_run_url="https://github.com/owner/core/actions/runs/1234",
+    )
+    assert result["action"] == "none"
+
+
+@pytest.mark.parametrize("attempt", [1, 2])
+def test_skip_discovery_never_closes_weekly_issue(attempt):
+    result = decide(
+        event_name="workflow_dispatch", is_full=False, skip_discovery=True,
+        run_attempt=attempt, results=dict(OK, sync="skipped" if attempt > 1 else "success"),
+        progress=progress(4, completed_at="2026-10-05T04:36:22Z"),
+        weekly_issue_last_alert_at=datetime(2026, 10, 4, tzinfo=timezone.utc),
+        run_url="https://github.com/owner/core/actions/runs/1234",
+        weekly_issue_last_alert_run_url="https://github.com/owner/core/actions/runs/1234",
+    )
+    assert result["action"] == "none"
+
+
 def test_completion_does_not_close_when_this_run_did_not_succeed():
     result = decide(
         results={"preflight": "success", "sync": "success", "publish": "cancelled"},

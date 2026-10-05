@@ -50,6 +50,9 @@ def decide(
     published_progress: Optional[dict],
     weekly_issue_last_alert_at: Optional[datetime],
     now: datetime,
+    skip_discovery: bool = False,
+    run_url: str = "",
+    weekly_issue_last_alert_run_url: str = "",
     max_cycle_days: int = DEFAULT_MAX_CYCLE_DAYS,
 ) -> dict:
     """Return the issue action for this run.
@@ -76,6 +79,9 @@ def decide(
             return {"action": "none", "reason": "Manual run failures are watched by whoever started them."}
         return {"action": "report", "title": title, "scope": scope}
 
+    if skip_discovery:
+        return {"action": "none", "reason": "Discovery was skipped; leaving cycle alerts unchanged."}
+
     completed_at = parse_time(published_progress.get("completed_at")) if published_progress else None
     published_cycle_complete = (
         bool(published_progress)
@@ -83,14 +89,20 @@ def decide(
     )
     cycle_complete = bool(progress) and progress["next_repo"] == len(progress["repos"])
 
-    # A cycle that finished after the weekly alert was last raised resolves it, whichever
-    # trigger (schedule, manual full_scan, or a daily resume) carried the final batch.
+    # Completion may predate its own publish failure alert. A successful rerun
+    # republishes the same validated handoff, so it can resolve that originating
+    # failure, but cannot use this exception for another run's newer alert.
+    recovers_originating_failure = (
+        run_attempt > 1
+        and bool(run_url)
+        and weekly_issue_last_alert_run_url == run_url
+    )
     if (
         succeeded
         and published_cycle_complete
         and completed_at is not None
         and weekly_issue_last_alert_at is not None
-        and completed_at > weekly_issue_last_alert_at
+        and (completed_at > weekly_issue_last_alert_at or recovers_originating_failure)
     ):
         return {
             "action": "close",
@@ -147,11 +159,15 @@ def main(argv: Optional[list] = None) -> int:
     parser.add_argument("--sync-result", default="")
     parser.add_argument("--publish-result", default="")
     parser.add_argument("--run-attempt", type=int, default=1)
+    parser.add_argument("--skip-discovery", default="false", choices=["true", "false"])
+    parser.add_argument("--run-url", default="", help="This workflow run's URL")
     parser.add_argument("--progress", help="Latest main full-discovery-progress.json (overdue alerts)")
     parser.add_argument("--published-progress",
                         help="Full-discovery-progress.json from the published core SHA (weekly closure)")
     parser.add_argument("--weekly-issue-last-alert-at", default="",
                         help="Newest alert timestamp on the open weekly issue, if any")
+    parser.add_argument("--weekly-issue-last-alert-run-url", default="",
+                        help="Failed run URL in that newest bot alert, if confirmed")
     parser.add_argument("--max-cycle-days", default="",
                         help=f"Days before an unfinished cycle alerts (default {DEFAULT_MAX_CYCLE_DAYS})")
     parser.add_argument("--now", default="", help="Override the current time (tests)")
@@ -169,9 +185,12 @@ def main(argv: Optional[list] = None) -> int:
             "publish": args.publish_result,
         },
         run_attempt=args.run_attempt,
+        skip_discovery=args.skip_discovery == "true",
+        run_url=args.run_url,
         progress=load_progress(args.progress),
         published_progress=load_progress(args.published_progress),
         weekly_issue_last_alert_at=parse_time(args.weekly_issue_last_alert_at),
+        weekly_issue_last_alert_run_url=args.weekly_issue_last_alert_run_url,
         now=parse_time(args.now) or datetime.now(timezone.utc),
         max_cycle_days=max_cycle_days,
     )

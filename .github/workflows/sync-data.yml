@@ -1012,6 +1012,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EVENT_NAME: ${{ github.event_name }}
           IS_FULL: ${{ needs.sync.outputs.full_scan == 'true' || needs.publish.outputs.full_scan == 'true' || github.event.schedule == '30 2 * * 0' }}
+          SKIP_DISCOVERY: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.skip_discovery == 'true' }}
           PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           SYNC_RESULT: ${{ needs.sync.result }}
           PUBLISH_RESULT: ${{ needs.publish.result }}
@@ -1030,13 +1031,20 @@ jobs:
           # The newest bot-written alert on the weekly issue; human replies do not count.
           weekly_number=$(find_issue "$WEEKLY_TITLE")
           weekly_last_alert=""
+          weekly_last_alert_run_url=""
           if [ -n "$weekly_number" ]; then
-            weekly_created_at=$(gh api "repos/$GH_REPO/issues/$weekly_number" --jq '.created_at')
+            weekly_created_alert=$(gh api "repos/$GH_REPO/issues/$weekly_number" \
+              --jq '[.created_at, (if .user.login == "github-actions[bot]" then .body else "" end)] | @json')
             weekly_bot_alerts=$(gh api "repos/$GH_REPO/issues/$weekly_number/comments" --paginate \
-              --jq '.[] | select(.user.login == "github-actions[bot]") | .created_at')
-            weekly_last_alert=$(
-              printf '%s\n' "$weekly_created_at" "$weekly_bot_alerts" | sort | tail -n 1
+              --jq '.[] | select(.user.login == "github-actions[bot]") | [.created_at, .body] | @json')
+            weekly_alert=$(
+              printf '%s\n' "$weekly_created_alert" "$weekly_bot_alerts" | python -c 'import json, re, sys
+          alerts = [json.loads(line) for line in sys.stdin if line.strip()]
+          timestamp, body = sorted(alerts, key=lambda entry: entry[0])[-1]
+          failure = re.search(r"(?m)^(?:Failed run: |The scheduled weekly full sync failed again: )(https?://\S+/actions/runs/[0-9]+)$", body or "")
+          print(timestamp, failure.group(1) if failure else "")'
             )
+            read -r weekly_last_alert weekly_last_alert_run_url <<< "$weekly_alert"
           fi
 
           decision=$(python scripts/sync_alert_decision.py \
@@ -1046,9 +1054,12 @@ jobs:
             --sync-result "$SYNC_RESULT" \
             --publish-result "$PUBLISH_RESULT" \
             --run-attempt "$RUN_ATTEMPT" \
+            --skip-discovery "$SKIP_DISCOVERY" \
+            --run-url "$RUN_URL" \
             --progress latest-progress/sources/learning/full-discovery-progress.json \
             --published-progress published-progress/sources/learning/full-discovery-progress.json \
             --weekly-issue-last-alert-at "$weekly_last_alert" \
+            --weekly-issue-last-alert-run-url "$weekly_last_alert_run_url" \
             --max-cycle-days "$MAX_CYCLE_DAYS")
           echo "Alert decision: $decision"
           field() { printf '%s' "$decision" | python -c 'import json, sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"; }
