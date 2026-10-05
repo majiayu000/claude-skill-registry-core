@@ -1296,3 +1296,101 @@ def test_retained_liveness_evidence_cannot_hide_an_empty_bundle(tmp_path, field,
     assert report["summary"] == {"local_error": 1, "live": 1}
     assert report["rows"][0]["error"] == "bundled_files must be a non-empty list"
     assert report["gate"]["errors"] == ["canonical archive validation failed"]
+
+
+@pytest.mark.parametrize("bundle_state", ["verified", "retained_liveness"])
+def test_missing_top_level_skill_is_a_local_error(tmp_path, bundle_state):
+    skills = tmp_path / "skills"
+    make_verified_asset(skills, "healthy")
+    metadata_path = make_verified_asset(skills, "damaged")
+    (metadata_path.parent / "SKILL.md").unlink()
+    if bundle_state == "retained_liveness":
+        (metadata_path.parent / "scripts/run.py").unlink()
+        metadata = json.loads(metadata_path.read_text())
+        metadata.update({"archive_mode": "skill-md", "bundled_files": [], "asset_liveness": "live"})
+        metadata.pop("bundled_file_blobs")
+        metadata_path.write_text(json.dumps(metadata))
+
+    assert list(archive_preflight.iter_canonical_archive_paths(skills)) == ["dev/healthy"]
+    targets, errors = liveness.load_targets(skills)
+    assert [target.stable_key for target in targets] == ["acme/tools:skills/healthy/SKILL.md"]
+    assert errors == [{
+        "stable_key": "dev/damaged/metadata.json",
+        "status": "local_error",
+        "error": "SKILL.md must be a regular file",
+    }]
+    client = FakeLivenessClient({"skills/healthy/SKILL.md", "skills/healthy/scripts/run.py"})
+    report_path = tmp_path / "report.json"
+    assert liveness.main(
+        ["--skills-dir", str(skills), "--report", str(report_path)], client=client
+    ) == 1
+    report = json.loads(report_path.read_text())
+    assert report["summary"] == {"local_error": 1, "live": 1}
+    assert report["gate"]["errors"] == ["canonical archive validation failed"]
+
+
+def test_nonarchive_and_standalone_missing_skill_remain_excluded(tmp_path):
+    from sync_download_support import build_archived_skill_metadata
+
+    skills = tmp_path / "skills"
+    make_verified_asset(skills, "healthy")
+    notes = skills / "docs" / "notes"
+    notes.mkdir(parents=True)
+    (notes / "record.txt").write_text("ordinary support record")
+    (notes / "metadata.json").write_text("{}")
+    standalone = skills / "dev" / "standalone"
+    standalone.mkdir()
+    metadata = build_archived_skill_metadata(
+        {}, name="standalone", repo="acme/tools", resolved_path="skills/standalone/SKILL.md",
+        branch="main", dir_name="standalone", bundled_files=[], commit_sha="a" * 40,
+        assets_verified_at="2026-09-14T04:15:24Z",
+    )
+    (standalone / "metadata.json").write_text(json.dumps(metadata))
+
+    targets, errors = liveness.load_targets(skills)
+    assert errors == []
+    assert [target.stable_key for target in targets] == ["acme/tools:skills/healthy/SKILL.md"]
+
+
+@pytest.mark.parametrize("level", ["category", "skill"])
+def test_noncanonical_sibling_case_conflicts_are_rejected(tmp_path, level):
+    skills = tmp_path / "skills"
+    metadata_path = make_verified_asset(skills, "foo")
+    if level == "category":
+        (skills / "dev").rename(skills / "Dev")
+        sibling = skills / "dev" / "notes"
+        sibling.mkdir(parents=True)
+        if len(list(skills.iterdir())) < 2:
+            pytest.skip("case-insensitive filesystem cannot represent the fixture")
+    else:
+        sibling = metadata_path.parent.with_name("Foo")
+        try:
+            sibling.mkdir()
+        except FileExistsError:
+            pytest.skip("case-insensitive filesystem cannot represent the fixture")
+    (sibling / "record.txt").write_text("noncanonical sibling")
+
+    with pytest.raises(ValueError, match=f"case-conflicting {level} paths"):
+        list(archive_preflight.iter_canonical_archive_paths(skills, strict_registry=True))
+    targets, errors = liveness.load_targets(skills)
+    assert targets == []
+    assert errors[0]["status"] == "local_error"
+    assert f"case-conflicting {level} paths" in errors[0]["error"]
+
+
+@pytest.mark.parametrize("level", ["category", "skill"])
+def test_case_preflight_checks_noncanonical_directory_inventory(tmp_path, monkeypatch, level):
+    skills = tmp_path / "skills"
+    skills.mkdir()
+    if level == "category":
+        inventory = [(str(skills), ["Dev", "dev"], []),
+                     (str(skills / "Dev"), [], []), (str(skills / "dev"), [], [])]
+    else:
+        inventory = [(str(skills), ["dev"], []),
+                     (str(skills / "dev"), ["foo", "Foo"], []),
+                     (str(skills / "dev/foo"), [], []),
+                     (str(skills / "dev/Foo"), [], [])]
+    monkeypatch.setattr(archive_preflight.os, "walk", lambda *args, **kwargs: iter(inventory))
+
+    with pytest.raises(ValueError, match=f"case-conflicting {level} paths"):
+        list(archive_preflight.iter_canonical_archive_paths(skills, strict_registry=True))

@@ -35,8 +35,28 @@ def iter_canonical_archive_paths(root: str | Path, *, strict_registry: bool = Fa
             relative = Path(dirpath).resolve().relative_to(archive_root)
         except ValueError:
             continue
+        if strict_registry and len(relative.parts) == 1:
+            category = relative.parts[0]
+            category_key = category.casefold()
+            previous_category = seen_categories.get(category_key)
+            if previous_category is not None and previous_category != category:
+                raise ValueError(
+                    "canonical archive contains case-conflicting category paths: "
+                    f"{previous_category}, {category}"
+                )
+            seen_categories[category_key] = category
         if len(relative.parts) != 2:
             continue
+        relative_path = relative.as_posix()
+        if strict_registry:
+            path_key = relative_path.casefold()
+            previous_path = seen_skill_paths.get(path_key)
+            if previous_path is not None and previous_path != relative_path:
+                raise ValueError(
+                    "canonical archive contains case-conflicting skill paths: "
+                    f"{previous_path}, {relative_path}"
+                )
+            seen_skill_paths[path_key] = relative_path
         skill_variants = [name for name in filenames if name.casefold() == "skill.md"]
         if len(skill_variants) > 1:
             rendered = ", ".join(sorted(skill_variants))
@@ -74,25 +94,6 @@ def iter_canonical_archive_paths(root: str | Path, *, strict_registry: bool = Fa
                     "canonical metadata.json must be a regular file "
                     f"(regular non-symlink file required): {relative / 'metadata.json'}"
                 )
-        relative_path = relative.as_posix()
         if not is_safe_portable_relative_path(relative_path):
             raise ValueError(f"non-portable canonical archive path: {relative_path}")
-        if strict_registry:
-            category = relative.parts[0]
-            category_key = category.casefold()
-            previous_category = seen_categories.get(category_key)
-            if previous_category is not None and previous_category != category:
-                raise ValueError(
-                    "canonical archive contains case-conflicting category paths: "
-                    f"{previous_category}, {category}"
-                )
-            seen_categories[category_key] = category
-            path_key = relative_path.casefold()
-            previous_path = seen_skill_paths.get(path_key)
-            if previous_path is not None and previous_path != relative_path:
-                raise ValueError(
-                    "canonical archive contains case-conflicting skill paths: "
-                    f"{previous_path}, {relative_path}"
-                )
-            seen_skill_paths[path_key] = relative_path
         yield relative_path

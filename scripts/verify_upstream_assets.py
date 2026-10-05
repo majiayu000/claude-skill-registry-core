@@ -266,10 +266,10 @@ def load_targets(skills_dir: Path) -> tuple[list[Target], list[dict]]:
     seen = set()
     metadata_paths = []
     try:
-        canonical_paths = sorted(iter_canonical_archive_paths(skills_dir, strict_registry=True))
+        canonical_paths = set(iter_canonical_archive_paths(skills_dir, strict_registry=True))
     except ValueError as exc:
         return [], [{"stable_key": str(skills_dir), "status": "local_error", "error": str(exc)}]
-    for relative_dir in canonical_paths:
+    for relative_dir in sorted(canonical_paths):
         skill_path = root / relative_dir
         metadata_path = skill_path / "metadata.json"
         if not metadata_path.is_file():
@@ -283,12 +283,17 @@ def load_targets(skills_dir: Path) -> tuple[list[Target], list[dict]]:
                 )
             continue
         metadata_paths.append(metadata_path)
-    for metadata_path in metadata_paths:
+    for metadata_path in sorted(set(metadata_paths) | set(root.glob("*/*/metadata.json"))):
         skill_dir = metadata_path.parent
         try:
             raw_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             raw_metadata = None
+        if skill_dir.relative_to(root).as_posix() not in canonical_paths and (
+            not isinstance(raw_metadata, dict)
+            or not any(field in raw_metadata for field in VERIFICATION_EVIDENCE_FIELDS)
+        ):
+            continue
         if not _looks_like_target(raw_metadata, skill_dir):
             continue
         try:
