@@ -111,24 +111,58 @@ def test_full_run_without_progress_file_is_left_alone():
     assert decide(progress=None)["action"] == "none"
 
 
-def test_cli_reads_progress_file(tmp_path):
+def test_parse_time_treats_naive_timestamps_as_utc():
+    assert alert.parse_time("2026-10-05T04:36:22") == datetime(2026, 10, 5, 4, 36, 22, tzinfo=timezone.utc)
+    assert alert.parse_time("") is None
+
+
+def test_load_progress_handles_missing_file(tmp_path):
+    assert alert.load_progress(None) is None
+    assert alert.load_progress(str(tmp_path / "missing.json")) is None
+
+
+def run_cli(capsys, *args):
+    assert alert.main(list(args)) == 0
+    return json.loads(capsys.readouterr().out)
+
+
+def test_cli_reads_progress_file(tmp_path, capsys):
     path = tmp_path / "progress.json"
     path.write_text(json.dumps(progress(4, completed_at="2026-10-05T04:36:22Z")), encoding="utf-8")
+    decision = run_cli(
+        capsys, "--event-name", "workflow_dispatch", "--is-full", "true",
+        "--preflight-result", "success", "--sync-result", "success", "--publish-result", "success",
+        "--progress", str(path), "--weekly-issue-last-alert-at", "2026-10-04T02:40:00Z",
+        "--max-cycle-days", "", "--now", NOW.isoformat(),
+    )
+    assert decision["action"] == "close"
+
+
+def test_cli_applies_max_cycle_days_and_defaults_now(tmp_path, capsys):
+    path = tmp_path / "progress.json"
+    stale = progress(2)
+    stale["started_at"] = "2020-01-01T00:00:00Z"
+    path.write_text(json.dumps(stale), encoding="utf-8")
+    decision = run_cli(
+        capsys, "--event-name", "schedule", "--is-full", "true",
+        "--preflight-result", "success", "--sync-result", "success", "--publish-result", "success",
+        "--run-attempt", "1", "--progress", str(path), "--max-cycle-days", "30",
+    )
+    assert decision["action"] == "flag"
+    assert "30 days" in decision["message"]
+
+
+def test_cli_rejects_non_positive_max_cycle_days(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        alert.main(["--event-name", "schedule", "--is-full", "true", "--max-cycle-days", "0"])
+    assert excinfo.value.code == 2
+
+
+def test_script_entry_point_runs(tmp_path):
     output = subprocess.run(
         [sys.executable, str(SCRIPTS_DIR / "sync_alert_decision.py"),
-         "--event-name", "workflow_dispatch", "--is-full", "true",
-         "--preflight-result", "success", "--sync-result", "success", "--publish-result", "success",
-         "--progress", str(path), "--weekly-issue-last-alert-at", "2026-10-04T02:40:00Z",
-         "--max-cycle-days", "", "--now", NOW.isoformat()],
+         "--event-name", "workflow_dispatch", "--is-full", "false",
+         "--progress", str(tmp_path / "missing.json")],
         capture_output=True, text=True, check=True,
     ).stdout
-    assert json.loads(output)["action"] == "close"
-
-
-def test_cli_rejects_non_positive_max_cycle_days():
-    result = subprocess.run(
-        [sys.executable, str(SCRIPTS_DIR / "sync_alert_decision.py"),
-         "--event-name", "schedule", "--is-full", "true", "--max-cycle-days", "0"],
-        capture_output=True, text=True,
-    )
-    assert result.returncode == 2
+    assert json.loads(output)["action"] == "none"
