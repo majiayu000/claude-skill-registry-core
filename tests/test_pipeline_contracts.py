@@ -433,7 +433,8 @@ def test_publish_static_pages_receives_catalog_archive_and_output_together():
             "bash",
             "-e",
             "-c",
-            'main_dir=/tmp/publish\nrun_step() { printf "%s\\n" "$@"; }\n' + command,
+            'main_dir=/tmp/publish\narchive_dir=/tmp/publish/skills\n'
+            'run_step() { printf "%s\\n" "$@"; }\n' + command,
         ],
         capture_output=True,
         text=True,
@@ -450,6 +451,75 @@ def test_publish_static_pages_receives_catalog_archive_and_output_together():
         "--output",
         "/tmp/publish/docs",
     ]
+
+
+def test_publish_sync_rebuild_steps_read_the_selected_archive_dir():
+    sync_script = read_repo_file("scripts/sync_main_repo.sh")
+    rebuild_block = sync_script[sync_script.index('if [[ "$rebuild" -eq 1 ]]') :]
+
+    assert '"$main_dir/skills"' not in rebuild_block
+    assert rebuild_block.count('"$archive_dir"') == 6
+    selection = sync_script[
+        sync_script.index('if [[ "$mirror_skills" -eq 1 ]]') : sync_script.index(
+            'if [[ "$rebuild" -eq 1 ]]'
+        )
+    ]
+    assert 'run_step "Sync data -> main/skills" sync_data_to_main' in selection
+    assert 'archive_dir="$main_dir/skills"' in selection
+    assert 'archive_dir="$data_dir"' in selection
+
+
+def test_publish_sync_without_skills_mirror_builds_from_data_dir(tmp_path):
+    core, data, main = (tmp_path / name for name in ("core", "data", "main"))
+    for path in (core, data, main):
+        path.mkdir()
+    for directory in ("scripts", "schema", "taxonomy"):
+        shutil.copytree(ROOT / directory, core / directory)
+    skill = data / "design/legal-example"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# legal example\n", encoding="utf-8")
+    (skill / "metadata.json").write_text(
+        json.dumps(
+            {
+                "name": "legal-example",
+                "repo": "owner/repo",
+                "category": "design",
+                "dir_name": "legal-example",
+                "author": "Owner",
+                "license": "MIT",
+                "copyright": "Copyright 2026 Owner",
+                "distribution": "compatible",
+                "source_url": "https://github.com/owner/repo/blob/main/SKILL.md",
+                "permission_note": "Preserve the copyright and permission notice.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            "bash", str(core / "scripts/sync_main_repo.sh"),
+            "--core", str(core), "--data", str(data), "--main", str(main),
+            "--no-rebuild", "--no-skills-mirror",
+        ],
+        cwd=main,
+        env={
+            **os.environ,
+            "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Skipping data -> main/skills mirror" in result.stdout
+    assert "START: Sync data -> main/skills" not in result.stdout
+    assert not (main / "skills").exists()
+    assert (skill / "SKILL.md").is_file()
+    assert "Copyright 2026 Owner" in (main / "THIRD_PARTY_NOTICES.d/part-00001.md").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_publish_sync_preserves_main_owned_routing_files():

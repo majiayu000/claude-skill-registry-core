@@ -167,6 +167,13 @@ arrays are `skills`.
 Each shard/part `count` must equal its payload array length and manifest entry
 count. Manifest entry `bytes`, `gzip_bytes`, and `sha256` describe the referenced
 plain/gzip files exactly; gzip JSON must be structurally identical to plain JSON.
+Gzip files are written with an empty file name and zero mtime, so identical
+payloads are byte-identical.
+
+Registry shard `generated_at` is the time that shard's content last changed. An
+unchanged shard keeps its previous value, so it may be earlier than the manifest
+`generated_at` but never later. Consumers should use the manifest `generated_at`
+as the publish time.
 
 ## Same-set Count Groups
 
