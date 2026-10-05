@@ -30,6 +30,7 @@ def decide(**overrides):
     kwargs = dict(event_name="schedule", is_full=True, results=OK, run_attempt=1,
                   progress=progress(2), weekly_issue_last_alert_at=None, now=NOW)
     kwargs.update(overrides)
+    kwargs.setdefault("published_progress", kwargs["progress"])
     return alert.decide(**kwargs)
 
 
@@ -67,6 +68,46 @@ def test_completion_does_not_close_when_this_run_did_not_succeed():
         weekly_issue_last_alert_at=datetime(2026, 10, 4, tzinfo=timezone.utc),
     )
     assert result["action"] == "none"
+
+
+@pytest.mark.parametrize("event", ["schedule", "workflow_dispatch"])
+def test_old_incomplete_handoff_cannot_close_latest_main_completion(event):
+    result = decide(
+        event_name=event,
+        run_attempt=2,
+        results=dict(OK, sync="skipped"),
+        progress=progress(4, completed_at="2026-10-05T04:36:22Z"),
+        published_progress=progress(2),
+        weekly_issue_last_alert_at=datetime(2026, 10, 4, tzinfo=timezone.utc),
+    )
+    assert result["action"] == "none"
+
+
+@pytest.mark.parametrize("published", [None, progress(4, completed_at="2026-10-01T00:00:00Z")])
+def test_full_run_requires_published_completion_after_last_alert(published):
+    result = decide(
+        progress=progress(4, completed_at="2026-10-05T04:36:22Z"),
+        published_progress=published,
+        weekly_issue_last_alert_at=datetime(2026, 10, 4, tzinfo=timezone.utc),
+    )
+    assert result["action"] == "none"
+
+
+def test_published_completion_can_close_after_main_starts_another_cycle():
+    result = decide(
+        progress=progress(2),
+        published_progress=progress(4, completed_at="2026-10-05T04:36:22Z"),
+        weekly_issue_last_alert_at=datetime(2026, 10, 4, tzinfo=timezone.utc),
+    )
+    assert result["action"] == "close"
+    assert result["title"] == alert.WEEKLY_TITLE
+    assert "4/4" in result["message"]
+
+
+def test_missing_published_progress_still_allows_daily_recovery():
+    result = decide(is_full=False, published_progress=None)
+    assert result["action"] == "close"
+    assert result["title"] == alert.DAILY_TITLE
 
 
 @pytest.mark.parametrize("is_full,title", [(True, alert.WEEKLY_TITLE), (False, alert.DAILY_TITLE)])
@@ -121,6 +162,13 @@ def test_load_progress_handles_missing_file(tmp_path):
     assert alert.load_progress(str(tmp_path / "missing.json")) is None
 
 
+def test_load_progress_propagates_malformed_json(tmp_path):
+    path = tmp_path / "progress.json"
+    path.write_text("not-json", encoding="utf-8")
+    with pytest.raises(json.JSONDecodeError):
+        alert.load_progress(str(path))
+
+
 def run_cli(capsys, *args):
     assert alert.main(list(args)) == 0
     return json.loads(capsys.readouterr().out)
@@ -132,7 +180,8 @@ def test_cli_reads_progress_file(tmp_path, capsys):
     decision = run_cli(
         capsys, "--event-name", "workflow_dispatch", "--is-full", "true",
         "--preflight-result", "success", "--sync-result", "success", "--publish-result", "success",
-        "--progress", str(path), "--weekly-issue-last-alert-at", "2026-10-04T02:40:00Z",
+        "--progress", str(path), "--published-progress", str(path),
+        "--weekly-issue-last-alert-at", "2026-10-04T02:40:00Z",
         "--max-cycle-days", "", "--now", NOW.isoformat(),
     )
     assert decision["action"] == "close"

@@ -1011,19 +1011,23 @@ ALERT_PROGRESS = {
 }
 
 
-def stage_alert_workspace(tmp_path: Path, progress: str) -> None:
-    """Lay out what the alert job's sparse checkout of main provides."""
+def stage_alert_workspace(tmp_path: Path, progress: str, published_progress: str = None) -> None:
+    """Stage the pinned helper, latest cursor, and published cursor checkouts."""
     (tmp_path / "scripts").mkdir(exist_ok=True)
     shutil.copy(ROOT / "scripts" / "sync_alert_decision.py", tmp_path / "scripts")
-    if progress == "absent":
-        return
-    state = dict(ALERT_PROGRESS[progress])
-    if state["started_at"] is None:
-        from datetime import datetime, timedelta, timezone
-        state["started_at"] = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-    target = tmp_path / "sources" / "learning" / "full-discovery-progress.json"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(state), encoding="utf-8")
+    for checkout, value in (
+        ("latest-progress", progress),
+        ("published-progress", published_progress if published_progress is not None else progress),
+    ):
+        if value == "absent":
+            continue
+        state = dict(ALERT_PROGRESS[value])
+        if state["started_at"] is None:
+            from datetime import datetime, timedelta, timezone
+            state["started_at"] = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        target = tmp_path / checkout / "sources" / "learning" / "full-discovery-progress.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(state), encoding="utf-8")
 
 
 @pytest.mark.parametrize("event,is_full,progress,preflight,sync,publish,attempt,failed_number,action", [
@@ -1129,7 +1133,7 @@ fi
     )
     fake_gh.chmod(0o755)
     stage_alert_workspace(tmp_path, "absent")
-    target = tmp_path / "sources" / "learning" / "full-discovery-progress.json"
+    target = tmp_path / "latest-progress" / "sources" / "learning" / "full-discovery-progress.json"
     target.parent.mkdir(parents=True)
     target.write_text(json.dumps({"started_at": "2026-01-01T00:00:00Z", "repos": ["a/b", "c/d"],
                                   "next_repo": 1, "completed_at": None}), encoding="utf-8")
@@ -1234,14 +1238,87 @@ fi
     assert not actions.exists(), actions.read_text() if actions.exists() else ""
 
 
-def test_sync_alert_reads_progress_from_main_on_every_trigger():
+@pytest.mark.parametrize("event", ["schedule", "workflow_dispatch"])
+def test_sync_alert_old_incomplete_handoff_does_not_close_new_main_completion(tmp_path, event):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_gh = bin_dir / "gh"
+    fake_gh.write_text(
+        """#!/bin/bash
+if [ "$2" = "list" ]; then
+  echo 323
+elif [ "$1" = "api" ]; then
+  case "$*" in *created_at*) echo "2026-10-04T00:00:00Z"; exit 0 ;; esac
+  exit 24
+else
+  touch "$ALERT_ACTIONS"
+fi
+"""
+    )
+    fake_gh.chmod(0o755)
+    stage_alert_workspace(tmp_path, "done-new", published_progress="running")
+    actions = tmp_path / "actions"
+    result = run_workflow_script(
+        workflow_step("alert", "Open, update or close the sync alert issue"), tmp_path,
+        dict(PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}", GH_REPO="Owner/Core",
+             EVENT_NAME=event, IS_FULL="true", PREFLIGHT_RESULT="success",
+             SYNC_RESULT="skipped", PUBLISH_RESULT="success", RUN_ATTEMPT="2", RUN_NUMBER="10",
+             RUN_URL="https://github.com/Owner/Core/actions/runs/1234", MAX_CYCLE_DAYS="",
+             WEEKLY_TITLE="[sync-data] Weekly full sync failed", ALERT_ACTIONS=str(actions)),
+    )
+    assert result.returncode == 0, result.stderr
+    assert not actions.exists()
+
+
+def test_sync_alert_keeps_trigger_helper_when_main_advances(tmp_path):
+    alert = read_workflow(".github/workflows/sync-data.yml")["jobs"]["alert"]
+    checkout = next(
+        step for step in alert["steps"]
+        if "scripts/sync_alert_decision.py" in step.get("with", {}).get("sparse-checkout", "")
+    )
+    source = tmp_path / "source"
+    source.mkdir()
+    subprocess.run(["git", "init", "-b", "main"], cwd=source, check=True, capture_output=True)
+    (source / "scripts").mkdir()
+    helper = source / "scripts" / "sync_alert_decision.py"
+    shutil.copy(ROOT / "scripts" / "sync_alert_decision.py", helper)
+    for message in ("trigger", "advance main"):
+        if message == "advance main":
+            helper.write_text('raise SystemExit("incompatible newer helper")\n', encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=source, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-c", "user.name=Test", "-c", "user.email=test@example.com",
+             "commit", "-m", message], cwd=source, check=True, capture_output=True,
+        )
+        if message == "trigger":
+            trigger_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source, text=True).strip()
+    ref = checkout["with"]["ref"].replace("${{ github.sha }}", trigger_sha)
+    checked_out_helper = tmp_path / "sync_alert_decision.py"
+    checked_out_helper.write_bytes(subprocess.check_output(
+        ["git", "show", f"{ref}:scripts/sync_alert_decision.py"], cwd=source,
+    ))
+    result = subprocess.run(
+        [sys.executable, str(checked_out_helper), "--event-name", "workflow_dispatch",
+         "--is-full", "false"], capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["action"] == "none"
+
+
+def test_sync_alert_reads_latest_and_published_progress_on_every_trigger():
     alert = read_workflow(".github/workflows/sync-data.yml")["jobs"]["alert"]
     assert alert["if"] == "${{ always() }}"
-    checkout = alert["steps"][0]
-    assert checkout["uses"].startswith("actions/checkout@")
-    assert checkout["with"]["ref"] == "main"
-    assert "sources/learning/full-discovery-progress.json" in checkout["with"]["sparse-checkout"]
-    assert "scripts/sync_alert_decision.py" in checkout["with"]["sparse-checkout"]
+    helper, latest, published = alert["steps"][:3]
+    assert helper["with"]["ref"] == "${{ github.sha }}"
+    assert helper["with"]["sparse-checkout"] == "scripts/sync_alert_decision.py"
+    for checkout in (latest, published):
+        assert checkout["uses"].startswith("actions/checkout@")
+        assert checkout["with"]["sparse-checkout"] == "sources/learning/full-discovery-progress.json"
+    assert latest["with"]["ref"] == "main"
+    assert latest["with"]["path"] == "latest-progress"
+    assert published["with"]["ref"] == "${{ needs.publish.outputs.core_sha }}"
+    assert published["with"]["path"] == "published-progress"
+    assert published["if"] == "needs.publish.result == 'success'"
     step = workflow_step("alert", "Open, update or close the sync alert issue")
     assert step["env"]["MAX_CYCLE_DAYS"] == "${{ vars.FULL_DISCOVERY_MAX_CYCLE_DAYS }}"
     assert step["env"]["EVENT_NAME"] == "${{ github.event_name }}"
@@ -1635,7 +1712,7 @@ def test_sync_data_handoff_validator_executes_and_exports_verified_fields(
     publish = read_workflow(".github/workflows/sync-data.yml")["jobs"]["publish"]
     assert publish["outputs"] == {
         key: "${{ steps.handoff.outputs." + key + " }}"
-        for key in ("full_scan", "full_cycle_complete")
+        for key in ("core_sha", "full_scan", "full_cycle_complete")
     }
     handoff = workflow_step("sync", "Build immutable publish handoff")
     assert handoff["env"]["FULL_SCAN"] == "${{ steps.discovery.outputs.profile == 'full' }}"

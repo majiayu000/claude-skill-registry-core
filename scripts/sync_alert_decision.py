@@ -47,6 +47,7 @@ def decide(
     results: dict,
     run_attempt: int = 1,
     progress: Optional[dict],
+    published_progress: Optional[dict],
     weekly_issue_last_alert_at: Optional[datetime],
     now: datetime,
     max_cycle_days: int = DEFAULT_MAX_CYCLE_DAYS,
@@ -75,14 +76,18 @@ def decide(
             return {"action": "none", "reason": "Manual run failures are watched by whoever started them."}
         return {"action": "report", "title": title, "scope": scope}
 
-    completed_at = parse_time(progress.get("completed_at")) if progress else None
+    completed_at = parse_time(published_progress.get("completed_at")) if published_progress else None
+    published_cycle_complete = (
+        bool(published_progress)
+        and published_progress["next_repo"] == len(published_progress["repos"])
+    )
     cycle_complete = bool(progress) and progress["next_repo"] == len(progress["repos"])
 
     # A cycle that finished after the weekly alert was last raised resolves it, whichever
     # trigger (schedule, manual full_scan, or a daily resume) carried the final batch.
     if (
         succeeded
-        and cycle_complete
+        and published_cycle_complete
         and completed_at is not None
         and weekly_issue_last_alert_at is not None
         and completed_at > weekly_issue_last_alert_at
@@ -92,8 +97,9 @@ def decide(
             "title": WEEKLY_TITLE,
             "scope": "weekly full sync",
             "message": (
-                f"The full discovery cycle completed at {progress['completed_at']} "
-                f"({progress['next_repo']}/{len(progress['repos'])} repositories); closing this alert."
+                f"The full discovery cycle completed at {published_progress['completed_at']} "
+                f"({published_progress['next_repo']}/{len(published_progress['repos'])} repositories); "
+                "closing this alert."
             ),
         }
 
@@ -123,6 +129,8 @@ def decide(
         return {"action": "none", "reason": "Manual runs only resolve a completed weekly cycle."}
     if not succeeded:
         return {"action": "none", "reason": "Run neither failed nor fully succeeded; leaving alerts unchanged."}
+    if is_full:
+        return {"action": "none", "reason": "No published cycle completion newer than the weekly alert."}
     return {
         "action": "close",
         "title": title,
@@ -139,7 +147,9 @@ def main(argv: Optional[list] = None) -> int:
     parser.add_argument("--sync-result", default="")
     parser.add_argument("--publish-result", default="")
     parser.add_argument("--run-attempt", type=int, default=1)
-    parser.add_argument("--progress", help="Path to full-discovery-progress.json")
+    parser.add_argument("--progress", help="Latest main full-discovery-progress.json (overdue alerts)")
+    parser.add_argument("--published-progress",
+                        help="Full-discovery-progress.json from the published core SHA (weekly closure)")
     parser.add_argument("--weekly-issue-last-alert-at", default="",
                         help="Newest alert timestamp on the open weekly issue, if any")
     parser.add_argument("--max-cycle-days", default="",
@@ -160,6 +170,7 @@ def main(argv: Optional[list] = None) -> int:
         },
         run_attempt=args.run_attempt,
         progress=load_progress(args.progress),
+        published_progress=load_progress(args.published_progress),
         weekly_issue_last_alert_at=parse_time(args.weekly_issue_last_alert_at),
         now=parse_time(args.now) or datetime.now(timezone.utc),
         max_cycle_days=max_cycle_days,

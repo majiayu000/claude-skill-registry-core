@@ -845,6 +845,7 @@ jobs:
       }}
     runs-on: ubuntu-latest
     outputs:
+      core_sha: ${{ steps.handoff.outputs.core_sha }}
       full_scan: ${{ steps.handoff.outputs.full_scan }}
       full_cycle_complete: ${{ steps.handoff.outputs.full_cycle_complete }}
     steps:
@@ -970,7 +971,7 @@ jobs:
   alert:
     needs: [preflight, sync, publish]
     # Only schedules open or comment on issues (manual runs are watched by whoever started them),
-    # but any run that observes a finished full discovery cycle may resolve the weekly alert.
+    # but any run that publishes a finished full discovery cycle may resolve the weekly alert.
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -978,14 +979,30 @@ jobs:
       contents: read
       issues: write
     steps:
+      - name: Checkout alert helper from workflow revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: scripts/sync_alert_decision.py
+          sparse-checkout-cone-mode: false
+
       - name: Checkout latest discovery progress
         uses: actions/checkout@v6
         with:
           # Sync commits the progress cursor to main, so read it after this run's push.
           ref: main
-          sparse-checkout: |
-            scripts/sync_alert_decision.py
-            sources/learning/full-discovery-progress.json
+          path: latest-progress
+          sparse-checkout: sources/learning/full-discovery-progress.json
+          sparse-checkout-cone-mode: false
+
+      - name: Checkout published discovery progress
+        if: needs.publish.result == 'success'
+        uses: actions/checkout@v6
+        with:
+          # Closure must use the core SHA from the validated immutable handoff.
+          ref: ${{ needs.publish.outputs.core_sha }}
+          path: published-progress
+          sparse-checkout: sources/learning/full-discovery-progress.json
           sparse-checkout-cone-mode: false
 
       - name: Open, update or close the sync alert issue
@@ -1030,7 +1047,8 @@ jobs:
             --sync-result "$SYNC_RESULT" \
             --publish-result "$PUBLISH_RESULT" \
             --run-attempt "$RUN_ATTEMPT" \
-            --progress sources/learning/full-discovery-progress.json \
+            --progress latest-progress/sources/learning/full-discovery-progress.json \
+            --published-progress published-progress/sources/learning/full-discovery-progress.json \
             --weekly-issue-last-alert-at "$weekly_last_alert" \
             --max-cycle-days "$MAX_CYCLE_DAYS")
           echo "Alert decision: $decision"
