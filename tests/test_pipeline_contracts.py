@@ -1151,7 +1151,7 @@ fi
     assert (actions.read_text().strip() if actions.exists() else None) == action
 
 
-@pytest.mark.parametrize("lookup_failure", ["body", "comments", "run"])
+@pytest.mark.parametrize("lookup_failure", ["created", "body", "comments", "run"])
 def test_sync_alert_replay_lookup_failure_does_not_close(tmp_path, lookup_failure):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -1161,7 +1161,13 @@ def test_sync_alert_replay_lookup_failure_does_not_close(tmp_path, lookup_failur
 if [ "$2" = "list" ]; then
   echo 323
 elif [ "$1" = "api" ]; then
-  case "$*" in *created_at*) echo "2026-10-04T00:00:00Z"; exit 0 ;; esac
+  case "$*" in
+    *created_at*)
+      if [ "$LOOKUP_FAILURE" = "created" ] && [ "$2" = "repos/Owner/Core/issues/323" ]; then
+        exit 23
+      fi
+      echo "2026-10-04T00:00:00Z"; exit 0 ;;
+  esac
   case "$2" in
     */issues/323)
       [ "$LOOKUP_FAILURE" != "body" ] || exit 23

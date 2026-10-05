@@ -1031,12 +1031,11 @@ jobs:
           weekly_number=$(find_issue "$WEEKLY_TITLE")
           weekly_last_alert=""
           if [ -n "$weekly_number" ]; then
+            weekly_created_at=$(gh api "repos/$GH_REPO/issues/$weekly_number" --jq '.created_at')
+            weekly_bot_alerts=$(gh api "repos/$GH_REPO/issues/$weekly_number/comments" --paginate \
+              --jq '.[] | select(.user.login == "github-actions[bot]") | .created_at')
             weekly_last_alert=$(
-              {
-                gh api "repos/$GH_REPO/issues/$weekly_number" --jq '.created_at'
-                gh api "repos/$GH_REPO/issues/$weekly_number/comments" --paginate \
-                  --jq '.[] | select(.user.login == "github-actions[bot]") | .created_at'
-              } | sort | tail -n 1
+              printf '%s\n' "$weekly_created_at" "$weekly_bot_alerts" | sort | tail -n 1
             )
           fi
 
