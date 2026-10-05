@@ -197,9 +197,15 @@ if [[ "$rebuild" -eq 1 ]]; then
     --output "$main_dir/docs" \
     --security-report "$security_report_path"
 
+  # --archive writes category READMEs; only the publishing mirror is writable.
+  # In no-mirror mode the catalog already contains everything needed for pages.
+  static_page_archive_args=()
+  if [[ "$mirror_skills" -eq 1 ]]; then
+    static_page_archive_args=(--archive "$archive_dir")
+  fi
   run_step "Build static featured skill pages" python "$main_dir/scripts/build_static_skill_pages.py" \
     --catalog "$main_dir/docs/page-catalog.json" \
-    --archive "$archive_dir" \
+    "${static_page_archive_args[@]}" \
     --output "$main_dir/docs"
   run_step "Remove temporary guide catalog" rm "$main_dir/docs/page-catalog.json"
   rm -f "$security_report_path"
