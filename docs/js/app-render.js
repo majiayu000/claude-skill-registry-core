@@ -72,7 +72,7 @@ function createLeaderboardCard(skill, rank) {
     const isOfficial = skill.c === 'off';
 
     return `
-        <div class="leaderboard-card ${rankClass}" data-install="${escapeHtml(install)}" onclick="showSkillDetail(this)">
+        <div class="leaderboard-card ${rankClass}" data-install="${escapeHtml(install)}" data-branch="${escapeHtml(skill.b || 'main')}" onclick="showSkillDetail(this)">
             <div class="rank ${rankClass}">${rankIcon || '#' + rank}</div>
             <div class="leaderboard-info">
                 <div class="leaderboard-header">
@@ -378,6 +378,7 @@ function showRandomSkill() {
     // Create a temporary card element to pass to showSkillDetail
     const tempCard = document.createElement('div');
     tempCard.dataset.install = skill.i;
+    tempCard.dataset.branch = skill.b || 'main';
     showSkillDetail(tempCard);
 }
 
@@ -390,6 +391,7 @@ function createSkillCard(skill, isFeatured = false, showFavoriteBtn = true) {
     const tags = isFeatured ? (skill.tags || []) : (skill.g || []);
     const stars = isFeatured ? skill.stars : skill.r;
     const install = isFeatured ? skill.install : skill.i;
+    const branch = (isFeatured ? skill.branch : skill.b) || 'main';
 
     const isFavorite = state.favorites.includes(install);
     const isOfficial = categoryCode === 'off' || categoryCode === 'official';
@@ -399,7 +401,7 @@ function createSkillCard(skill, isFeatured = false, showFavoriteBtn = true) {
     ).join('');
 
     return `
-        <div class="skill-card" data-install="${escapeHtml(install)}" onclick="showSkillDetail(this)">
+        <div class="skill-card" data-install="${escapeHtml(install)}" data-branch="${escapeHtml(branch)}" onclick="showSkillDetail(this)">
             <div class="skill-header">
                 <span class="skill-name">
                     ${skill.u ? `<a href="${escapeHtml(skill.u)}" onclick="event.stopPropagation()">${escapeHtml(name)}</a>` : escapeHtml(name)}
@@ -457,10 +459,12 @@ function displayResults() {
 // Show skill detail modal with similar skills
 async function showSkillDetail(card) {
     const install = card.dataset.install;
+    const branch = card.dataset.branch || 'main';
+    const matchesSource = skill => skill.i === install && (skill.b || 'main') === branch;
 
     // Find skill in the loaded startup index or the current lazy-loaded result page.
-    const skill = state.index.s.find(s => s.i === install)
-        || state.results.map(result => result.item).find(s => s.i === install);
+    const skill = state.index.s.find(matchesSource)
+        || state.results.map(result => result.item).find(matchesSource);
     if (!skill) return;
 
     const tagsHtml = (skill.g || []).map(tag =>
@@ -477,7 +481,7 @@ async function showSkillDetail(card) {
             <h4>Similar Skills</h4>
             <div class="similar-grid">
                 ${similarSkills.map(s => `
-                    <div class="similar-card" data-install="${escapeHtml(s.i)}" onclick="showSkillDetail(this)">
+                    <div class="similar-card" data-install="${escapeHtml(s.i)}" data-branch="${escapeHtml(s.b || 'main')}" onclick="showSkillDetail(this)">
                         <span class="similar-name">${escapeHtml(s.n)}</span>
                         <span class="similar-stars">${s.r > 0 ? '⭐' + s.r.toLocaleString() : ''}</span>
                     </div>

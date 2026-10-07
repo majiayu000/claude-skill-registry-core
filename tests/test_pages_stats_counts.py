@@ -106,3 +106,46 @@ assert.strictEqual(normalized.is_canonical, false);
 })().catch(error => { console.error(error); process.exitCode = 1; });
 """], cwd=ROOT, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_copy_modal_selects_the_clicked_source_branch():
+    result = subprocess.run(["node", "-e", r"""
+const fs = require('fs');
+const vm = require('vm');
+const assert = require('assert');
+const main = { n: 'main skill', d: 'main body', c: 'dev', i: 'acme/repo/review', b: 'main', r: 10, canonical_id: 'main-group' };
+const master = { ...main, n: 'master skill', d: 'different body', b: 'master', canonical_id: 'master-group' };
+const context = {
+    state: { index: { s: [main] }, results: [{ item: master }], favorites: [] },
+    document: { addEventListener: () => {}, createElement: () => ({ dataset: {} }) },
+    elements: { modalBody: {}, modal: { classList: { remove: () => {} } } },
+    categoryDisplayName: code => code,
+    findSimilarSkills: () => [],
+};
+vm.createContext(context);
+vm.runInContext(fs.readFileSync('docs/js/app-render.js', 'utf8'), context);
+let opened;
+context.loadSkillSourceCopies = skill => { opened = skill; };
+context.loadCommunityData = () => {};
+(async () => {
+    assert(context.createSkillCard(master).includes('data-branch="master"'));
+    assert(context.createLeaderboardCard(master, 1).includes('data-branch="master"'));
+    assert(context.createSkillCard({ name: 'master', install: master.i, branch: 'master', stars: 10 }, true).includes('data-branch="master"'));
+    await context.showSkillDetail({ dataset: { install: master.i, branch: 'master' } });
+    assert.strictEqual(opened.canonical_id, 'master-group');
+    assert(context.elements.modalBody.innerHTML.includes('master skill'));
+    assert(context.elements.modalBody.innerHTML.includes('/blob/master/'));
+    context.state.index.s = [main, master];
+    context.state.results = [];
+    await context.showSkillDetail({ dataset: { install: master.i, branch: 'master' } });
+    assert.strictEqual(opened.canonical_id, 'master-group');
+    context.findSimilarSkills = () => [master];
+    await context.showSkillDetail({ dataset: { install: main.i, branch: 'main' } });
+    assert(context.elements.modalBody.innerHTML.includes('class="similar-card" data-install="acme/repo/review" data-branch="master"'));
+    assert.strictEqual(opened.canonical_id, 'main-group');
+    vm.runInContext('Math.random = () => 0.99', context);
+    context.showRandomSkill();
+    assert.strictEqual(opened.canonical_id, 'master-group');
+})().catch(error => { console.error(error); process.exitCode = 1; });
+"""], cwd=ROOT, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
