@@ -421,15 +421,16 @@ def test_publish_sync_has_observable_steps_and_cache_excludes():
     assert "-exec rm -f {} +" in cleanup_block
 
 
+@pytest.mark.parametrize("shell", ["bash", "/bin/bash"])
 @pytest.mark.parametrize("mirror_skills", [0, 1])
-def test_publish_static_pages_receives_catalog_archive_and_output_together(mirror_skills):
+def test_publish_static_pages_receives_catalog_archive_and_output_together(mirror_skills, shell):
     sync_script = read_repo_file("scripts/sync_main_repo.sh")
     command = sync_script[sync_script.index('if [[ "$rebuild" -eq 1 ]]') :]
     command = command.split('\n  run_step "Remove temporary guide catalog"', 1)[0] + '\nfi'
     result = subprocess.run(
         [
-            "bash",
-            "-e",
+            shell,
+            "-eu",
             "-c",
             'main_dir=/tmp/publish\narchive_dir=/tmp/publish/skills\nrebuild=1\n'
             f'mirror_skills={mirror_skills}\n'
