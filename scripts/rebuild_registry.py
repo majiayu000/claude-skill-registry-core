@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from archive_preflight import iter_canonical_archive_paths
+from check_artifact_api import registry_shard_timestamp_ok
 from plugin_index import load_plugins_from_source
 from search_sources import metadata_source_path, verified_asset_fields
 from utils import (
@@ -121,7 +122,7 @@ def load_unchanged_shard_generated_at(shard_path: Path, shard_payload: dict) -> 
     if not isinstance(previous, dict):
         return None
     previous_generated_at = previous.get("generated_at")
-    if not isinstance(previous_generated_at, str) or not previous_generated_at:
+    if not registry_shard_timestamp_ok(previous_generated_at, shard_payload.get("generated_at")):
         return None
     comparable = {key: value for key, value in previous.items() if key != "generated_at"}
     expected = {key: value for key, value in shard_payload.items() if key != "generated_at"}
@@ -487,11 +488,6 @@ if __name__ == "__main__":
         print("=" * 60)
         print("REBUILDING REGISTRY FROM DOWNLOADED SKILLS")
         print("=" * 60)
-        print()
-
-        print("Cleaning orphan metadata.json files...")
-        orphan_removed = cleanup_orphan_metadata(skills_dir)
-        print(f"Removed {orphan_removed} orphan metadata files")
         print()
 
         print(f"Scanning skills directory: {skills_dir}")

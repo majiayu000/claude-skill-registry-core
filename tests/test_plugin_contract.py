@@ -809,3 +809,37 @@ def test_cleanup_orphan_metadata_removes_only_orphans(tmp_path):
     assert removed == 1
     assert (good_dir / "metadata.json").exists()
     assert not orphan_meta.exists()
+
+
+@pytest.mark.parametrize("previous_timestamp", ["invalid", "2026-05-14", "2027-01-01T00:00:00Z"])
+def test_write_registry_shards_repairs_invalid_or_future_timestamp(tmp_path, previous_timestamp):
+    skill = _registry_skill("alpha")
+    shard_id = rebuild_registry.registry_shard_id(skill)
+    rebuild_registry.write_registry_shards([skill], tmp_path, "2026-05-14T00:00:00Z")
+    shard = tmp_path / f"{shard_id}.json"
+    payload = json.loads(shard.read_text())
+    payload["generated_at"] = previous_timestamp
+    shard.write_text(json.dumps(payload))
+    rebuild_registry.write_registry_shards([skill], tmp_path, "2026-05-15T00:00:00Z")
+    assert json.loads(shard.read_text())["generated_at"] == "2026-05-15T00:00:00Z"
+    assert json.loads(gzip.decompress((tmp_path / f"{shard_id}.json.gz").read_bytes()))["generated_at"] == "2026-05-15T00:00:00Z"
+
+
+def test_registry_rebuild_does_not_modify_archive_orphan_metadata(tmp_path):
+    archive = tmp_path / "archive"
+    skill = archive / "design/real"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: real\ndescription: Valid archived skill.\n---\n# Real\n")
+    (skill / "metadata.json").write_text(json.dumps({"name": "real", "repo": "owner/real", "category": "design"}))
+    orphan = archive / "design/orphan/metadata.json"
+    orphan.parent.mkdir()
+    orphan.write_bytes(b'{"name":"orphan"}\n')
+    before = {str(p.relative_to(archive)): p.read_bytes() for p in archive.rglob("*") if p.is_file()}
+    result = subprocess.run([sys.executable, str(SCRIPTS_DIR / "rebuild_registry.py"),
+        "--skills-dir", str(archive), "--registry", str(tmp_path / "registry.json"),
+        "--manifest", str(tmp_path / "manifest.json"), "--shards-dir", str(tmp_path / "shards"),
+        "--skip-categories"], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert {str(p.relative_to(archive)): p.read_bytes() for p in archive.rglob("*") if p.is_file()} == before
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert sum(entry["count"] for entry in manifest["shards"]) == 1
