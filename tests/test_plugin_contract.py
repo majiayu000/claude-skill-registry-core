@@ -1,3 +1,4 @@
+import gzip
 import json
 import subprocess
 import sys
@@ -564,6 +565,75 @@ def test_write_registry_shards_writes_manifest_entries_and_removes_stale(tmp_pat
     assert all((tmp_path / entry["path"]).exists() for entry in entries)
     assert all((tmp_path / entry["gzip_path"]).exists() for entry in entries)
     assert all(entry["sha256"] for entry in entries)
+
+
+def test_safe_write_gzip_json_is_byte_deterministic(tmp_path):
+    first = tmp_path / "first.json.gz"
+    second = tmp_path / "nested" / "second.json.gz"
+    payload = {"schema_version": 1, "skills": [{"name": "alpha"}]}
+
+    rebuild_registry.safe_write_gzip_json(first, payload)
+    rebuild_registry.safe_write_gzip_json(second, payload)
+
+    assert first.read_bytes() == second.read_bytes()
+    assert first.read_bytes()[4:8] == b"\x00\x00\x00\x00"  # mtime
+    assert json.loads(gzip.decompress(first.read_bytes())) == payload
+
+
+def _registry_skill(name: str) -> dict:
+    return {
+        "name": name,
+        "repo": "owner/repo",
+        "path": f"skills/{name}/SKILL.md",
+        "branch": "main",
+    }
+
+
+def test_write_registry_shards_keeps_unchanged_shards_byte_identical(tmp_path):
+    shards_dir = tmp_path / "registry-shards"
+    alpha, beta = _registry_skill("alpha"), _registry_skill("beta")
+    for suffix in range(1000):
+        beta = _registry_skill(f"beta-{suffix}")
+        if rebuild_registry.registry_shard_id(beta) != rebuild_registry.registry_shard_id(alpha):
+            break
+    alpha_id = rebuild_registry.registry_shard_id(alpha)
+    beta_id = rebuild_registry.registry_shard_id(beta)
+
+    rebuild_registry.write_registry_shards([alpha, beta], shards_dir, "2026-05-14T00:00:00Z")
+    before = {path.name: path.read_bytes() for path in shards_dir.iterdir()}
+
+    changed_beta = {**beta, "description": "changed"}
+    entries = rebuild_registry.write_registry_shards(
+        [alpha, changed_beta], shards_dir, "2026-05-15T00:00:00Z"
+    )
+    after = {path.name: path.read_bytes() for path in shards_dir.iterdir()}
+
+    changed = {name for name in before if before[name] != after[name]}
+    assert changed == {f"{beta_id}.json", f"{beta_id}.json.gz"}
+    alpha_payload = json.loads(after[f"{alpha_id}.json"])
+    beta_payload = json.loads(after[f"{beta_id}.json"])
+    assert alpha_payload["generated_at"] == "2026-05-14T00:00:00Z"
+    assert beta_payload["generated_at"] == "2026-05-15T00:00:00Z"
+    empty_id = next(f"{idx:02x}" for idx in range(256) if f"{idx:02x}" not in {alpha_id, beta_id})
+    assert json.loads(after[f"{empty_id}.json"])["generated_at"] == "2026-05-14T00:00:00Z"
+    by_id = {entry["id"]: entry for entry in entries}
+    assert by_id[alpha_id]["sha256"] == rebuild_registry.file_sha256(
+        shards_dir / f"{alpha_id}.json"
+    )
+
+
+@pytest.mark.parametrize("previous", ["not json", "[]", '{"schema_version": 1}'])
+def test_unchanged_shard_timestamp_ignores_unusable_previous_shard(tmp_path, previous):
+    shard_path = tmp_path / "00.json"
+    shard_path.write_text(previous, encoding="utf-8")
+
+    assert (
+        rebuild_registry.load_unchanged_shard_generated_at(
+            shard_path, {"schema_version": 1, "generated_at": "now"}
+        )
+        is None
+    )
+    assert rebuild_registry.load_unchanged_shard_generated_at(tmp_path / "missing.json", {}) is None
 
 
 def test_write_registry_shards_references_paths_from_manifest_location(tmp_path):
