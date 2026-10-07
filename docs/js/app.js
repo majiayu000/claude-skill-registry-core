@@ -190,7 +190,10 @@ function normalizeSkillRecord(skill) {
         r: Number(skill.stars || 0),
         i: skill.install || skill.id || skill.name || '',
         b: skill.branch || 'main',
-        u: skill.u || ''
+        u: skill.u || '',
+        canonical_id: skill.canonical_id,
+        copies: skill.copies,
+        is_canonical: skill.is_canonical
     };
 }
 
@@ -217,10 +220,7 @@ function readNumericStat(key, fallback = 0) {
 }
 
 function getDisplaySkillCount() {
-    return readNumericStat(
-        'registry_skill_count_dedup',
-        Number(state.index?.t || state.index?.s?.length || 0)
-    );
+    return readNumericStat('independent_skill_count', 0);
 }
 
 function updateRegistryCountDisplay() {
@@ -237,7 +237,7 @@ function updateRegistryCountDisplay() {
 
     elements.totalCount.textContent = formattedDeduped;
 
-    const titleParts = [`${formattedDeduped} deduplicated skills`];
+    const titleParts = [`${formattedDeduped} independent skills; copies count once`];
     if (rawArchiveCount > 0) {
         titleParts.push(`${rawArchiveCount.toLocaleString()} archived SKILL.md files`);
     }
@@ -258,12 +258,12 @@ function updateRegistryCountDisplay() {
 
 function updateSearchScopeDisplay() {
     const included = Number(state.index?.includedCount || state.index?.s?.length || 0);
-    const total = getDisplaySkillCount() || included;
+    const total = Number(state.index?.t || included);
     const full = !state.index?.isLite;
     elements.searchScope.textContent = full
-        ? `Searching all ${total.toLocaleString()} skills`
-        : `Searching ${included.toLocaleString()} highlighted of ${total.toLocaleString()} skills`;
-    elements.searchAllBtn.textContent = full ? 'All skills loaded' : `Search all ${total.toLocaleString()}`;
+        ? `Searching all ${total.toLocaleString()} source entries`
+        : `Searching ${included.toLocaleString()} highlighted of ${total.toLocaleString()} source entries`;
+    elements.searchAllBtn.textContent = full ? 'All source entries loaded' : `Search all ${total.toLocaleString()}`;
     elements.searchAllBtn.disabled = full;
 }
 

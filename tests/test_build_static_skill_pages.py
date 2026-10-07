@@ -190,6 +190,24 @@ def test_selection_quality_and_first_wave_limit():
     assert not {"thin", "poor"}.intersection(record["name"] for record in selected)
 
 
+def test_representative_branch_ties_are_order_independent():
+    first = skill("review", content_fingerprint="same", branch="main")
+    second = dict(first, branch="next")
+    assert group_skill_copies([first, second]) == group_skill_copies([second, first])
+
+
+def test_static_detail_lists_every_matching_source(tmp_path):
+    copies = [skill("review", repo=f"acme/source-{index}", install=f"acme/source-{index}/review",
+                    content_fingerprint="same", branch="next") for index in range(12)]
+    [group] = group_skill_copies(copies)
+    build_static_skill_pages([group], tmp_path)
+    detail = (tmp_path / "skills" / group["page_slug"] / "index.html").read_text()
+    assert "Found in 12 repositories" in detail
+    for copy in copies:
+        assert copy["install"] in detail
+    assert "(next)" in detail
+
+
 def test_page_attribution_related_guides_and_archive_entrypoints(tmp_path):
     docs = tmp_path / "docs"
     archive = tmp_path / "archive"

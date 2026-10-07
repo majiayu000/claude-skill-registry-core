@@ -569,6 +569,10 @@ def test_detail_shards_include_deduped_skills_beyond_lite_limit(tmp_path, monkey
     assert winner_record["name"] == "winner-shared"
     assert winner_record["archive_path"] == "development/winner-shared/SKILL.md"
     assert set(winner_record) == {
+        "canonical_id",
+        "copies",
+        "is_canonical",
+        "source_copies",
         "id",
         "name",
         "description",
@@ -1198,6 +1202,45 @@ def test_public_catalog_excludes_registry_and_groups_exact_body_copies(tmp_path)
     assert len({record["u"] for record in lite["skills"]}) == 2
     featured = json.loads((tmp_path / "featured.json").read_text())
     assert all(record["u"].startswith("skills/") for record in featured["skills"])
+
+
+def test_canonical_fields_reuse_body_groups_and_store_sources_once(tmp_path, monkeypatch):
+    monkeypatch.setattr("build_search_index.LITE_INDEX_LIMIT", 1)
+    skills = [
+        _skill(name=" REVIEW ", repo="acme/original", install="acme/original/review", content_fingerprint="a", description="First description " * 10, stars=10),
+        _skill(name="review", repo="acme/copy", install="acme/copy/review", content_fingerprint="a", description="Changed description " * 10, stars=5),
+        _skill(name="review", repo="acme/copy", install="acme/copy/another", content_fingerprint="a", branch="next"),
+        _skill(name="different-name", repo="acme/renamed", install="acme/renamed/review", content_fingerprint="a", description="First description"),
+        _skill(name="review", repo="acme/different-body", install="acme/different-body/review", content_fingerprint="b", description="First description"),
+        _skill(name="review", repo="acme/no-body", install="acme/no-body/review"),
+        _skill(name="review", repo="acme/no-body", install="acme/no-body/another"),
+    ]
+    stats = build_search_index(skills, tmp_path)
+    assert stats["independent_skill_count"] == 5
+    details = [record for path in (tmp_path / "skill-detail-shards").glob("*.json")
+               for record in json.loads(path.read_text())["skills"]]
+    canonical_id = get_stable_id("acme/original/review", "main")
+    group = [record for record in details if record["canonical_id"] == canonical_id]
+    assert len(group) == 3
+    assert {record["copies"] for record in group} == {2}
+    representatives = [record for record in group if record["is_canonical"]]
+    assert len(representatives) == 1
+    assert len(representatives[0]["source_copies"]) == 3
+    assert all("source_copies" not in record for record in group if not record["is_canonical"])
+    assert len({record["canonical_id"] for record in details}) == stats["independent_skill_count"]
+    manifest = json.loads((tmp_path / "search-index-manifest.json").read_text())
+    minis = [record for shard in manifest["shards"]
+             for record in json.loads((tmp_path / shard["path"]).read_text())["s"]]
+    assert len(minis) == len(skills)
+    assert sum(record["is_canonical"] for record in minis) == 5
+    assert {record["canonical_id"] for record in minis} == {record["canonical_id"] for record in details}
+    lite = json.loads((tmp_path / "search-index-lite.json").read_text())
+    assert lite["skills"][0]["canonical_id"] == canonical_id
+    assert lite["skills"][0]["copies"] == 2
+    assert len(details) > lite["included_count"]
+    for path in (tmp_path / "categories").glob("*/part-*.json"):
+        for record in json.loads(path.read_text())["skills"]:
+            assert "canonical_id" in record and "is_canonical" in record and "copies" in record
 
 
 def test_scan_repairs_block_scalar_description_and_retains_legal_metadata(tmp_path):

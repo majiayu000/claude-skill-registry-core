@@ -42,6 +42,7 @@ def group_skill_copies(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]
             int(item.get("quality_score", 0) or 0),
             int(item.get("stars", 0) or 0),
             str(item.get("install") or ""),
+            str(item.get("branch") or "main"),
         ))
         record = dict(representative)
         record["copies"] = sorted(
@@ -104,7 +105,7 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
     repo = esc(record.get("repo") or "")
     tags = "".join(f'<span class="tag">{esc(tag)}</span>' for tag in record.get("tags", []))
     copies = record.get("copies", [record])
-    copy_links = "".join(f'<li><a href="{esc(_source_url(copy))}">{esc(copy.get("install") or copy.get("repo"))}</a></li>' for copy in copies[:10])
+    copy_links = "".join(f'<li><a href="{esc(_source_url(copy))}">{esc(copy.get("install") or copy.get("repo"))}</a> ({esc(copy.get("branch") or "main")})</li>' for copy in copies)
     similar = "".join(f'<a class="related" href="../{skill_page_slug(item)}/"><strong>{esc(item["name"])}</strong><span>{esc(item.get("description", ""))[:160]}</span></a>' for item in related)
     license_name = record.get("license") or "Not declared in registry metadata"
     if license_name == "NOASSERTION":

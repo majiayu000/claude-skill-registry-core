@@ -103,7 +103,7 @@ function showStats() {
     const categoryCount = state.categories.length || getNumericStat('categories', 0);
     const pluginCount = state.plugins.length || getNumericStat('total_plugins', 0);
 
-    document.getElementById('stat-total').textContent = totalSkills.toLocaleString();
+    document.getElementById('stat-total').textContent = totalSkills === null ? '—' : totalSkills.toLocaleString();
     document.getElementById('stat-repos').textContent = uniqueRepos.toLocaleString();
     document.getElementById('stat-plugins').textContent = pluginCount.toLocaleString();
     document.getElementById('stat-categories').textContent = categoryCount;
@@ -123,10 +123,7 @@ function getNumericStat(key, fallback) {
 }
 
 function getTotalSkillCount() {
-    return getNumericStat(
-        'registry_skill_count_dedup',
-        Number(state.index?.t || state.index?.s?.length || 0)
-    );
+    return getNumericStat('independent_skill_count', null);
 }
 
 function getCategoryCount(code) {
@@ -162,7 +159,7 @@ function renderCategoryChart() {
     }
 
     const maxCount = sorted[0][1];
-    const totalSkills = getTotalSkillCount();
+    const totalSkills = sorted.reduce((total, [, count]) => total + count, 0);
 
     chartContainer.innerHTML = sorted.map(([code, count, name]) => {
         const color = CATEGORY_COLORS[code] || '#576574';
@@ -501,6 +498,7 @@ async function showSkillDetail(card) {
         </div>
         <p style="margin-bottom: 1rem; color: var(--text-secondary);">${escapeHtml(skill.d)}</p>
         ${skill.u ? `<p><a href="${escapeHtml(skill.u)}">Open full skill guide →</a></p>` : ''}
+        <section id="skill-source-copies" aria-live="polite"></section>
 
         <div style="margin-bottom: 1rem;">
             <strong>Category:</strong> ${escapeHtml(categoryDisplayName(skill.c))}<br>
@@ -557,9 +555,32 @@ async function showSkillDetail(card) {
     `;
 
     elements.modal.classList.remove('hidden');
+    loadSkillSourceCopies(skill);
 
     // Load community stats and comments
     loadCommunityData(install);
+}
+
+async function loadSkillSourceCopies(skill) {
+    const container = document.getElementById('skill-source-copies');
+    const canonicalId = skill.canonical_id;
+    if (!container || !canonicalId) return;
+    container.innerHTML = `<h4>Found in ${Number(skill.copies).toLocaleString()} repositories</h4><p>Loading matching sources…</p>`;
+    try {
+        const shard = await fetchJson(`skill-detail-shards/${canonicalId[0]}.json`);
+        const canonical = shard.skills.find(record => record.id === canonicalId);
+        if (!canonical) throw new Error('Matching sources are unavailable');
+        if (container !== document.getElementById('skill-source-copies')) return;
+        const links = canonical.source_copies.map(copy =>
+            `<li><a href="${escapeHtml(getGitHubUrl(copy.install, copy.branch))}" target="_blank" rel="noopener noreferrer">${escapeHtml(copy.install)}</a> (${escapeHtml(copy.branch)})</li>`
+        ).join('');
+        container.innerHTML = `<h4>Found in ${canonical.copies.toLocaleString()} repositories</h4><p>Matching Markdown bodies and names. The selected representative does not establish original authorship.</p><ul>${links}</ul>`;
+    } catch (error) {
+        if (container === document.getElementById('skill-source-copies')) {
+            container.innerHTML = '<p>Matching sources could not be loaded. Please try again.</p>';
+        }
+        console.error('Failed to load skill sources:', error);
+    }
 }
 
 // Load community data (stats + comments)

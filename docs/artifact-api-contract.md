@@ -61,6 +61,26 @@ The id uses lowercase URL-safe base64 characters, so the prefix is one of
 `a-z`, `0-9`, `-`, or `_`. Each shard has `schema_version: 1`, `updated_at`,
 `prefix`, `count`, and `skills`; `count` equals the `skills` array length.
 
+Search, lite, category, featured and detail records include `canonical_id`,
+`copies` and `is_canonical`. These reuse the independent-skill grouping:
+trimmed, case-folded name plus exact Markdown-body fingerprint. Without a
+fingerprint, install path plus branch defines a separate group. Descriptions
+are not identity. `copies` counts distinct source repositories, so multiple
+paths or branches in one repository count once.
+
+`canonical_id` is the stable source id of the group's selected representative;
+`is_canonical` identifies that record. Selection uses existing scan, install,
+license, quality and star signals and does not establish original authorship.
+The selected source id may change when those signals change; static guide URLs
+remain based on the group identity. Fetch the representative's detail shard
+using the first character of `canonical_id`. Only its record has
+`source_copies`, the complete list of matching source repo, install, path,
+branch, name and archive path metadata. This stores every source once instead
+of repeating the list on every copy.
+
+Use `stats.json.independent_skill_count` for the public skill total. Search
+results, category counts and repository counts still describe source entries.
+
 ## Compatibility Pointers
 
 Large historical full-payload files are now small pointer files. A pointer

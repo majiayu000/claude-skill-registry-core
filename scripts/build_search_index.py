@@ -448,6 +448,18 @@ def build_search_index(
     independent_skills = group_skill_copies(
         records["full"] for records in records_by_key.values()
     )
+    canonical_sources = {}
+    for group in independent_skills:
+        canonical_id = group["id"]
+        canonical_sources[canonical_id] = group["copies"]
+        for copy in group["copies"]:
+            records = records_by_key[f"{copy['install']}|{copy['branch']}"]
+            for view in ("mini", "lite", "full"):
+                records[view].update({
+                    "canonical_id": canonical_id,
+                    "copies": group["repository_count"],
+                    "is_canonical": records["full"]["id"] == canonical_id,
+                })
     page_records = select_featured_skills(independent_skills)
     safe_write_json(output_dir / "page-catalog.json", {
         "schema_version": 1,
@@ -554,13 +566,17 @@ def build_search_index(
         "quality_score",
         "trust_score",
         "compatible_agents",
+        "canonical_id",
+        "copies",
+        "is_canonical",
         "u",
     )
     detail_shards: Dict[str, List[Dict[str, Any]]] = {}
     for skill in all_lite_skills:
-        detail_shards.setdefault(skill["id"][0], []).append(
-            {field: skill[field] for field in detail_fields if field in skill}
-        )
+        detail_record = {field: skill[field] for field in detail_fields if field in skill}
+        if skill["is_canonical"]:
+            detail_record["source_copies"] = canonical_sources[skill["canonical_id"]]
+        detail_shards.setdefault(skill["id"][0], []).append(detail_record)
     detail_shards_dir = output_dir / "skill-detail-shards"
     detail_shards_dir.mkdir(exist_ok=True)
     for stale_path in detail_shards_dir.glob("*.json"):
