@@ -12,6 +12,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from build_static_skill_pages import (  # noqa: E402
     PUBLIC_SITE,
+    _source_url,
     build_static_skill_pages,
     group_skill_copies,
     select_featured_skills,
@@ -206,6 +207,15 @@ def test_static_detail_lists_every_matching_source(tmp_path):
     for copy in copies:
         assert copy["install"] in detail
     assert "(next)" in detail
+
+
+@pytest.mark.parametrize("path", ["", "skills/review", "skills/review/SKILL.md", "SKILL.md"])
+def test_source_links_handle_file_and_directory_paths(path):
+    record = skill("review", repo="acme/repo", path=path, branch="feature/next")
+    directory = "skills/review" if path.startswith("skills/review") else ""
+    expected_base = "https://github.com/acme/repo"
+    assert _source_url(record) == f"{expected_base}/blob/feature%2Fnext/{directory + '/' if directory else ''}SKILL.md"
+    assert _source_url(record, directory=True) == f"{expected_base}/tree/feature%2Fnext{('/' + directory) if directory else ''}"
 
 
 def test_page_attribution_related_guides_and_archive_entrypoints(tmp_path):

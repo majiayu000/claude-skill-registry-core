@@ -87,7 +87,12 @@ def skill_page_slug(record: dict[str, Any]) -> str:
 def _source_url(record: dict[str, Any], *, directory: bool = False) -> str:
     repo = quote(str(record.get("repo") or ""), safe="/")
     branch = quote(str(record.get("branch") or "main"), safe="")
-    path = quote(str(record.get("path") or "").strip("/"), safe="/")
+    source_path = str(record.get("path") or "").strip("/")
+    if source_path.casefold() == "skill.md":
+        source_path = ""
+    elif source_path.casefold().endswith("/skill.md"):
+        source_path = source_path.rsplit("/", 1)[0]
+    path = quote(source_path, safe="/")
     base = f"https://github.com/{repo}/{'tree' if directory else 'blob'}/{branch}"
     if directory:
         return f"{base}/{path}" if path else base
