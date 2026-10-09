@@ -10,11 +10,17 @@ Open an [issue](https://github.com/majiayu000/claude-skill-registry-core/issues/
 
 - **Name**: Skill name (kebab-case)
 - **Repository**: GitHub URL of your skill repo
+- **Skill path**: Path to `SKILL.md` if it is not at the repository root
 - **Description**: One-line description
 - **Category**: e.g. `development`, `devops`, `productivity`, `data`, `design`, `testing`
 - **Tags**: Relevant keywords
+- **License**: License identifier and link to the applicable license text
+- **Dependencies and pricing**: Required tools, services, accounts, API keys, and any usage charges; say "none" where applicable
+- **Setup and operations**: Local files or settings changed, data sent to external services, and how user authorization is obtained
 
-We'll review and add it to the registry.
+We'll review the submission against the requirements below before deciding
+whether to add it. Use the same disclosures in the PR description when
+submitting directly.
 
 ### Option 2: Pull Request to This Core Repo
 
@@ -65,7 +71,44 @@ in [`docs/plan/main-generated-contribution-intake-spec.md`](docs/plan/main-gener
 
 - Your repo must contain a valid `SKILL.md` file (root or subdirectory)
 - Must have an open-source license (MIT, Apache-2.0, etc.)
+- Include the applicable license text and attribution covering `SKILL.md` and any bundled files so the registry can archive and redistribute them
+- Provide a usable task workflow and complete setup instructions, including required scripts and dependencies
 - No malicious code or credential harvesting
+
+### Commercial services and promotion
+
+Commercial API integrations and free tools whose authors also sell paid
+products are eligible for intake. Commercial affiliation or a link to a paid
+product is not, by itself, a reason to reject a skill. The submitted workflow
+must perform a concrete task under its disclosed prerequisites; content whose
+primary purpose is advertising, referrals, or upselling without a usable task
+workflow is not accepted.
+
+Disclose the following in the submission and keep `SKILL.md` and README consistent:
+
+- Required tools, network services, accounts, and API keys, distinguishing setup requirements from normal operation.
+- Metered usage, free-tier limits, and paid requirements, with a link to current pricing where applicable. An open-source skill license does not make its external service free.
+- Files and settings created or changed, including credential storage and optional shell-profile integration.
+- Data sent to external services, its destination and purpose, and any account creation, subscriptions, or payments the workflow can initiate.
+
+The skill must obtain explicit user authorization before sending personal data
+for account creation, starting subscriptions or payments, or modifying shell
+profiles. These actions must not follow merely from installing the skill.
+Hidden charges, unauthorized signup or configuration changes, and collection
+of credentials unrelated to the stated task are grounds for rejection.
+
+Use the existing catalog `description` to make material prerequisites visible,
+such as "requires an account and metered API" or "requires a remote MCP server".
+Keep detailed setup, pricing, and operation disclosures in the upstream docs.
+
+### Listing and recommendations
+
+Catalog inclusion is not a maintainer recommendation or a guarantee of quality
+or safety. Security scan results describe the checks performed; they do not
+establish that a skill works. Featured or maintainer-recommended skills need
+functional verification, with the tested revision, scope, and limitations
+recorded. Review these disclosures during intake using the existing review
+process.
 
 ## Architecture
 

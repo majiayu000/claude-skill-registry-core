@@ -3,6 +3,10 @@ description: Propose a community skill source for registry intake.
 title: "[Skill] "
 labels: ["source-intake"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Review the [intake requirements](https://github.com/majiayu000/claude-skill-registry-core/blob/main/CONTRIBUTING.md#requirements) before submitting. Commercial integrations are eligible when they provide a usable task workflow and disclose their dependencies and costs. Listing does not imply a maintainer recommendation.
   - type: input
     id: repo
     attributes:
@@ -29,7 +33,29 @@ body:
     id: description
     attributes:
       label: Description
-      description: Short summary of what the skill does.
+      description: Short summary of what the skill does, including material prerequisites such as a metered API or remote MCP server.
+    validations:
+      required: true
+  - type: input
+    id: license
+    attributes:
+      label: License
+      description: License identifier and link to the license text covering SKILL.md and bundled files for redistribution.
+      placeholder: MIT; https://github.com/owner/repo/blob/main/LICENSE
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and pricing
+      description: List required tools, network services, accounts, and API keys for setup and normal use. Disclose metering, free-tier limits, and paid requirements with a current pricing link. State none where applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: operations
+    attributes:
+      label: Setup and operations
+      description: Describe local files or settings changed, credential storage, and data sent externally with its destination and purpose. Explain how explicit user authorization is obtained for account creation, subscriptions, payments, and shell-profile changes. State none where applicable. Do not include actual credentials or personal data.
     validations:
       required: true
   - type: checkboxes
