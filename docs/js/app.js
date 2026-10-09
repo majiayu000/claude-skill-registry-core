@@ -224,6 +224,7 @@ function getDisplaySkillCount() {
 }
 
 function updateRegistryCountDisplay() {
+    updateSearchScopeDisplay();
     const dedupedCount = getDisplaySkillCount();
     if (!Number.isFinite(dedupedCount) || dedupedCount <= 0) {
         elements.totalCount.textContent = 'skills';
@@ -253,7 +254,6 @@ function updateRegistryCountDisplay() {
             `Search and discover ${formattedDeduped} Claude Code skills for Claude Code, Codex CLI, and ChatGPT.`
         );
     }
-    updateSearchScopeDisplay();
 }
 
 function updateSearchScopeDisplay() {
@@ -302,6 +302,7 @@ async function init() {
 
     } catch (error) {
         console.error('Failed to load index:', error);
+        elements.searchScope.textContent = 'Failed to load skills index. Reload the page to try again.';
         elements.loading.innerHTML = `
             <span style="font-size: 2rem;">❌</span>
             <p>Failed to load skills index</p>
