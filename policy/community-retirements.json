@@ -1,1 +1,27 @@
-[]
+[
+  {
+    "entry": {
+      "name": "sell-unused-tokens",
+      "repo": "galleonlabs/sell-unused-tokens",
+      "path": "",
+      "description": "List leftover LLM API credits on tokensto.cash and cash out USDC.",
+      "category": "business",
+      "tags": [
+        "tokens",
+        "usdc",
+        "credits",
+        "openai",
+        "openrouter"
+      ],
+      "stars": 0,
+      "author": "Galleon Labs",
+      "source_url": "https://github.com/galleonlabs/sell-unused-tokens/blob/main/SKILL.md",
+      "homepage": "https://tokensto.cash",
+      "license": "MIT",
+      "distribution": "compatible"
+    },
+    "reason": "Retire the unavailable galleonlabs/sell-unused-tokens GitHub source. On 2026-10-09 both GitHub web and repository API returned 404; the current tokensto.cash manifest advertises a hosted bundle outside this pipeline's GitHub source contract. This decision removes only the obsolete community source row, does not admit the hosted replacement, and retains historical archives.",
+    "decision_url": "https://github.com/majiayu000/claude-skill-registry-core/pull/361",
+    "archive_policy": "retain"
+  }
+]
