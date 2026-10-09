@@ -94,7 +94,7 @@ def test_review_report_records_agree_override_and_uncertain():
     report = reviewer.build_review_report(
         plan,
         client=client,
-        model="mimo-v2.5-pro",
+        model="mimo-v2.6-pro",
         base_url="https://token-plan-sgp.xiaomimimo.com/v1",
         api_key_env="MIMO_API_KEY",
         limit=3,

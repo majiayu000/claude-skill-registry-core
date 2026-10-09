@@ -127,7 +127,7 @@ base plan remains reproducible and offline.
 Defaults:
 
 - OpenAI-compatible endpoint: `https://token-plan-sgp.xiaomimimo.com/v1`.
-- Model: `mimo-v2.5-pro`.
+- Model: `mimo-v2.6-pro`.
 - API key source: `MIMO_API_KEY`.
 - Candidate actions: `heuristic_reclassify`, `legacy_category_review`, and
   `resolve_source_conflict`.

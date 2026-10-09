@@ -17,6 +17,7 @@ from build_residual_category_worksets import (
     work_item_for_skill,
 )
 from plan_category_migration import iter_skill_dirs
+from review_category_plan_with_llm import DEFAULT_MODEL
 
 
 def build_manifest(
@@ -93,7 +94,7 @@ def build_manifest(
                 f"--checkpoint-jsonl {checkpoint} "
                 "--api-key-env MIMO_API_KEY "
                 "--base-url https://token-plan-sgp.xiaomimimo.com/v1 "
-                "--model mimo-v2.5-pro --temperature 0"
+                f"--model {DEFAULT_MODEL} --temperature 0"
             ),
             (
                 "python scripts/sample_category_classification_audit.py "
