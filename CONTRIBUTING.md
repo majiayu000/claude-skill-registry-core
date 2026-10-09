@@ -36,9 +36,17 @@ To submit a PR directly, open it against **this repo** and edit `sources/communi
   "description": "One-line description of your skill.",
   "category": "development",
   "tags": ["tag1", "tag2"],
-  "stars": 0
+  "stars": 0,
+  "license": "MIT",
+  "distribution": "compatible"
 }
 ```
+
+This example assumes MIT covers the skill and its bundled files. Use the
+upstream's actual license and provide its license text; maintainers review
+redistribution eligibility before accepting bundled assets. License disclosure
+in the PR body must also be reflected in the source row. Bundled assets require
+an approved compatible license and `distribution: "compatible"`.
 
 ## How to Correct an Existing Archived Skill
 
@@ -97,18 +105,20 @@ profiles. These actions must not follow merely from installing the skill.
 Hidden charges, unauthorized signup or configuration changes, and collection
 of credentials unrelated to the stated task are grounds for rejection.
 
-Use the existing catalog `description` to make material prerequisites visible,
-such as "requires an account and metered API" or "requires a remote MCP server".
-Keep detailed setup, pricing, and operation disclosures in the upstream docs.
+Start the existing catalog `description` with material prerequisites, such as
+"requires an account and metered API" or "requires a remote MCP server", so
+truncated list summaries retain them. Keep detailed setup, pricing, and
+operation disclosures in the upstream docs.
 
 ### Listing and recommendations
 
 Catalog inclusion is not a maintainer recommendation or a guarantee of quality
 or safety. Security scan results describe the checks performed; they do not
-establish that a skill works. Featured or maintainer-recommended skills need
-functional verification, with the tested revision, scope, and limitations
-recorded. Review these disclosures during intake using the existing review
-process.
+establish that a skill works. Automatically generated featured lists reflect
+index ranking signals and do not imply functional verification. A maintainer's
+explicit recommendation requires functional verification, with the tested
+revision, scope, and limitations recorded. Review these disclosures during
+intake using the existing review process.
 
 ## Architecture
 

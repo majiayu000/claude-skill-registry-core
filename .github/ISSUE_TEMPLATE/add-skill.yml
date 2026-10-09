@@ -33,7 +33,7 @@ body:
     id: description
     attributes:
       label: Description
-      description: Short summary of what the skill does, including material prerequisites such as a metered API or remote MCP server.
+      description: Start with material prerequisites such as an account, metered API, or remote MCP server, then briefly summarize what the skill does.
     validations:
       required: true
   - type: input
