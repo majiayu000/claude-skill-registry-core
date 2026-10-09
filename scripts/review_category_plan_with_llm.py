@@ -19,7 +19,7 @@ from urllib.request import Request, urlopen
 from category_taxonomy import CategoryTaxonomy, get_taxonomy
 
 DEFAULT_BASE_URL = "https://token-plan-sgp.xiaomimimo.com/v1"
-DEFAULT_MODEL = "mimo-v2.5-pro"
+DEFAULT_MODEL = "mimo-v2.6-pro"
 DEFAULT_API_KEY_ENV = "MIMO_API_KEY"
 DEFAULT_ACTIONS = (
     "heuristic_reclassify",
