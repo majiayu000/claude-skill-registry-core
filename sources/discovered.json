@@ -1,7 +1,7 @@
 {
-  "discovered_at": "2026-10-09T05:26:06.081976Z",
+  "discovered_at": "2026-10-10T05:11:41.295527Z",
   "total_repos": 300,
-  "total_skills": 13,
+  "total_skills": 59,
   "scanned_repos": 300,
   "limits": {
     "max_repos": 300,
@@ -66,7 +66,6 @@
     "Orchestra-Research/AI-Research-SKILLs",
     "OthmanAdi/planning-with-files",
     "Othmane-Khadri/gtm-engineer-playbook",
-    "OutlineDriven/odin-claude-plugin",
     "Prat011/awesome-llm-skills",
     "QingYunA/answer-me-with-html",
     "REMvisual/claude-handoff",
@@ -153,6 +152,8 @@
     "feiskyer/claude-code-settings",
     "ferdinandobons/startup-skill",
     "filtalgo/Filtmall-Shopping-Skill",
+    "firecrawl/firecrawl-claude-plugin",
+    "firecrawl/skills",
     "flysheep-ai/education-skills",
     "foyzulkarim/skills",
     "fvadicamo/dev-agent-skills",
@@ -202,7 +203,6 @@
     "kromahlusenii-ops/ham",
     "laolaoshiren/claude-code-skills-zh",
     "latent-spaces/brag",
-    "levi-qiao/longgraph-skill",
     "levnikolaevich/claude-code-skills",
     "liustack/modlens",
     "ljagiello/ctf-skills",
@@ -270,6 +270,7 @@
     "shahshrey/awesome-claude-code-mastery",
     "shanraisshan/claude-code-best-practice",
     "shanraisshan/claude-code-hooks",
+    "sheeki03/Few-Word",
     "sickn33/agentic-awesome-skills",
     "skyf0xx/hedgehog",
     "slimeglitch/gryffin-calorai-ventus",
@@ -294,7 +295,6 @@
     "undefined-ui/second-brain-os",
     "vasilyu1983/AI-Agents-public",
     "vitaecontext/vitaecontext",
-    "wanghuan9/skilldock",
     "wanshuiyin/ALIGN-Agentic-Loop-Image-GeneratioN",
     "wanshuiyin/Anti-Autoresearch",
     "wanshuiyin/Auto-claude-code-research-in-sleep",
@@ -314,56 +314,240 @@
   ],
   "skills": [
     {
-      "repo": "code-yeongyu/oh-my-openagent",
-      "path": "packages/omo-senpi/skills/visualize/SKILL.md"
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl/SKILL.md"
     },
     {
-      "repo": "gooseworks-ai/goose-skills",
-      "path": "skills/ads/capabilities/render-apple-notes-chat/SKILL.md"
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-map/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-agent/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-crawl/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-parse/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-search/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-scrape/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-monitor/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-download/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-interact/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-alexandria/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-research-index/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/firecrawl-claude-plugin",
+      "path": "skills/firecrawl-developer-index/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-map/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-agent/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-crawl/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-parse/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-scrape/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-search/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/build/firecrawl-build/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-qa/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-monitor/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-interact/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-download/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-shop/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-alexandria/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/build/firecrawl-build-search/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-lead-gen/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/build/firecrawl-build-scrape/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-seo-audit/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-research-index/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-workflows/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/core/firecrawl-developer-index/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/build/firecrawl-build-interact/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/build/firecrawl-build-onboarding/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-deep-research/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-lead-research/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-knowledge-base/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-research-papers/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-market-research/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-knowledge-ingest/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-demo-walkthrough/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-competitive-intel/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-company-directories/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-dashboard-reporting/SKILL.md"
+    },
+    {
+      "repo": "firecrawl/skills",
+      "path": "skills/workflows/firecrawl-website-design-clone/SKILL.md"
     },
     {
       "repo": "microsoft/power-platform-skills",
-      "path": "plugins/process-intelligence/skills/setup/SKILL.md"
+      "path": "plugins/power-pages/skills/add-localization/SKILL.md"
     },
     {
-      "repo": "microsoft/power-platform-skills",
-      "path": "plugins/process-intelligence/skills/analytics/SKILL.md"
+      "repo": "scenario-labs/skills",
+      "path": ".agents/skills/pr-summary/SKILL.md"
     },
     {
-      "repo": "microsoft/power-platform-skills",
-      "path": "plugins/process-intelligence/skills/report-issue/SKILL.md"
+      "repo": "scenario-labs/skills",
+      "path": "skills/scenario-thumbnails/SKILL.md"
     },
     {
-      "repo": "microsoft/power-platform-skills",
-      "path": "plugins/process-intelligence/skills/derive-metric/SKILL.md"
+      "repo": "scenario-labs/skills",
+      "path": "skills/scenario-ad-variants/SKILL.md"
     },
     {
-      "repo": "reticlehq/reticle",
-      "path": "skills/verify-language-switch/SKILL.md"
+      "repo": "scenario-labs/skills",
+      "path": "skills/scenario-multi-reference/SKILL.md"
     },
     {
-      "repo": "scdenney/open-science-skills",
-      "path": "archive/codex/spawn/SKILL.md"
+      "repo": "scenario-labs/skills",
+      "path": ".agents/skills/pr-squash-message/SKILL.md"
     },
     {
-      "repo": "scdenney/open-science-skills",
-      "path": "archive/claude/spawn/SKILL.md"
+      "repo": "scenario-labs/skills",
+      "path": ".agents/skills/pr-handle-comments/SKILL.md"
     },
     {
-      "repo": "scdenney/open-science-skills",
-      "path": "archive/codex/model-council-voting/SKILL.md"
+      "repo": "scenario-labs/skills",
+      "path": "skills/scenario-chatgpt-pet-create/SKILL.md"
     },
     {
-      "repo": "scdenney/open-science-skills",
-      "path": "archive/claude/model-council-voting/SKILL.md"
+      "repo": "scenario-labs/skills",
+      "path": "skills/scenario-chatgpt-pet-update/SKILL.md"
     },
     {
-      "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/assay/SKILL.md"
+      "repo": "wesammustafa/Claude-Code-Everything-You-Need-to-Know",
+      "path": "examples/advanced/06-share-your-setup/plugins/team-kit/skills/onboard/SKILL.md"
     },
     {
-      "repo": "sickn33/agentic-awesome-skills",
-      "path": "skills/looot/SKILL.md"
+      "repo": "wesammustafa/Claude-Code-Everything-You-Need-to-Know",
+      "path": ".github/scripts/fixtures/plugin-skill-missing-description/tree/examples/advanced/06-share-your-setup/plugins/team-kit/skills/onboard/SKILL.md"
+    },
+    {
+      "repo": "wesammustafa/Claude-Code-Everything-You-Need-to-Know",
+      "path": ".github/scripts/fixtures/renamed-marketplace-under-examples/tree/examples/advanced/06-share-your-setup/plugins/team-kit/skills/onboard/SKILL.md"
     }
   ]
 }
