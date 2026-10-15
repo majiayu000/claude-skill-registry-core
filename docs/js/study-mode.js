@@ -238,10 +238,9 @@
             function trackedShowSkillDetail(card) {
                 const install = card?.dataset?.install || '';
                 const result = original.apply(this, arguments);
-                const command = globalScope.document.querySelector(
-                    '#modal-body .install-cmd span:not(.prefix)'
-                )?.textContent || '';
-                const displayedInstall = command.replace(/^sk install\s+/, '').trim();
+                const displayedInstall = globalScope.document.querySelector(
+                    '#modal-body .install-cmd .copy-btn'
+                )?.getAttribute('data-install') || '';
                 if (install && displayedInstall === install) {
                     lastSkillInstall = install;
                     recorder.track('skill_detail_opened', {

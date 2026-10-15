@@ -633,6 +633,7 @@ def test_github_url_and_html_escaping_contracts():
 const fs = require('fs');
 const assert = require('assert');
 const render = fs.readFileSync('docs/js/app-render.js', 'utf8');
+const skillSource = fs.readFileSync('docs/js/skill-source.js', 'utf8');
 const index = fs.readFileSync('docs/index.html', 'utf8');
 
 function extract(source, name) {
@@ -660,7 +661,10 @@ function extract(source, name) {
   throw new Error(`unterminated function ${name}`);
 }
 
-eval(extract(render, 'getGitHubUrl'));
+eval(extract(skillSource, 'parseSkillSource'));
+eval(extract(skillSource, 'getGitHubUrl'));
+eval(extract(skillSource, 'shellQuote'));
+eval(extract(skillSource, 'getInstallCommand'));
 eval(extract(render, 'escapeHtml'));
 eval(extract(render, 'createSkillCard'));
 
@@ -691,7 +695,15 @@ const hostileCard = createSkillCard({
   g: [`</span><img src=x onerror=alert(1)>`], r: 0, i: 'acme/demo'
 }, false, false);
 assert(!hostileCard.includes('<img'));
+assert(hostileCard.includes('npx skills add https://github.com/acme/demo/tree/main'));
+assert.strictEqual(
+  getInstallCommand('facebook/react/.claude/skills/fix/SKILL.md', 'main'),
+  'npx skills add https://github.com/facebook/react/tree/main/.claude/skills/fix'
+);
+const hostileCommand = getInstallCommand(`acme/demo/a'b; rm -rf ~`, 'main');
+assert(!hostileCommand.includes('; rm'));
 assert(render.includes('escapeHtml(getGitHubUrl('));
+assert(index.indexOf('js/skill-source.js') < index.indexOf('js/app-render.js'));
 assert(!render.includes("copyInstall(event, '${"));
 assert(!render.includes("toggleFavorite(event, '${"));
 assert(!index.includes('Official (Anthropic)'));

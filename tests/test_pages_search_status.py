@@ -68,6 +68,7 @@ const context = {
     fetch: async () => ({ ok: true, json: async () => ({}) })
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync('docs/js/skill-source.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('docs/js/app-render.js', 'utf8'), context);
 const app = fs.readFileSync('docs/js/app.js', 'utf8');
 // Load the real functions/listeners, but control when initialization completes.

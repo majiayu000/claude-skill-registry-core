@@ -53,6 +53,7 @@ const context = {
     console: { error: () => {} },
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync('docs/js/skill-source.js', 'utf8'), context);
 vm.runInContext(render, context);
 vm.runInContext(app.slice(app.indexOf('function normalizeSkillRecord('),
                           app.indexOf('async function loadSearchIndex(')), context);
@@ -123,6 +124,7 @@ const context = {
     findSimilarSkills: () => [],
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync('docs/js/skill-source.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('docs/js/app-render.js', 'utf8'), context);
 let opened;
 context.loadSkillSourceCopies = skill => { opened = skill; };

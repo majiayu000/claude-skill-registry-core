@@ -229,7 +229,8 @@ def test_page_attribution_related_guides_and_archive_entrypoints(tmp_path):
     assert "Trust score" in detail
     assert "Copies with matching content" in detail
     assert "removal-request.yml" in detail
-    assert "sk install" in detail
+    assert "npx skills add" in detail
+    assert "sk install" not in detail
     assert 'class="related"' in detail
     assert (docs / "skills" / "index.html").is_file()
     assert PUBLIC_SITE in (archive / "development" / "README.md").read_text()
@@ -276,9 +277,9 @@ def test_install_command_quotes_source_arguments(tmp_path):
     detail = (tmp_path / "skills" / skill_page_slug(record) / "index.html").read_text()
     command = html.unescape(re.search(r"<code>(.*?)</code>", detail).group(1))
     args = shlex.split(command)
-    assert args[:2] == ["sk", "install"]
-    assert len(args) == 3
-    assert args[2] == "https://github.com/acme/skills/tree/feat%2Fspace%20%24%28id%29/skills/a%20space%3B%20touch%20/tmp/unsafe"
+    assert args[:3] == ["npx", "skills", "add"]
+    assert len(args) == 4
+    assert args[3] == "https://github.com/acme/skills/tree/feat%2Fspace%20%24%28id%29/skills/a%20space%3B%20touch%20/tmp/unsafe"
     assert "--branch" not in command
 
 
@@ -292,3 +293,23 @@ def test_unknown_license_is_explained_and_copy_paths_are_distinct(tmp_path):
     assert "Not declared in registry metadata" in detail
     assert "acme/repo/skills/copies" in detail
     assert "acme/repo/.claude/skills/copies" in detail
+
+
+def test_install_lists_runtime_targets_and_author_badge(tmp_path):
+    import html
+    import shlex
+
+    from build_static_skill_pages import BADGE_URL, RUNTIME_TARGETS
+
+    record = skill("portable")
+    build_static_skill_pages([record], tmp_path)
+    slug = skill_page_slug(record)
+    detail = (tmp_path / "skills" / slug / "index.html").read_text()
+    blocks = [html.unescape(block) for block in re.findall(r"<code>(.*?)</code>", detail, re.S)]
+    source = "https://github.com/acme/skills/tree/main/skills/portable"
+    commands = [shlex.split(line) for line in blocks[1].splitlines() if not line.startswith("#")]
+    assert commands == [["npx", "skills", "add", source, "-g", "-a", agent] for _, agent, _ in RUNTIME_TARGETS]
+    for label, _, path in RUNTIME_TARGETS:
+        assert f"# {label} → {path}" in blocks[1]
+    assert blocks[2] == f"[![Listed on Claude Skills Registry]({BADGE_URL})]({PUBLIC_SITE}skills/{slug}/)"
+    assert (ROOT / "docs" / "assets" / "listed-badge.svg").is_file()

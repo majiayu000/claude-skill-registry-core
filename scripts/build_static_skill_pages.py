@@ -21,6 +21,14 @@ FEATURED_START = "<!-- static-featured:start -->"
 FEATURED_END = "<!-- static-featured:end -->"
 GENERATED_MARKER = ".generated-static-skill-pages"
 REMOVAL_URL = "https://github.com/majiayu000/claude-skill-registry-core/issues/new?template=removal-request.yml"
+SKILLS_CLI_URL = "https://github.com/vercel-labs/skills"
+BADGE_URL = f"{PUBLIC_SITE}assets/listed-badge.svg"
+# Global install targets documented by the skills CLI (agent flag, install path).
+RUNTIME_TARGETS = (
+    ("Claude Code", "claude-code", "~/.claude/skills/"),
+    ("Codex", "codex", "~/.agents/skills/"),
+    ("Cursor", "cursor", "~/.cursor/skills/"),
+)
 
 
 def group_skill_copies(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -116,7 +124,12 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
     if license_name == "NOASSERTION":
         license_name = "Not declared in registry metadata"
     license_notice = "Check the original repository for permission and license terms before reuse. Registry metadata does not grant a license."
-    command = f"sk install {shlex.quote(_source_url(record, directory=True))}"
+    source = shlex.quote(_source_url(record, directory=True))
+    command = f"npx skills add {source}"
+    runtime_commands = "\n".join(
+        f"# {label} → {path}\nnpx skills add {source} -g -a {agent}" for label, agent, path in RUNTIME_TARGETS
+    )
+    badge_markdown = f"[![Listed on Claude Skills Registry]({BADGE_URL})]({canonical})"
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -161,10 +174,14 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
       <h1>{name}</h1><p class="intro">{description}</p>
       <div class="tags">{tags}</div>
       <a class="source" href="{esc(_source_url(record))}">View source: {repo} ↗</a>
-      <section><h2>Install from source</h2><p>Install using <a href="https://github.com/majiayu000/claude-skill-manager">Skill Manager</a>:</p>
-      <code>{esc(command)}</code><p class="note">Source-path status is inferred from metadata; it does not verify a live download. Scan and quality scores describe registry checks and are not a guarantee of safety.</p></section>
+      <section><h2>Install</h2><p>Install with the <a href="{SKILLS_CLI_URL}">skills CLI</a>. It asks which coding agents to install into:</p>
+      <code>{esc(command)}</code><p>Or install globally for one agent:</p>
+      <code>{esc(runtime_commands)}</code><p class="note">Without the CLI, copy the source folder that contains SKILL.md into one of the paths above. Source-path status is inferred from metadata; it does not verify a live download. Scan and quality scores describe registry checks and are not a guarantee of safety.</p></section>
       <section><h2>Attribution and permissions</h2><p>{esc(license_notice)}</p><p>This guide links to the author’s instructions and includes metadata only.</p>
       <a href="{REMOVAL_URL}">Request removal or correct attribution</a></section>
+      <section><h2>For the skill author</h2><p>Add this badge to your README so readers can find this guide:</p>
+      <p><img src="{BADGE_URL}" alt="Listed on Claude Skills Registry" width="140" height="20"></p>
+      <code>{esc(badge_markdown)}</code></section>
       <section><h2>Copies with matching content</h2><p>Exact Markdown body copies across {esc(record.get('repository_count', 1))} repositories. This count does not identify the original author.</p><ul>{copy_links}</ul></section>
       <section><h2>More in {esc(record.get('category', 'other'))}</h2><div class="related-grid">{similar}</div></section>
     </article>

@@ -135,8 +135,8 @@ const fakeDocument = {
   getElementById: id => controls[id] || null,
   querySelector(selector) {
     if (selector === '.nav-tab.active') return { dataset: { view: 'featured' } };
-    if (selector === '#modal-body .install-cmd span:not(.prefix)' && openedInstall) {
-      return { textContent: `sk install ${openedInstall}` };
+    if (selector === '#modal-body .install-cmd .copy-btn' && openedInstall) {
+      return { getAttribute: name => (name === 'data-install' ? openedInstall : null) };
     }
     return null;
   },

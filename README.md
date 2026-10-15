@@ -25,7 +25,7 @@ Read the [choose and install one skill guide](https://majiayu000.github.io/claud
 
 **Three ways to use:**
 1. **[Web Search](https://majiayu000.github.io/claude-skill-registry/)** - Fast browser-based search
-2. **[sk CLI](https://github.com/majiayu000/claude-skill-manager)** - Terminal package manager
+2. **[skills CLI](https://github.com/vercel-labs/skills)** - Install into Claude Code, Codex, Cursor and other agents
 3. **API** - Direct JSON access
 
 **Repo layout note:** `core` owns workflows/pipeline logic, `data` stores `skills/**`, and `main` is generated from `core + data`. See `SCHEME2_SPLIT.md`.
@@ -92,25 +92,29 @@ Visit [https://majiayu000.github.io/claude-skill-registry/](https://majiayu000.g
 
 For clone/update tips on large repositories, see [docs/FAST_CLONE.md](docs/FAST_CLONE.md).
 
-### Option 2: CLI (sk)
+### Option 2: CLI
+
+Every skill guide and search result shows a ready-to-copy command for the
+[skills CLI](https://github.com/vercel-labs/skills), which asks which coding
+agents to install into:
 
 ```bash
-# Install sk
-go install github.com/majiayu000/claude-skill-manager@latest
-# Go names the executable claude-skill-manager; expose the documented sk command.
-sk_bin_dir="$(go env GOBIN)"
-if [ -z "$sk_bin_dir" ]; then sk_bin_dir="$(go env GOPATH)/bin"; fi
-mv "$sk_bin_dir/claude-skill-manager" "$sk_bin_dir/sk"
-# Ensure sk_bin_dir is on your PATH.
+npx skills add https://github.com/anthropics/skills/tree/main/skills/docx
 
-# Search skills
-sk search testing
-sk search pdf
-sk search --popular
-
-# Install a skill
-sk install anthropics/skills/skills/docx
+# Or install globally for one agent
+npx skills add https://github.com/anthropics/skills/tree/main/skills/docx -g -a claude-code  # ~/.claude/skills/
+npx skills add https://github.com/anthropics/skills/tree/main/skills/docx -g -a codex        # ~/.agents/skills/
+npx skills add https://github.com/anthropics/skills/tree/main/skills/docx -g -a cursor       # ~/.cursor/skills/
 ```
+
+The earlier `sk` CLI ([claude-skill-manager](https://github.com/majiayu000/claude-skill-manager))
+is no longer developed.
+
+### For skill authors
+
+Each skill guide includes a "Listed on Claude Skills Registry" badge snippet
+that links readers to the guide. Copy it from the "For the skill author"
+section of your skill's guide page.
 
 ### Option 3: Direct API
 
@@ -422,7 +426,7 @@ See `docs/FAST_CLONE.md` for more options (existing clones, getting full checkou
 
 | Project | Description |
 |---------|-------------|
-| [claude-skill-manager](https://github.com/majiayu000/claude-skill-manager) | CLI tool for installing skills (`sk`) |
+| [claude-skill-manager](https://github.com/majiayu000/claude-skill-manager) | Earlier `sk` install CLI (no longer developed) |
 | [anthropics/skills](https://github.com/anthropics/skills) | Official Anthropic skills |
 | [SkillsMP](https://skillsmp.com) | Web-based skill marketplace |
 | [awesome-claude-skills](https://github.com/travisvn/awesome-claude-skills) | Curated skill list |

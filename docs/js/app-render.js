@@ -424,8 +424,8 @@ function createSkillCard(skill, isFeatured = false, showFavoriteBtn = true) {
             <div class="skill-install">
                 <div class="install-cmd">
                     <span class="prefix">$</span>
-                    <span>sk install ${escapeHtml(install)}</span>
-                    <button class="copy-btn" data-install="${escapeHtml(install)}" onclick="copyInstall(event)" title="Copy">📋</button>
+                    <span>${escapeHtml(getInstallCommand(install, branch))}</span>
+                    <button class="copy-btn" data-install="${escapeHtml(install)}" data-branch="${escapeHtml(branch)}" onclick="copyInstall(event)" title="Copy">📋</button>
                 </div>
             </div>
         </div>
@@ -524,8 +524,8 @@ async function showSkillDetail(card) {
             <strong>Install:</strong>
             <div class="install-cmd" style="margin-top: 0.5rem;">
                 <span class="prefix">$</span>
-                <span>sk install ${escapeHtml(install)}</span>
-                <button class="copy-btn" data-install="${escapeHtml(install)}" onclick="copyInstall(event)" title="Copy">📋</button>
+                <span>${escapeHtml(getInstallCommand(install, skill.b || 'main'))}</span>
+                <button class="copy-btn" data-install="${escapeHtml(install)}" data-branch="${escapeHtml(skill.b || 'main')}" onclick="copyInstall(event)" title="Copy">📋</button>
             </div>
         </div>
 
@@ -778,7 +778,8 @@ function findSimilarSkills(skill, limit = 4) {
 function copyInstall(event, install) {
     event.stopPropagation();
     install = install || event.currentTarget.getAttribute('data-install');
-    const cmd = `sk install ${install}`;
+    const branch = event.currentTarget.getAttribute('data-branch') || 'main';
+    const cmd = getInstallCommand(install, branch);
     navigator.clipboard.writeText(cmd).then(() => {
         const btn = event.target;
         btn.textContent = '✓';
@@ -786,26 +787,7 @@ function copyInstall(event, install) {
     });
 }
 
-// Generate proper GitHub URL from install path and branch
-function getGitHubUrl(install, branch = 'main') {
-    if (!install) return '#';
-    const parts = install.split('/');
-    if (parts.length < 2) return '#';
-
-    const owner = encodeURIComponent(parts[0]);
-    const repo = encodeURIComponent(parts[1]);
-    let path = parts.slice(2).join('/').replace(/\/+$/, '');
-    if (/\/SKILL\.md$/i.test(path)) {
-        path = path.replace(/\/SKILL\.md$/i, '');
-    } else if (/^SKILL\.md$/i.test(path)) {
-        path = '';
-    }
-
-    if (path) {
-        return `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/${path.split('/').map(encodeURIComponent).join('/')}/SKILL.md`;
-    }
-    return `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/SKILL.md`;
-}
+// parseSkillSource, getGitHubUrl and getInstallCommand live in skill-source.js
 
 function escapeHtml(text) {
     if (!text) return '';
