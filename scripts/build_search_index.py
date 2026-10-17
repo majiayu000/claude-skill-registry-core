@@ -31,6 +31,7 @@ from build_static_skill_pages import (
 )
 from category_taxonomy import get_category_code, get_taxonomy, resolve_category
 from index_artifacts import write_category_artifacts, write_search_artifacts, write_signal_artifacts
+from listed_skills import load_listed_skills, merge_listed_skills
 from plugin_index import build_plugins_index, load_plugins_with_fallback
 from rebuild_registry import safe_write_gzip_json, safe_write_json
 from search_sources import (
@@ -251,15 +252,16 @@ def build_search_index(
         archive_path = skill.get("archive_path", "")
         skill_id = get_stable_id(install, branch)
         owner = repo.split("/", 1)[0] if "/" in repo else ""
-        install_status = infer_install_status(repo, path, install)
+        listed = skill.get("tier") == "listed"
+        install_status = "unknown" if listed else infer_install_status(repo, path, install)
         security_decision = None
-        if isinstance(archive_path, str) and archive_path:
+        if not listed and isinstance(archive_path, str) and archive_path:
             security_decision = security_decisions_by_path.get(archive_path)
-        if require_security_evidence and not security_decision:
+        if require_security_evidence and not listed and not security_decision:
             raise ValueError(
                 f"Missing required security evidence for {archive_path or install or name}"
             )
-        security_status = (
+        security_status = "unknown" if listed else (
             security_decision["status"] if security_decision else infer_security_status(skill)
         )
         compatible_agents = infer_compatible_agents(skill)
@@ -267,7 +269,7 @@ def build_search_index(
         quality_score = quality["quality_score"]
         quality_grade = quality["quality_grade"]
         trust_score = score_skill_trust(repo, path, install_status, security_status, stars)
-        asset_fields = validated_published_asset_fields(skill)
+        asset_fields = {} if listed else validated_published_asset_fields(skill)
         asset_penalty = asset_ranking_penalty(asset_fields)
 
         # Minimal record
@@ -279,6 +281,7 @@ def build_search_index(
             "r": stars,
             "i": install,
             "b": branch,  # branch for GitHub URL
+            **({"tier": "listed"} if listed else {}),
             **({"a": asset_fields["asset_state"]} if "asset_state" in asset_fields else {}),
             **({"l": asset_fields["asset_liveness"]} if "asset_liveness" in asset_fields else {}),
         }
@@ -297,6 +300,7 @@ def build_search_index(
             "stars": stars,
             "install": install,
             "source": skill.get("source", ""),
+            **({"tier": "listed"} if listed else {}),
             "id": skill_id,
             "owner": owner,
             "quality_grade": quality_grade,
@@ -321,6 +325,7 @@ def build_search_index(
             "branch": branch,
             "stars": stars,
             "source": skill.get("source", ""),
+            **({"tier": "listed"} if listed else {}),
             "quality_grade": quality_grade,
             "security_status": security_status,
             "install_status": install_status,
@@ -575,6 +580,7 @@ def build_search_index(
         "canonical_id",
         "copies",
         "is_canonical",
+        "tier",
         "u",
     )
     detail_shards: Dict[str, List[Dict[str, Any]]] = {}
@@ -869,13 +875,16 @@ def main():
     archive_metadata_count_raw: Optional[int] = None
     registry_skill_count_dedup: Optional[int] = None
 
+    sources_dir = Path(__file__).parent.parent / "sources"
+
     # Canonical mode: recursively scan archive tree whenever available.
     if skills_dir.exists():
         logger.info(f"Scanning archive recursively from {skills_dir}")
         if args.use_registry:
             logger.info("Ignoring --use-registry because skills directory exists.")
         skills = scan_skills_v2(skills_dir)
-        source_name = "archived skills (recursive)"
+        skills = merge_listed_skills(skills, load_listed_skills(sources_dir))
+        source_name = "archived skills and upstream-only listings"
         archive_skill_md_count_raw = count_named_files(skills_dir, "SKILL.md")
         archive_metadata_count_raw = count_named_files(skills_dir, "metadata.json")
         registry_skill_count_dedup = load_registry_count(registry_path)
@@ -895,7 +904,6 @@ def main():
         exit(1)
 
     # Load plugins
-    sources_dir = Path(__file__).parent.parent / "sources"
     plugins = load_plugins_with_fallback(sources_dir, registry_path)
     if plugins:
         logger.info(f"Loaded {len(plugins)} plugins")

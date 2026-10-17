@@ -15,6 +15,7 @@ from pathlib import Path
 
 from archive_preflight import iter_canonical_archive_paths
 from check_artifact_api import registry_shard_timestamp_ok
+from listed_skills import load_listed_skills, merge_listed_skills
 from plugin_index import load_plugins_from_source
 from search_sources import metadata_source_path, verified_asset_fields
 from utils import (
@@ -523,6 +524,8 @@ if __name__ == "__main__":
         print(f"Duplicates removed: {duplicates_removed}")
         print(f"Unique skills: {len(unique_skills)}")
         print()
+
+        unique_skills = merge_listed_skills(unique_skills, load_listed_skills(sources_dir))
 
         # Sort by stars then name
         unique_skills.sort(key=lambda x: (-x.get("stars", 0), x["name"].lower()))

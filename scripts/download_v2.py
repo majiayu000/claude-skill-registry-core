@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import aiohttp
+from listed_skills import load_listed_skills, source_identity
 from utils import (
     build_legal_metadata,
     build_skill_key,
@@ -72,6 +73,8 @@ def load_source_skills(sources_dir: Path) -> List[dict]:
     if not sources_dir.exists():
         return skills
     for source_file in sources_dir.glob("*.json"):
+        if source_file.name == "listed.json":
+            continue
         try:
             with open(source_file, 'r') as f:
                 data = json.load(f)
@@ -294,6 +297,7 @@ async def download_skill(
     registry: SkillRegistry,
     semaphore: asyncio.Semaphore,
     stats: dict,
+    listed_locations: set[tuple[str, str]],
 ) -> bool:
     """Download a single skill with conflict resolution."""
 
@@ -334,6 +338,9 @@ async def download_skill(
     patterns = get_url_patterns(repo, normalize_name(name), path)
 
     for url in patterns[:8]:
+        candidate = url.removeprefix(f"{GITHUB_RAW_BASE}/{repo}/").split("/", 1)[1]
+        if source_identity({"repo": repo, "path": candidate})[:2] in listed_locations:
+            continue
         content, status = await fetch_url(session, url, semaphore)
 
         if content and is_valid_skill_content(content):
@@ -420,11 +427,14 @@ async def main():
     # Load from sources
     sources_dir = registry_dir / "sources"
     skills.extend(load_source_skills(sources_dir))
+    listed_locations = {source_identity(s)[:2] for s in load_listed_skills(sources_dir)}
 
     # Deduplicate by repo+name
     seen = set()
     unique_skills = []
     for s in skills:
+        if s.get("tier") == "listed" or source_identity(s)[:2] in listed_locations:
+            continue
         key = f"{s.get('repo', '')}:{s.get('name', '')}"
         if key not in seen:
             seen.add(key)
@@ -467,7 +477,7 @@ async def main():
             logger.info(f"Batch {batch_num}/{total_batches} ({len(batch)} skills)")
 
             tasks = [
-                download_skill(session, skill, skills_dir, registry, semaphore, stats)
+                download_skill(session, skill, skills_dir, registry, semaphore, stats, listed_locations)
                 for skill in batch
             ]
 

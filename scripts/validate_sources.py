@@ -320,6 +320,15 @@ def validate_file(path: Path, report: Report) -> None:
     file_label = str(path.name)
     report.files_scanned += 1
 
+    if path.name == "listed.json":
+        from listed_skills import load_listed_skills
+
+        try:
+            report.skills_scanned += len(load_listed_skills(path.parent))
+        except (OSError, ValueError) as exc:
+            report.add(Issue(file_label, "error", "E_LISTED", str(exc)))
+        return
+
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:

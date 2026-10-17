@@ -94,10 +94,17 @@ def build_unified_registry(
     logger.info("STEP 2: Building unified registry")
     logger.info("=" * 60)
 
+    from listed_skills import load_listed_skills, source_identity
+
+    # The downloader probes branches itself. Do not acquire a listed source
+    # through an independent discovery catalog either.
+    listed_locations = {source_identity(s)[:2] for s in load_listed_skills(sources_dir)}
     all_skills = []
     seen = set()
 
     for source_file in sources_dir.glob("*.json"):
+        if source_file.name == "listed.json":
+            continue
         if not include_skillsmp and source_file.name == "skillsmp.json":
             logger.info("Skipping skillsmp.json (SkillsMP source disabled)")
             continue
@@ -108,6 +115,8 @@ def build_unified_registry(
         source_name = source.get("name", source_file.stem)
 
         for skill in iter_source_skills(source):
+            if source_identity(skill)[:2] in listed_locations:
+                continue
             # Create unique key
             repo = skill.get("repo", "")
             if is_registry_repo(repo):

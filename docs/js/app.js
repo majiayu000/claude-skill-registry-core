@@ -193,6 +193,7 @@ function normalizeSkillRecord(skill) {
         i: skill.install || skill.id || skill.name || '',
         b: skill.branch || 'main',
         u: skill.u || '',
+        tier: skill.tier,
         canonical_id: skill.canonical_id,
         copies: skill.copies,
         is_canonical: skill.is_canonical

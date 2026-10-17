@@ -17,6 +17,7 @@ ROOT_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from listed_skills import load_listed_skills, source_identity
 from security_blocklist import blocked_metadata_source, load_security_blocklist
 from sync_download_support import (
     GPL_SOURCE_LICENSES,
@@ -106,7 +107,8 @@ async def download_skills(
     with open(registry_path) as f:
         registry = json.load(f)
 
-    skills = registry.get("skills", [])
+    skills = [skill for skill in registry.get("skills", []) if skill.get("tier") != "listed"]
+    listed_locations = {source_identity(s)[:2] for s in load_listed_skills(ROOT_DIR / "sources")}
     logger.info(f"Total skills in registry: {len(skills)}")
     manifest_file = Path(manifest_path) if manifest_path is not None else None
     manifest_entries = load_acquisition_manifest(manifest_file) if manifest_file is not None else {}
@@ -403,6 +405,13 @@ async def download_skills(
         else:
             relative_candidates = build_relative_candidates(path, name, normalized_name)
             relative_candidates = build_relative_probe_order(relative_candidates, manifest_entry)
+        relative_candidates = [
+            candidate for candidate in relative_candidates
+            if source_identity({"repo": repo, "path": candidate})[:2] not in listed_locations
+        ]
+        if not relative_candidates:
+            add_observation(skill, outcome="skipped", failure_reason="listed_source")
+            return None
         attempts = 0
         commit_resolution_failed = False
         attempt_history = []
