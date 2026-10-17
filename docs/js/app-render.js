@@ -466,9 +466,11 @@ async function showSkillDetail(card) {
     const branch = card.dataset.branch || 'main';
     const matchesSource = skill => skill.i === install && (skill.b || 'main') === branch;
 
-    // Find skill in the loaded startup index or the current lazy-loaded result page.
+    // Cards may come from search, featured records, or a lazy-loaded category.
     const skill = state.index.s.find(matchesSource)
-        || state.results.map(result => result.item).find(matchesSource);
+        || state.results.map(result => result.item).find(matchesSource)
+        || state.featured.map(normalizeSkillRecord).find(matchesSource)
+        || Object.values(state.categoryCache).flat().find(matchesSource);
     if (!skill) return;
 
     const tagsHtml = (skill.g || []).map(tag =>

@@ -400,12 +400,22 @@ for (const html of [ctx.createSkillCard(compact), ctx.createSkillCard(full, true
 }
 (async () => {
     ctx.rows = [compact];
-    vm.runInContext('state.index = {s: rows}; state.results = [];', ctx);
-    await ctx.showSkillDetail({dataset: {install: compact.i, branch: compact.b}});
-    const html = node('modal-body').innerHTML;
-    assert(html.includes('not archived or verified'));
-    assert(html.includes('blob/release%2Fv2/skills/demo/SKILL.md'));
-    assert(!html.includes('npx skills add'));
+    ctx.fullRows = [full];
+    for (const setup of [
+        'state.index.s = rows;',
+        'state.results = rows.map(item => ({item}));',
+        'state.featured = fullRows;',
+        'state.categoryCache = {dev: rows};'
+    ]) {
+        vm.runInContext('state.index = {s: []}; state.results = []; state.featured = []; state.categoryCache = {};', ctx);
+        vm.runInContext(setup, ctx);
+        node('modal-body').innerHTML = '';
+        await ctx.showSkillDetail({dataset: {install: compact.i, branch: compact.b}});
+        const html = node('modal-body').innerHTML;
+        assert(html.includes('not archived or verified'), setup);
+        assert(html.includes('blob/release%2Fv2/skills/demo/SKILL.md'), setup);
+        assert(!html.includes('npx skills add'), setup);
+    }
     const archived = {...compact}; delete archived.tier;
     assert(ctx.createSkillCard(archived).includes('npx skills add'));
     assert(!ctx.createSkillCard(archived).includes('Listed only'));
