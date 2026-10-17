@@ -26,6 +26,7 @@ def sandbox(tmp_path):
 import json, os, pathlib, sys
 args = sys.argv[1:]
 if 'actions/workflows/build-index.yml/runs?' in ' '.join(args):
+    assert 'status=success' in ' '.join(args), args
     if os.environ.get('FAIL_LOOKUP'): sys.exit(1)
     print(os.environ['LATEST_RUN'])
 elif 'repos/majiayu000/claude-skill-registry-data/commits/main' in args:
@@ -82,12 +83,24 @@ def test_commit_and_unchanged_cache_both_emit_actual_remote_core_sha(sandbox):
     git('commit', '-m', 'initial')
     git('push', '-u', 'origin', 'main')
     (work / 'install-pins.json').write_text('{"pins": {"id": {"status": "pinned"}}}')
-    for _ in range(2):
+    for attempt in range(2):
+        if attempt == 1:
+            # Another writer advances Core after this workflow's checkout while pins stay unchanged.
+            other = directory / 'other-writer'
+            subprocess.run(['git', 'clone', '--branch', 'main', str(remote), str(other)], check=True, capture_output=True)
+            subprocess.run(['git', '-C', str(other), 'config', 'user.name', 'Other'], check=True)
+            subprocess.run(['git', '-C', str(other), 'config', 'user.email', 'other@example.invalid'], check=True)
+            (other / 'new-core-code.txt').write_text('new authoritative code')
+            subprocess.run(['git', '-C', str(other), 'add', '.'], check=True)
+            subprocess.run(['git', '-C', str(other), 'commit', '-m', 'advance core'], check=True, capture_output=True)
+            subprocess.run(['git', '-C', str(other), 'push', 'origin', 'main'], check=True, capture_output=True)
         (directory / 'output').write_text('')
         result = run_step('Commit & push install pins', work, env)
         assert result.returncode == 0, result.stderr
         sha = git('rev-parse', 'HEAD')
         assert (directory / 'output').read_text().strip() == f'core_sha={sha}'
+        if attempt == 1:
+            assert (work / 'new-core-code.txt').read_text() == 'new authoritative code'
         assert subprocess.check_output(['git', '--git-dir', str(remote), 'rev-parse', 'main'], text=True).strip() == sha
 
 
