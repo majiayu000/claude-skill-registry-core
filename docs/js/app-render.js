@@ -85,6 +85,7 @@ function createLeaderboardCard(skill, rank) {
                 <p class="skill-description">${escapeHtml(description)}</p>
                 <div class="leaderboard-meta">
                     <span class="skill-category">${escapeHtml(category)}</span>
+                    ${skill.tier === 'listed' ? '<span>Listed only · Not archived or verified</span>' : ''}
                     <button class="favorite-btn ${isFavorite ? 'active' : ''}" data-install="${escapeHtml(install)}" onclick="toggleFavorite(event)" title="${isFavorite ? 'Remove from favorites' : 'Add to favorites'}">
                         ${isFavorite ? '❤️' : '🤍'}
                     </button>
@@ -393,7 +394,8 @@ function createSkillCard(skill, isFeatured = false, showFavoriteBtn = true) {
     const install = isFeatured ? skill.install : skill.i;
     const branch = (isFeatured ? skill.branch : skill.b) || 'main';
 
-    const installCommand = getInstallCommand(install, branch);
+    const isListed = skill.tier === 'listed';
+    const installCommand = isListed ? '' : getInstallCommand(install, branch);
     const isFavorite = state.favorites.includes(install);
     const isOfficial = categoryCode === 'off' || categoryCode === 'official';
 
@@ -418,6 +420,7 @@ function createSkillCard(skill, isFeatured = false, showFavoriteBtn = true) {
                 </div>
             </div>
             <p class="skill-description">${escapeHtml(description)}</p>
+            ${isListed ? '<p class="skill-description">Listed only · Content stays upstream; not archived or verified.</p>' : ''}
             <div class="skill-meta">
                 <span class="skill-category">${escapeHtml(category)}</span>
                 <div class="skill-tags">${tagsHtml}</div>
@@ -427,7 +430,7 @@ function createSkillCard(skill, isFeatured = false, showFavoriteBtn = true) {
                     <span class="prefix">$</span>
                     <span>${escapeHtml(installCommand)}</span>
                     <button class="copy-btn" data-install="${escapeHtml(install)}" data-branch="${escapeHtml(branch)}" onclick="copyInstall(event)" title="Copy">📋</button>
-                </div>` : `<a href="${escapeHtml(getGitHubUrl(install, branch))}" onclick="event.stopPropagation()">Open source for manual installation →</a>`}
+                </div>` : `<a href="${escapeHtml(getGitHubUrl(install, branch))}" onclick="event.stopPropagation()">${isListed ? 'View upstream skill →' : 'Open source for manual installation →'}</a>`}
             </div>
         </div>
     `;
@@ -472,7 +475,8 @@ async function showSkillDetail(card) {
         `<span class="tag">#${escapeHtml(tag)}</span>`
     ).join(' ');
 
-    const installCommand = getInstallCommand(install, branch);
+    const isListed = skill.tier === 'listed';
+    const installCommand = isListed ? '' : getInstallCommand(install, branch);
     const isFavorite = state.favorites.includes(install);
     const isOfficial = skill.c === 'off';
 
@@ -503,6 +507,7 @@ async function showSkillDetail(card) {
             </button>
         </div>
         <p style="margin-bottom: 1rem; color: var(--text-secondary);">${escapeHtml(skill.d)}</p>
+        ${isListed ? '<p>Listed only · Content stays upstream; not archived or verified. Review the source and its requirements before use.</p>' : ''}
         ${skill.u ? `<p><a href="${escapeHtml(skill.u)}">Open full skill guide →</a></p>` : ''}
         <section id="skill-source-copies" aria-live="polite"></section>
 
@@ -523,12 +528,12 @@ async function showSkillDetail(card) {
         </div>
 
         <div style="margin-top: 1.5rem;">
-            <strong>Install:</strong>
+            <strong>${isListed ? 'Upstream source:' : 'Install:'}</strong>
             ${installCommand ? `<div class="install-cmd" style="margin-top: 0.5rem;">
                 <span class="prefix">$</span>
                 <span>${escapeHtml(installCommand)}</span>
                 <button class="copy-btn" data-install="${escapeHtml(install)}" data-branch="${escapeHtml(skill.b || 'main')}" onclick="copyInstall(event)" title="Copy">📋</button>
-            </div>` : `<p>Open the source below and copy the folder containing SKILL.md into your agent’s skills directory.</p>`}
+            </div>` : `<p>${isListed ? 'Read the upstream documentation for setup and usage.' : 'Open the source below and copy the folder containing SKILL.md into your agent’s skills directory.'}</p>`}
         </div>
 
         <div style="margin-top: 1rem;">
@@ -561,7 +566,7 @@ async function showSkillDetail(card) {
     `;
 
     elements.modal.classList.remove('hidden');
-    loadSkillSourceCopies(skill);
+    if (!isListed) loadSkillSourceCopies(skill);
 
     // Load community stats and comments
     loadCommunityData(install);

@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import requests
+from listed_skills import load_listed_skills, source_identity
 from security_blocklist import blocked_metadata_source, load_security_blocklist
 from security_scanner import SecurityScanner
 from utils import (
@@ -94,6 +95,10 @@ class GitHubTopicDiscovery:
 
         self.discovered_repos = set()
         self.skills = []
+        self.listed_locations = {
+            source_identity(skill)[:2]
+            for skill in load_listed_skills(Path(__file__).resolve().parent.parent / "sources")
+        }
         self.security_blocklist = load_security_blocklist()
         self.security_scanner = SecurityScanner()
         self.repo_candidates = {}
@@ -501,6 +506,9 @@ class GitHubTopicDiscovery:
         """Download a SKILL.md file"""
         self._check_budget()
         output_dir = Path(output_dir)
+        if source_identity({"repo": repo, "path": path})[:2] in self.listed_locations:
+            logger.info("Skipping upstream-only listed source: %s/%s", repo, path)
+            return False
         blocked_source = blocked_metadata_source(
             {"repo": repo, "path": path},
             self.security_blocklist,

@@ -106,7 +106,7 @@ async def download_skills(
     with open(registry_path) as f:
         registry = json.load(f)
 
-    skills = registry.get("skills", [])
+    skills = [skill for skill in registry.get("skills", []) if skill.get("tier") != "listed"]
     logger.info(f"Total skills in registry: {len(skills)}")
     manifest_file = Path(manifest_path) if manifest_path is not None else None
     manifest_entries = load_acquisition_manifest(manifest_file) if manifest_file is not None else {}

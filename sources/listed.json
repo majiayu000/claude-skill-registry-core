@@ -1,0 +1,5 @@
+{
+  "name": "Upstream-only skill listings",
+  "description": "Maintainer-reviewed source metadata. Skill bodies remain upstream and are not archived or verified.",
+  "skills": []
+}

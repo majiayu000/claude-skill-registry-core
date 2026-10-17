@@ -6,6 +6,7 @@ on:
       - "sources/**"
       - "taxonomy/categories.yaml"
       - "scripts/validate_sources.py"
+      - "scripts/listed_skills.py"
       - "scripts/utils.py"
       - "tests/test_utils.py"
       - "tests/test_validate_sources.py"
@@ -16,6 +17,7 @@ on:
       - "sources/**"
       - "taxonomy/categories.yaml"
       - "scripts/validate_sources.py"
+      - "scripts/listed_skills.py"
       - "scripts/utils.py"
   workflow_dispatch:
 

@@ -60,6 +60,29 @@ GPL downloads fail if any source file falls outside the supported archive
 scope. License provenance records the selected upstream path so liveness
 checks cannot substitute a different license when the original disappears.
 
+## Upstream-only listings
+
+For a source that should be discoverable without mirroring its instruction body,
+submit a maintainer-reviewed row to `sources/listed.json`. Use the same name,
+repo, description, canonical category and tags as a community submission; `path`
+identifies the upstream skill directory (or `SKILL.md`) and `branch` defaults to
+`main`. Disclose the same setup, service, pricing and operational requirements.
+
+Listed entries appear in search with a **Listed only** label and an upstream
+link. Their bodies are not downloaded, scanned or functionally verified. No
+install command, verified-install discovery index, or scan-qualified static
+guide is generated for a listed entry. Catalog metadata is validated and checked
+against the existing source blocklist and instruction-override patterns; this
+does not establish the safety or quality of the upstream body.
+
+An existing archive of the same repo/path/branch takes precedence. Listing a
+source also prevents the acquisition queue from downloading the same repo/path
+through another discovery file; it does not delete any existing archive.
+To request archival, remove its listed row and submit it through normal community
+intake with the redistribution and security requirements below. Changes to the
+listed catalog require maintainer review; the existing community append-only
+and retirement policy continues to apply to `sources/community.json`.
+
 ## How to Correct an Existing Archived Skill
 
 The public `claude-skill-registry` repository is the browsing and compatibility

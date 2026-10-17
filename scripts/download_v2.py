@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import aiohttp
+from listed_skills import load_listed_skills, source_identity
 from utils import (
     build_legal_metadata,
     build_skill_key,
@@ -72,6 +73,8 @@ def load_source_skills(sources_dir: Path) -> List[dict]:
     if not sources_dir.exists():
         return skills
     for source_file in sources_dir.glob("*.json"):
+        if source_file.name == "listed.json":
+            continue
         try:
             with open(source_file, 'r') as f:
                 data = json.load(f)
@@ -420,11 +423,14 @@ async def main():
     # Load from sources
     sources_dir = registry_dir / "sources"
     skills.extend(load_source_skills(sources_dir))
+    listed_locations = {source_identity(s)[:2] for s in load_listed_skills(sources_dir)}
 
     # Deduplicate by repo+name
     seen = set()
     unique_skills = []
     for s in skills:
+        if s.get("tier") == "listed" or source_identity(s)[:2] in listed_locations:
+            continue
         key = f"{s.get('repo', '')}:{s.get('name', '')}"
         if key not in seen:
             seen.add(key)
