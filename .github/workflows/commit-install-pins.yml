@@ -12,6 +12,11 @@ permissions:
   contents: write
   actions: read
 
+# Serialize freshness checks and writes so an older completion cannot race a newer commit.
+concurrency:
+  group: commit-install-pins
+  cancel-in-progress: false
+
 jobs:
   commit-install-pins:
     if: >-
@@ -20,12 +25,29 @@ jobs:
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
+      - name: Reject superseded build artifacts
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build-index.yml/runs?branch=main&per_page=1" --jq '.workflow_runs[0].id')
+          if [ "$latest" != "$SOURCE_RUN_ID" ]; then
+            echo "Skipping superseded build $SOURCE_RUN_ID (latest main build: $latest)"
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.source.outputs.current == 'true'
         uses: actions/checkout@v6
         with:
           ref: main
 
       - name: Download install pin cache
+        if: steps.source.outputs.current == 'true'
         uses: actions/download-artifact@v7
         with:
           name: install-pins
@@ -34,6 +56,7 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Validate install pin cache
+        if: steps.source.outputs.current == 'true'
         run: |
           python3 - "$RUNNER_TEMP/install-pins/install-pins.json" <<'PY'
           import json, sys
@@ -44,18 +67,22 @@ jobs:
           cp "$RUNNER_TEMP/install-pins/install-pins.json" install-pins.json
 
       - name: Commit & push install pins
+        id: commit
+        if: steps.source.outputs.current == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add install-pins.json
           if git diff --staged --quiet; then
             echo "Install pins unchanged"
+            echo "core_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git commit -m "chore: refresh install pins $(date -u +%Y-%m-%d)"
           for attempt in 1 2 3; do
             if git push origin HEAD:main; then
               echo "Install pin push succeeded on attempt $attempt"
+              echo "core_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             git fetch origin main
@@ -67,3 +94,21 @@ jobs:
           done
           echo "Install pin push failed after 3 attempts."
           exit 1
+
+      - name: Publish refreshed install pins
+        if: steps.source.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.MAIN_REPO_TOKEN }}
+          CORE_SHA: ${{ steps.commit.outputs.core_sha }}
+        run: |
+          set -euo pipefail
+          # Main rebuilds and scans this exact archive and revalidates every pin digest.
+          data_sha=$(gh api repos/majiayu000/claude-skill-registry-data/commits/main --jq .sha)
+          payload="$RUNNER_TEMP/pin-publish-payload.json"
+          jq -n --arg core_sha "$CORE_SHA" --arg data_sha "$data_sha" \
+            '{event_type: "publish_from_core", client_payload: {
+              core_repo: "majiayu000/claude-skill-registry-core", core_sha: $core_sha,
+              data_repo: "majiayu000/claude-skill-registry-data", data_sha: $data_sha
+            }}' > "$payload"
+          gh api --method POST repos/majiayu000/claude-skill-registry/dispatches --input "$payload"
+          echo "Dispatched install-pin publication: core=$CORE_SHA data=$data_sha"
