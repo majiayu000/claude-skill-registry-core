@@ -200,16 +200,17 @@ if [[ "$rebuild" -eq 1 ]]; then
 
   # --archive writes category READMEs; only the publishing mirror is writable.
   # In no-mirror mode the catalog already contains everything needed for pages.
+  page_args=(--catalog "$main_dir/docs/page-catalog.json")
   if [[ "$mirror_skills" -eq 1 ]]; then
-    run_step "Build static featured skill pages" python "$main_dir/scripts/build_static_skill_pages.py" \
-      --catalog "$main_dir/docs/page-catalog.json" \
-      --archive "$archive_dir" \
-      --output "$main_dir/docs"
-  else
-    run_step "Build static featured skill pages" python "$main_dir/scripts/build_static_skill_pages.py" \
-      --catalog "$main_dir/docs/page-catalog.json" \
-      --output "$main_dir/docs"
+    page_args+=(--archive "$archive_dir")
   fi
+  page_args+=(--output "$main_dir/docs")
+  # Core's build-index workflow maintains the pin cache; guides without a pin
+  # keep the source-path install only.
+  if [[ -f "$main_dir/install-pins.json" ]]; then
+    page_args+=(--install-pins "$main_dir/install-pins.json")
+  fi
+  run_step "Build static featured skill pages" python "$main_dir/scripts/build_static_skill_pages.py" "${page_args[@]}"
   run_step "Remove temporary guide catalog" rm "$main_dir/docs/page-catalog.json"
   rm -f "$security_report_path"
   security_report_path=""

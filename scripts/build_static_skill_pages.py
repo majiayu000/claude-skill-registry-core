@@ -29,6 +29,9 @@ RUNTIME_TARGETS = (
     ("Codex", "codex", "~/.agents/skills/"),
     ("Cursor", "cursor", "~/.cursor/skills/"),
 )
+# Agent Skills well-known discovery index (agentskills.io, discovery schema 0.2.0).
+DISCOVERY_SCHEMA = "https://schemas.agentskills.io/discovery/0.2.0/schema.json"
+WELL_KNOWN_DIR = Path(".well-known") / "agent-skills"
 
 
 def group_skill_copies(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -107,7 +110,19 @@ def _source_url(record: dict[str, Any], *, directory: bool = False) -> str:
     return f"{base}/{path + '/' if path else ''}SKILL.md"
 
 
-def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[str, Any]]) -> str:
+def _pinned_skill_url(pin: dict[str, Any]) -> str:
+    return f"https://raw.githubusercontent.com/{quote(pin['repo'], safe='/')}/{pin['commit']}/{quote(pin['path'], safe='/')}"
+
+
+def _discovery_index(pin: dict[str, Any]) -> dict[str, Any]:
+    """One-skill index pointing at the author's file at the commit that matched the scan."""
+    return {"$schema": DISCOVERY_SCHEMA, "skills": [{
+        "name": pin["name"], "type": "skill-md", "description": pin["description"],
+        "url": _pinned_skill_url(pin), "digest": pin["digest"],
+    }]}
+
+
+def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[str, Any]], pin: dict[str, Any] | None = None) -> str:
     def esc(value: Any) -> str:
         return html.escape(str(value), quote=True)
 
@@ -130,6 +145,13 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
         f"# {label} → {path}\nnpx skills add {source} -g -a {agent}" for label, agent, path in RUNTIME_TARGETS
     )
     badge_markdown = f"[![Listed on Claude Skills Registry]({BADGE_URL})]({canonical})"
+    if pin:
+        verified = (f'<p>Verified install: the <a href="{SKILLS_CLI_URL}">skills CLI</a> reads this guide\'s discovery index and installs SKILL.md '
+                    f'from <a href="{esc(_pinned_skill_url(pin))}">{esc(pin["repo"])} at commit {esc(pin["commit"][:12])}</a>, '
+                    f'checking its SHA-256 against the version the registry scanned:</p><code>{esc("npx skills add " + canonical)}</code>'
+                    '<p>Or install the latest version from source. It asks which coding agents to install into:</p>')
+    else:
+        verified = f'<p>Install with the <a href="{SKILLS_CLI_URL}">skills CLI</a>. It asks which coding agents to install into:</p>'
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -174,7 +196,7 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
       <h1>{name}</h1><p class="intro">{description}</p>
       <div class="tags">{tags}</div>
       <a class="source" href="{esc(_source_url(record))}">View source: {repo} ↗</a>
-      <section><h2>Install</h2><p>Install with the <a href="{SKILLS_CLI_URL}">skills CLI</a>. It asks which coding agents to install into:</p>
+      <section><h2>Install</h2>{verified}
       <code>{esc(command)}</code><p>Or install globally for one agent:</p>
       <code>{esc(runtime_commands)}</code><p class="note">Without the CLI, copy the source folder that contains SKILL.md into one of the paths above. Source-path status is inferred from metadata; it does not verify a live download. Scan and quality scores describe registry checks and are not a guarantee of safety.</p></section>
       <section><h2>Attribution and permissions</h2><p>{esc(license_notice)}</p><p>This guide links to the author’s instructions and includes metadata only.</p>
@@ -236,7 +258,12 @@ def _prepare_generated_root(output_dir: Path) -> Path:
     return generated_root
 
 
-def build_static_skill_pages(catalog_records: Iterable[dict[str, Any]], output_dir: Path, archive_dir: Path | None = None) -> dict[str, Any]:
+def build_static_skill_pages(
+    catalog_records: Iterable[dict[str, Any]],
+    output_dir: Path,
+    archive_dir: Path | None = None,
+    install_pins: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Write guides, browse links, category archive entrypoints, and sitemap."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -248,11 +275,19 @@ def build_static_skill_pages(catalog_records: Iterable[dict[str, Any]], output_d
     categories: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
         categories[str(record.get("category") or "other")].append(record)
+    pinned_count = 0
     for record, slug in zip(records, slugs, strict=True):
         detail_dir = generated_root / slug
         detail_dir.mkdir()
         related = [item for item in categories[str(record.get("category") or "other")] if item is not record][:4]
-        (detail_dir / "index.html").write_text(_render_detail_page(record, slug, related), encoding="utf-8")
+        pin = (install_pins or {}).get(str(record.get("id") or ""))
+        pin = pin if pin and pin.get("status") == "pinned" else None
+        (detail_dir / "index.html").write_text(_render_detail_page(record, slug, related, pin), encoding="utf-8")
+        if pin:
+            index_path = detail_dir / WELL_KNOWN_DIR / "index.json"
+            index_path.parent.mkdir(parents=True)
+            index_path.write_text(json.dumps(_discovery_index(pin), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+            pinned_count += 1
     browse = f'''<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Skill guides — Claude Skills Registry</title>
@@ -280,7 +315,7 @@ def build_static_skill_pages(catalog_records: Iterable[dict[str, Any]], output_d
                 (directory / "README.md").write_text(f'# {directory.name}\n\nBrowse [skill guides and installation instructions]({PUBLIC_SITE}skills/#{quote(directory.name)}) or [search the full registry]({PUBLIC_SITE}).\n\nArchived files retain their original ownership and license terms. [Request removal]({REMOVAL_URL}).\n', encoding='utf-8')
     _update_homepage(output_dir, records)
     _write_sitemap(output_dir, slugs)
-    return {"generated_count": len(records), "slugs": slugs}
+    return {"generated_count": len(records), "slugs": slugs, "pinned_count": pinned_count}
 
 
 def main() -> int:
@@ -288,13 +323,19 @@ def main() -> int:
     parser.add_argument("--catalog", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--archive", type=Path)
+    parser.add_argument("--install-pins", type=Path, help="install-pins.json from resolve_install_pins.py")
     args = parser.parse_args()
     payload = json.loads(args.catalog.read_text(encoding="utf-8"))
     records = payload.get("skills") if isinstance(payload, dict) else None
     if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
         raise ValueError(f"Catalog artifact has no valid skills list: {args.catalog}")
-    summary = build_static_skill_pages(records, args.output, args.archive)
-    print(f"Generated {summary['generated_count']} static skill pages")
+    pins = None
+    if args.install_pins is not None:
+        pins = json.loads(args.install_pins.read_text(encoding="utf-8")).get("pins")
+        if not isinstance(pins, dict):
+            raise ValueError(f"Install pin artifact has no valid pins map: {args.install_pins}")
+    summary = build_static_skill_pages(records, args.output, args.archive, pins)
+    print(f"Generated {summary['generated_count']} static skill pages ({summary['pinned_count']} with verified install)")
     return 0
 
 

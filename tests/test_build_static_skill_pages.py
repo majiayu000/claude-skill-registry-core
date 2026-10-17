@@ -102,7 +102,7 @@ def test_generator_escapes_metadata_and_writes_homepage_links_and_sitemap(tmp_pa
         node.text for node in sitemap.findall("sm:url/sm:loc", namespace)
     ]
 
-    assert summary == {"generated_count": 1, "slugs": [slug]}
+    assert summary == {"generated_count": 1, "slugs": [slug], "pinned_count": 0}
     assert "<script>" not in detail
     assert "&lt;script&gt;" in detail
     assert "&lt;tag&gt;" in detail
@@ -313,3 +313,60 @@ def test_install_lists_runtime_targets_and_author_badge(tmp_path):
         assert f"# {label} → {path}" in blocks[1]
     assert blocks[2] == f"[![Listed on Claude Skills Registry]({BADGE_URL})]({PUBLIC_SITE}skills/{slug}/)"
     assert (ROOT / "docs" / "assets" / "listed-badge.svg").is_file()
+
+
+def pinned(**overrides):
+    pin = {
+        "status": "pinned", "repo": "acme/skills", "commit": "c" * 40, "path": "skills/pdf tools/SKILL.md",
+        "name": "pdf-tools", "description": "Extract text from PDFs.", "digest": "sha256:" + "d" * 64,
+    }
+    pin.update(overrides)
+    return pin
+
+
+def test_pinned_guides_publish_a_discovery_index_and_verified_install(tmp_path):
+    import json
+
+    from build_static_skill_pages import DISCOVERY_SCHEMA
+
+    record = skill("pdf")
+    summary = build_static_skill_pages([record], tmp_path, install_pins={record["id"]: pinned()})
+    slug = skill_page_slug(record)
+    index = json.loads((tmp_path / "skills" / slug / ".well-known" / "agent-skills" / "index.json").read_text())
+    detail = (tmp_path / "skills" / slug / "index.html").read_text()
+
+    assert summary["pinned_count"] == 1
+    assert index == {"$schema": DISCOVERY_SCHEMA, "skills": [{
+        "name": "pdf-tools", "type": "skill-md", "description": "Extract text from PDFs.",
+        "url": "https://raw.githubusercontent.com/acme/skills/" + "c" * 40 + "/skills/pdf%20tools/SKILL.md",
+        "digest": "sha256:" + "d" * 64,
+    }]}
+    assert f"npx skills add {PUBLIC_SITE}skills/{slug}/" in detail
+    assert "at commit cccccccccccc" in detail
+
+
+@pytest.mark.parametrize("pins", [None, {}, {"stable-pdf": pinned(status="upstream_changed")}])
+def test_unpinned_guides_keep_source_install_only(tmp_path, pins):
+    record = skill("pdf")
+    summary = build_static_skill_pages([record], tmp_path, install_pins=pins)
+    slug = skill_page_slug(record)
+    detail = (tmp_path / "skills" / slug / "index.html").read_text()
+    assert summary["pinned_count"] == 0
+    assert not (tmp_path / "skills" / slug / ".well-known").exists()
+    assert "Verified install" not in detail
+    assert "npx skills add https://github.com/acme/skills/tree/main/skills/pdf" in detail
+
+
+def test_cli_rejects_install_pin_file_without_pins_map(tmp_path, monkeypatch):
+    import json
+
+    from build_static_skill_pages import main
+
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"skills": [skill("cli")]}))
+    pins = tmp_path / "install-pins.json"
+    pins.write_text('{"pins": []}')
+    monkeypatch.setattr(sys, "argv", ["build-pages", "--catalog", str(catalog), "--output", str(tmp_path / "docs"),
+                                      "--install-pins", str(pins)])
+    with pytest.raises(ValueError, match="pins map"):
+        main()
