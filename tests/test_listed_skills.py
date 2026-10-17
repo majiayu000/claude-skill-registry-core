@@ -170,7 +170,102 @@ async def test_downloader_skips_published_listed_records(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_standalone_downloader_excludes_listed_and_rediscovered_sources(tmp_path, monkeypatch):
+@pytest.mark.parametrize("mode", ["guessed", "cached", "exact"])
+async def test_downloader_never_requests_listed_fallback_candidates(tmp_path, monkeypatch, mode):
+    import aiohttp
+    import sync_download
+    from sync_pipeline_support import build_manifest_key
+
+    listed_path = "custom/demo/SKILL.md" if mode == "cached" else "skills/demo/SKILL.md"
+    listed = catalog(tmp_path / "sources", [entry(path=listed_path)])
+    monkeypatch.setattr(sync_download, "load_listed_skills", lambda _: listed)
+    registry = tmp_path / "registry.json"
+    source = entry(path=listed_path if mode == "exact" else "")
+    registry.write_text(json.dumps({"skills": [source]}))
+    manifest = tmp_path / "manifest.json"
+    key = build_manifest_key("acme/tools", source["path"], "demo", "development")
+    manifest.write_text(
+        json.dumps(
+            {
+                "entries": {
+                    key: {
+                        "repo": "acme/tools",
+                        "branch": "main",
+                        "relative_path": listed_path,
+                    }
+                }
+            }
+        )
+    )
+    requested = []
+
+    class Missing:
+        status = 404
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+    def get(_session, url, **kwargs):
+        requested.append(url)
+        return Missing()
+
+    monkeypatch.setattr(aiohttp.ClientSession, "get", get)
+    archive = tmp_path / "archive"
+    archive.mkdir()
+    stats = await download_skills(
+        registry,
+        archive,
+        manifest_path=manifest if mode == "cached" else None,
+        exact_paths_only=mode == "exact",
+        cleanup_ci_untracked=False,
+        learning_priors_path=tmp_path / "priors.json",
+    )
+    assert not any(url.split("/", 6)[-1] == listed_path for url in requested)
+    assert stats["downloaded"] == 0 and not list(archive.rglob("SKILL.md"))
+    if mode == "exact":
+        assert requested == [] and stats["failed"] == 0 and stats["skipped"] == 1
+    else:
+        assert requested  # Unrelated fallback paths are still probed.
+    if mode == "cached":
+        assert stats["manifest_hits"] == 1
+
+
+@pytest.mark.asyncio
+async def test_standalone_downloader_skips_listed_fallback_urls(tmp_path, monkeypatch):
+    import download_v2
+
+    listed = catalog(tmp_path / "sources", [entry()])
+    requested = []
+
+    async def fetch(_session, url, _semaphore):
+        requested.append(url)
+        return None, 404
+
+    monkeypatch.setattr(download_v2, "fetch_url", fetch)
+    import asyncio
+
+    archive = tmp_path / "archive"
+    stats = {"downloaded": 0, "skipped": 0, "not_found": 0, "rate_limited": 0}
+    await download_v2.download_skill(
+        None,
+        entry(path=""),
+        archive,
+        download_v2.SkillRegistry(archive),
+        asyncio.Semaphore(1),
+        stats,
+        {source_identity(s)[:2] for s in listed},
+    )
+    assert requested and not any(url.split("/", 6)[-1] == "skills/demo/SKILL.md" for url in requested)
+    assert not list(archive.rglob("SKILL.md"))
+
+
+@pytest.mark.asyncio
+async def test_standalone_downloader_excludes_listed_and_rediscovered_sources(
+    tmp_path, monkeypatch
+):
     monkeypatch.chdir(tmp_path)
     import download_v2
 

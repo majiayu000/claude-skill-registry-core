@@ -297,6 +297,7 @@ async def download_skill(
     registry: SkillRegistry,
     semaphore: asyncio.Semaphore,
     stats: dict,
+    listed_locations: set[tuple[str, str]],
 ) -> bool:
     """Download a single skill with conflict resolution."""
 
@@ -337,6 +338,9 @@ async def download_skill(
     patterns = get_url_patterns(repo, normalize_name(name), path)
 
     for url in patterns[:8]:
+        candidate = url.removeprefix(f"{GITHUB_RAW_BASE}/{repo}/").split("/", 1)[1]
+        if source_identity({"repo": repo, "path": candidate})[:2] in listed_locations:
+            continue
         content, status = await fetch_url(session, url, semaphore)
 
         if content and is_valid_skill_content(content):
@@ -473,7 +477,7 @@ async def main():
             logger.info(f"Batch {batch_num}/{total_batches} ({len(batch)} skills)")
 
             tasks = [
-                download_skill(session, skill, skills_dir, registry, semaphore, stats)
+                download_skill(session, skill, skills_dir, registry, semaphore, stats, listed_locations)
                 for skill in batch
             ]
 
