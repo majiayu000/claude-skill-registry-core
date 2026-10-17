@@ -132,9 +132,10 @@ def resolve_pins(
             stats["api_calls"] += 1
             tree = client.get_json(f"/repos/{repo}/git/trees/{commit}?recursive=1")
         except GitHubApiError as exc:
-            if exc.status in (403, 429) and "rate limit" in str(exc).lower():
-                # Leave this and every later repository for the next run.
-                rate_limited = True
+            rate_limited = exc.status in (403, 429) and "rate limit" in str(exc).lower()
+            if rate_limited or exc.status == 0 or 500 <= exc.status < 600:
+                # Retry transient failures next run without refreshing cached timestamps.
+                # Only rate limits defer every later repository as well.
                 stats["deferred"] += len(skills)
                 for record_id, archive_path, data in skills:
                     if previous := current_pin(existing, record_id, archive_path, data):
