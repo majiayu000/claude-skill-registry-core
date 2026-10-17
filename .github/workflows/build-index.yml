@@ -4,6 +4,10 @@ on:
   # Manual trigger
   workflow_dispatch:
 
+  # Weekly refresh of install pins (upstream commits matching the scanned archive)
+  schedule:
+    - cron: '0 6 * * 1'
+
   # Run when registry or site sources change
   push:
     branches: [main]
@@ -337,11 +341,23 @@ jobs:
           echo "Index sizes:"
           du -sh docs/*.json docs/*.gz 2>/dev/null || true
 
+      - name: Resolve install pins
+        env:
+          GITHUB_TOKEN: ${{ secrets.DISCOVERY_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/resolve_install_pins.py \
+            --catalog docs/page-catalog.json \
+            --docs-dir docs \
+            --archive skills \
+            --pins install-pins.json \
+            --budget 1500
+
       - name: Build static featured skill pages
         run: |
           python scripts/build_static_skill_pages.py \
             --catalog docs/page-catalog.json \
-            --output docs
+            --output docs \
+            --install-pins install-pins.json
           rm docs/page-catalog.json
 
       - name: Check generated artifact sizes
@@ -359,3 +375,12 @@ jobs:
 
       - name: Validate static artifact API v1
         run: python scripts/check_artifact_api.py --root . --docs-dir docs
+
+      - name: Upload install pin cache
+        # commit-install-pins.yml commits this artifact; this job stays read-only.
+        uses: actions/upload-artifact@v7
+        with:
+          name: install-pins
+          path: install-pins.json
+          if-no-files-found: error
+          retention-days: 7

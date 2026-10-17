@@ -31,6 +31,9 @@ RUNTIME_TARGETS = (
     ("Codex", "codex", "~/.agents/skills/"),
     ("Cursor", "cursor", "~/.cursor/skills/"),
 )
+# Agent Skills well-known discovery index (agentskills.io, discovery schema 0.2.0).
+DISCOVERY_SCHEMA = "https://schemas.agentskills.io/discovery/0.2.0/schema.json"
+WELL_KNOWN_DIR = Path(".well-known") / "agent-skills"
 
 
 def group_skill_copies(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -168,7 +171,19 @@ def _install_source(record: dict[str, Any]) -> str:
     return f"{repo}{'/' + path if path else ''}#{branch}"
 
 
-def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[str, Any]]) -> str:
+def _pinned_skill_url(pin: dict[str, Any]) -> str:
+    return f"https://raw.githubusercontent.com/{quote(pin['repo'], safe='/')}/{pin['commit']}/{quote(pin['path'], safe='/')}"
+
+
+def _discovery_index(pin: dict[str, Any]) -> dict[str, Any]:
+    """One-skill index pointing at the author's file at the commit that matched the scan."""
+    return {"$schema": DISCOVERY_SCHEMA, "skills": [{
+        "name": pin["name"], "type": "skill-md", "description": pin["description"],
+        "url": _pinned_skill_url(pin), "digest": pin["digest"],
+    }]}
+
+
+def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[str, Any]], pin: dict[str, Any] | None = None) -> str:
     def esc(value: Any) -> str:
         return html.escape(str(value), quote=True)
 
@@ -199,6 +214,13 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
         '<p>Open the source above and copy the folder containing SKILL.md into your agent’s skills directory.</p>'
     )
     badge_markdown = f"[![Listed on Claude Skills Registry]({BADGE_URL})]({PUBLIC_SITE})"
+    if pin:
+        install_details = (
+            f'<p>Verified install: the <a href="{SKILLS_CLI_URL}">skills CLI</a> reads this guide\'s discovery index and installs SKILL.md '
+            f'from <a href="{esc(_pinned_skill_url(pin))}">{esc(pin["repo"])} at commit {esc(pin["commit"][:12])}</a>, '
+            f'checking its SHA-256 against the version the registry scanned:</p><code>{esc("npx skills add " + canonical)}</code>'
+            '<p>Or install the latest version from source:</p>' + install_details
+        )
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -305,7 +327,12 @@ def _prepare_generated_root(output_dir: Path) -> Path:
     return generated_root
 
 
-def build_static_skill_pages(catalog_records: Iterable[dict[str, Any]], output_dir: Path, archive_dir: Path | None = None) -> dict[str, Any]:
+def build_static_skill_pages(
+    catalog_records: Iterable[dict[str, Any]],
+    output_dir: Path,
+    archive_dir: Path | None = None,
+    install_pins: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Write guides, browse links, category archive entrypoints, and sitemap."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -317,11 +344,19 @@ def build_static_skill_pages(catalog_records: Iterable[dict[str, Any]], output_d
     categories: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
         categories[str(record.get("category") or "other")].append(record)
+    pinned_count = 0
     for record, slug in zip(records, slugs, strict=True):
         detail_dir = generated_root / slug
         detail_dir.mkdir()
         related = [item for item in categories[str(record.get("category") or "other")] if item is not record][:4]
-        (detail_dir / "index.html").write_text(_render_detail_page(record, slug, related), encoding="utf-8")
+        pin = (install_pins or {}).get(str(record.get("id") or ""))
+        pin = pin if pin and pin.get("status") == "pinned" else None
+        (detail_dir / "index.html").write_text(_render_detail_page(record, slug, related, pin), encoding="utf-8")
+        if pin:
+            index_path = detail_dir / WELL_KNOWN_DIR / "index.json"
+            index_path.parent.mkdir(parents=True)
+            index_path.write_text(json.dumps(_discovery_index(pin), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+            pinned_count += 1
     browse = f'''<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Skill guides — Claude Skills Registry</title>
@@ -349,7 +384,7 @@ def build_static_skill_pages(catalog_records: Iterable[dict[str, Any]], output_d
                 (directory / "README.md").write_text(f'# {directory.name}\n\nBrowse [skill guides and installation instructions]({PUBLIC_SITE}skills/#{quote(directory.name)}) or [search the full registry]({PUBLIC_SITE}).\n\nArchived files retain their original ownership and license terms. [Request removal]({REMOVAL_URL}).\n', encoding='utf-8')
     _update_homepage(output_dir, records)
     _write_sitemap(output_dir, slugs)
-    return {"generated_count": len(records), "slugs": slugs}
+    return {"generated_count": len(records), "slugs": slugs, "pinned_count": pinned_count}
 
 
 def main() -> int:
@@ -357,13 +392,19 @@ def main() -> int:
     parser.add_argument("--catalog", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--archive", type=Path)
+    parser.add_argument("--install-pins", type=Path, help="install-pins.json from resolve_install_pins.py")
     args = parser.parse_args()
     payload = json.loads(args.catalog.read_text(encoding="utf-8"))
     records = payload.get("skills") if isinstance(payload, dict) else None
     if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
         raise ValueError(f"Catalog artifact has no valid skills list: {args.catalog}")
-    summary = build_static_skill_pages(records, args.output, args.archive)
-    print(f"Generated {summary['generated_count']} static skill pages")
+    pins = None
+    if args.install_pins is not None:
+        pins = json.loads(args.install_pins.read_text(encoding="utf-8")).get("pins")
+        if not isinstance(pins, dict):
+            raise ValueError(f"Install pin artifact has no valid pins map: {args.install_pins}")
+    summary = build_static_skill_pages(records, args.output, args.archive, pins)
+    print(f"Generated {summary['generated_count']} static skill pages ({summary['pinned_count']} with verified install)")
     return 0
 
 
