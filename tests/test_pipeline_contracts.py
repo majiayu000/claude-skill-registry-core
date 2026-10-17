@@ -451,6 +451,8 @@ def test_publish_static_pages_receives_catalog_archive_and_output_together(mirro
         *(["--archive", "/tmp/publish/skills"] if mirror_skills else []),
         "--output",
         "/tmp/publish/docs",
+        "--archive-source",
+        "/tmp/publish/skills",
     ]
 
 
@@ -549,7 +551,7 @@ def test_publish_sync_rebuild_steps_read_the_selected_archive_dir():
     rebuild_block = sync_script[sync_script.index('if [[ "$rebuild" -eq 1 ]]') :]
 
     assert '"$main_dir/skills"' not in rebuild_block
-    assert rebuild_block.count('"$archive_dir"') == 6
+    assert rebuild_block.count('"$archive_dir"') == 7
     selection = sync_script[
         sync_script.index('if [[ "$mirror_skills" -eq 1 ]]') : sync_script.index(
             'if [[ "$rebuild" -eq 1 ]]'

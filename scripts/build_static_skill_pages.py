@@ -175,6 +175,21 @@ def _pinned_skill_url(pin: dict[str, Any]) -> str:
     return f"https://raw.githubusercontent.com/{quote(pin['repo'], safe='/')}/{pin['commit']}/{quote(pin['path'], safe='/')}"
 
 
+def _current_install_pin(record, pin, archive_source):
+    """Publish a cached pin only for the current archived bytes behind this guide."""
+    archive_path = record.get("archive_path")
+    if not pin or pin.get("status") != "pinned" or archive_source is None or not archive_path:
+        return None
+    if pin.get("archive_path") != archive_path or pin.get("repo") != record.get("repo"):
+        return None
+    root = Path(archive_source).resolve()
+    source = (root / archive_path).resolve()
+    if not source.is_relative_to(root) or not source.is_file():
+        return None
+    digest = "sha256:" + hashlib.sha256(source.read_bytes()).hexdigest()
+    return pin if pin.get("digest") == digest else None
+
+
 def _discovery_index(pin: dict[str, Any]) -> dict[str, Any]:
     """One-skill index pointing at the author's file at the commit that matched the scan."""
     return {"$schema": DISCOVERY_SCHEMA, "skills": [{
@@ -332,6 +347,7 @@ def build_static_skill_pages(
     output_dir: Path,
     archive_dir: Path | None = None,
     install_pins: dict[str, dict[str, Any]] | None = None,
+    archive_source: Path | None = None,
 ) -> dict[str, Any]:
     """Write guides, browse links, category archive entrypoints, and sitemap."""
     output_dir = Path(output_dir)
@@ -350,7 +366,7 @@ def build_static_skill_pages(
         detail_dir.mkdir()
         related = [item for item in categories[str(record.get("category") or "other")] if item is not record][:4]
         pin = (install_pins or {}).get(str(record.get("id") or ""))
-        pin = pin if pin and pin.get("status") == "pinned" else None
+        pin = _current_install_pin(record, pin, archive_source)
         (detail_dir / "index.html").write_text(_render_detail_page(record, slug, related, pin), encoding="utf-8")
         if pin:
             index_path = detail_dir / WELL_KNOWN_DIR / "index.json"
@@ -393,6 +409,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--install-pins", type=Path, help="install-pins.json from resolve_install_pins.py")
+    parser.add_argument("--archive-source", type=Path, help="Read-only current archive used to verify install pins")
     args = parser.parse_args()
     payload = json.loads(args.catalog.read_text(encoding="utf-8"))
     records = payload.get("skills") if isinstance(payload, dict) else None
@@ -403,7 +420,7 @@ def main() -> int:
         pins = json.loads(args.install_pins.read_text(encoding="utf-8")).get("pins")
         if not isinstance(pins, dict):
             raise ValueError(f"Install pin artifact has no valid pins map: {args.install_pins}")
-    summary = build_static_skill_pages(records, args.output, args.archive, pins)
+    summary = build_static_skill_pages(records, args.output, args.archive, pins, args.archive_source)
     print(f"Generated {summary['generated_count']} static skill pages ({summary['pinned_count']} with verified install)")
     return 0
 

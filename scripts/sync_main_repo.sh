@@ -199,12 +199,12 @@ if [[ "$rebuild" -eq 1 ]]; then
     --security-report "$security_report_path"
 
   # --archive writes category READMEs; only the publishing mirror is writable.
-  # In no-mirror mode the catalog already contains everything needed for pages.
+  # --archive-source only reads bytes to validate pins, including in no-mirror mode.
   page_args=(--catalog "$main_dir/docs/page-catalog.json")
   if [[ "$mirror_skills" -eq 1 ]]; then
     page_args+=(--archive "$archive_dir")
   fi
-  page_args+=(--output "$main_dir/docs")
+  page_args+=(--output "$main_dir/docs" --archive-source "$archive_dir")
   # Core's build-index workflow maintains the pin cache; guides without a pin
   # keep the source-path install only.
   if [[ -f "$main_dir/install-pins.json" ]]; then

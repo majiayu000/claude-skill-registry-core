@@ -387,6 +387,7 @@ def test_unrepresentable_cli_path_uses_manual_install(tmp_path):
 
 def test_badge_target_survives_content_and_selection_changes(tmp_path):
     import html
+
     from build_static_skill_pages import BADGE_URL
     record = skill("badge", content_fingerprint="before")
     badge = f"[![Listed on Claude Skills Registry]({BADGE_URL})]({PUBLIC_SITE})"
@@ -409,12 +410,18 @@ def pinned(**overrides):
 
 
 def test_pinned_guides_publish_a_discovery_index_and_verified_install(tmp_path):
+    import hashlib
     import json
 
     from build_static_skill_pages import DISCOVERY_SCHEMA
 
-    record = skill("pdf")
-    summary = build_static_skill_pages([record], tmp_path, install_pins={record["id"]: pinned()})
+    record = skill("pdf", archive_path="data/pdf/SKILL.md")
+    archive = tmp_path / "archive"
+    source = archive / record["archive_path"]
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"current scanned content")
+    digest = "sha256:" + hashlib.sha256(source.read_bytes()).hexdigest()
+    summary = build_static_skill_pages([record], tmp_path, install_pins={record["id"]: pinned(archive_path=record["archive_path"], digest=digest)}, archive_source=archive)
     slug = skill_page_slug(record)
     index = json.loads((tmp_path / "skills" / slug / ".well-known" / "agent-skills" / "index.json").read_text())
     detail = (tmp_path / "skills" / slug / "index.html").read_text()
@@ -423,10 +430,38 @@ def test_pinned_guides_publish_a_discovery_index_and_verified_install(tmp_path):
     assert index == {"$schema": DISCOVERY_SCHEMA, "skills": [{
         "name": "pdf-tools", "type": "skill-md", "description": "Extract text from PDFs.",
         "url": "https://raw.githubusercontent.com/acme/skills/" + "c" * 40 + "/skills/pdf%20tools/SKILL.md",
-        "digest": "sha256:" + "d" * 64,
+        "digest": digest,
     }]}
     assert f"npx skills add {PUBLIC_SITE}skills/{slug}/" in detail
     assert "at commit cccccccccccc" in detail
+
+
+@pytest.mark.parametrize("case", ["changed", "missing", "no_archive", "wrong_archive_path", "outside_archive"])
+def test_stale_install_pins_are_not_published(tmp_path, case):
+    import hashlib
+
+    record = skill("pdf", archive_path="data/pdf/SKILL.md")
+    archive = tmp_path / "archive"
+    source = archive / record["archive_path"]
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"current scanned content")
+    pin = pinned(archive_path=record["archive_path"], digest="sha256:" + hashlib.sha256(source.read_bytes()).hexdigest())
+    if case == "changed":
+        source.write_bytes(b"new archived version with the same stable id")
+    elif case == "missing":
+        source.unlink()
+    elif case == "wrong_archive_path":
+        pin["archive_path"] = "data/other/SKILL.md"
+    elif case == "outside_archive":
+        record["archive_path"] = pin["archive_path"] = "../outside/SKILL.md"
+    output = tmp_path / "docs"
+    summary = build_static_skill_pages([record], output, install_pins={record["id"]: pin},
+                                      archive_source=None if case == "no_archive" else archive)
+    detail = output / "skills" / skill_page_slug(record)
+    assert summary["pinned_count"] == 0
+    assert not (detail / ".well-known").exists()
+    assert "Verified install" not in (detail / "index.html").read_text()
+    assert "npx skills add" in (detail / "index.html").read_text()
 
 
 @pytest.mark.parametrize("pins", [None, {}, {"stable-pdf": pinned(status="upstream_changed")}])

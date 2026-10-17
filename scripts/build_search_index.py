@@ -24,7 +24,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from build_static_skill_pages import attach_security_scans, group_skill_copies, select_featured_skills
+from build_static_skill_pages import (
+    attach_security_scans,
+    group_skill_copies,
+    select_featured_skills,
+)
 from category_taxonomy import get_category_code, get_taxonomy, resolve_category
 from index_artifacts import write_category_artifacts, write_search_artifacts, write_signal_artifacts
 from plugin_index import build_plugins_index, load_plugins_with_fallback
@@ -460,6 +464,8 @@ def build_search_index(
                     "is_canonical": records["full"]["id"] == canonical_id,
                 })
     page_records = attach_security_scans(select_featured_skills(independent_skills), security_records_by_id)
+    for record in page_records:
+        record["archive_path"] = records_by_key[f"{record['install']}|{record['branch']}"]["lite"].get("archive_path", "")
     safe_write_json(output_dir / "page-catalog.json", {
         "schema_version": 1,
         "updated_at": utc_now_isoformat(),

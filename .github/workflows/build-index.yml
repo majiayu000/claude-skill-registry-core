@@ -357,6 +357,7 @@ jobs:
           python scripts/build_static_skill_pages.py \
             --catalog docs/page-catalog.json \
             --output docs \
+            --archive-source skills \
             --install-pins install-pins.json
           rm docs/page-catalog.json
 
