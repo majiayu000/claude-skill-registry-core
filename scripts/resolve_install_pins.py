@@ -82,7 +82,14 @@ def match_upstream(entries: list[dict], blob: str) -> dict[str, Any]:
     if "/" not in path:
         return {"status": "repo_root"}
     prefix = path.rsplit("/", 1)[0] + "/"
-    if any(e["path"].startswith(prefix) and e["path"] != path for e in blobs):
+    # Git submodules are commit entries and also require bundled installation.
+    if any(
+        e.get("type") in ("blob", "commit")
+        and isinstance(e.get("path"), str)
+        and e["path"].startswith(prefix)
+        and e["path"] != path
+        for e in entries
+    ):
         return {"status": "bundled_files"}
     return {"status": "pinned", "path": path}
 
