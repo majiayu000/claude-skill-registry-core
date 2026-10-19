@@ -344,11 +344,13 @@ async def collect_pinned_tree_entries(
 async def read_response_bytes_limited(response: Any, max_bytes: int) -> bytes:
     """Read a response without buffering more than the allowed byte count."""
     advertised_size = getattr(response, "content_length", None)
+    encoding = getattr(response, "headers", {}).get("Content-Encoding", "identity").lower()
     if advertised_size is not None and (
         isinstance(advertised_size, bool)
         or not isinstance(advertised_size, int)
         or advertised_size < 0
-        or advertised_size > max_bytes
+        # aiohttp streams decoded bytes; Content-Length describes encoded bytes.
+        or (encoding in {"", "identity"} and advertised_size > max_bytes)
     ):
         raise ValueError("response Content-Length exceeds or violates the byte limit")
     stream = getattr(response, "content", None)

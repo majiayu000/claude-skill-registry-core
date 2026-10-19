@@ -1896,6 +1896,43 @@ def test_skill_source_dir_resolves_skill_parent():
     assert module.skill_source_dir("") == ""
 
 
+@pytest.mark.parametrize("path", [
+    "~/.local/bin/agent-chain-doctor",
+    "/usr/local/bin/agent-chain-doctor",
+    "/opt/tool/scripts/check.py",
+    r"C:\Tools\scripts\check.py",
+])
+def test_external_absolute_prerequisite_is_not_a_bundled_asset(path):
+    support = load_support_module()
+    content = f"Install the prerequisite separately, then run `{path}`."
+    assert support.requires_complete_bundled_archive(content) is False
+    assert support.requires_complete_bundled_archive(content + " Read references/guide.md.") is True
+
+
+def test_explicit_relative_support_path_still_requires_bundle():
+    support = load_support_module()
+    assert support.requires_complete_bundled_archive("Run ./scripts/check.py") is True
+    assert support.requires_complete_bundled_archive("Run scripts/check.py") is True
+
+
+def test_bounded_reader_uses_decoded_size_for_compressed_responses():
+    load_support_module()
+    from sync_download_support import read_response_bytes_limited
+
+    response = FakeResponse(200, body=b'{"mode":"preview"}', content_length=38)
+    response.headers = {"Content-Encoding": "gzip"}
+    assert asyncio.run(read_response_bytes_limited(response, 18)) == b'{"mode":"preview"}'
+
+    response = FakeResponse(200, body=b"x" * 19, content_length=10)
+    response.headers = {"Content-Encoding": "gzip"}
+    with pytest.raises(ValueError, match="response body exceeds"):
+        asyncio.run(read_response_bytes_limited(response, 18))
+
+    response = FakeResponse(200, body=b"x", content_length=19)
+    with pytest.raises(ValueError, match="Content-Length"):
+        asyncio.run(read_response_bytes_limited(response, 18))
+
+
 def test_bundled_file_allowlist_is_scoped_and_size_limited():
     module = load_module()
     support = load_support_module()
@@ -2041,7 +2078,7 @@ def test_bundles_root_helpers_src_and_design_subskills(tmp_path, monkeypatch):
         "---\nname: media-design\n"
         "description: Demo skill with root helpers and design subskills.\n---\n"
         "# Demo\n"
-        "Run webmedia.py, sck-record.swift, src/polish.py, and design-spatial/SKILL.md.\n"
+        "Read config.json; run webmedia.py, sck-record.swift, src/polish.py, and design-spatial/SKILL.md.\n"
     )
     install_fake_aiohttp(
         monkeypatch,
@@ -2054,6 +2091,12 @@ def test_bundles_root_helpers_src_and_design_subskills(tmp_path, monkeypatch):
                 200,
                 json_payload=[
                     {"type": "file", "path": "SKILL.md", "size": len(skill_text)},
+                    {
+                        "type": "file",
+                        "path": "config.json",
+                        "download_url": "https://download.example/config.json",
+                        "size": len('{"mode": "preview"}'),
+                    },
                     {
                         "type": "file",
                         "path": "webmedia.py",
@@ -2108,6 +2151,7 @@ def test_bundles_root_helpers_src_and_design_subskills(tmp_path, monkeypatch):
                     ],
                 )
             ),
+            "https://download.example/config.json": FakeResponse(200, text='{"mode": "preview"}'),
             "https://download.example/webmedia.py": FakeResponse(200, text="print('media')\n"),
             "https://download.example/sck-record.swift": FakeResponse(200, text='print("rec")\n'),
             "https://download.example/polish.py": FakeResponse(200, text="print('polish')\n"),
@@ -2135,8 +2179,9 @@ def test_bundles_root_helpers_src_and_design_subskills(tmp_path, monkeypatch):
 
     assert stats["downloaded"] == 1
     assert stats["failed"] == 0
-    assert stats["bundled_files"] == 5
+    assert stats["bundled_files"] == 6
     skill_dir = next(output_dir.glob("development/*"))
+    assert json.loads((skill_dir / "config.json").read_text()) == {"mode": "preview"}
     assert (skill_dir / "webmedia.py").is_file()
     assert (skill_dir / "sck-record.swift").is_file()
     assert (skill_dir / "src" / "polish.py").is_file()
@@ -2145,6 +2190,7 @@ def test_bundles_root_helpers_src_and_design_subskills(tmp_path, monkeypatch):
     metadata = json.loads((skill_dir / "metadata.json").read_text(encoding="utf-8"))
     assert metadata["archive_mode"] == "directory"
     assert metadata["bundled_files"] == [
+        "config.json",
         "design-spatial/SKILL.md",
         "design-spatial/scripts/layout-audit.js",
         "sck-record.swift",

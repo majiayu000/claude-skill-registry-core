@@ -21,6 +21,7 @@ BUNDLED_DIR_ALLOWLIST = {
 
 BUNDLED_ROOT_FILE_ALLOWLIST = {
     "audit.md",
+    "config.json",
     "package.json",
     "package-lock.json",
     "pnpm-lock.yaml",
@@ -35,6 +36,9 @@ BUNDLED_ROOT_FILE_ALLOWLIST = {
 }
 
 _URL_RE = re.compile(r"https?://\S+")
+_ABSOLUTE_PATH_RE = re.compile(
+    r"""(?<![a-z0-9_.~-])(?:~?/|[a-z]:/)[^\s`"'<>()\[\]]*"""
+)
 
 
 def requires_complete_bundled_archive(skill_content: str) -> bool:
@@ -43,9 +47,12 @@ def requires_complete_bundled_archive(skill_content: str) -> bool:
     Only directory-scoped references count as a dependency. A bare filename such as
     ``package.json`` or ``auth.py`` normally names a file in the repository the skill
     operates on, so it is no evidence that the skill ships that file itself.
+    Absolute and home-relative paths name external installations, not files
+    relative to the skill directory.
     """
     without_urls = _URL_RE.sub("", skill_content or "")
     normalized = without_urls.lower().replace("\\", "/")
+    normalized = _ABSOLUTE_PATH_RE.sub("", normalized)
     for dirname in BUNDLED_DIR_ALLOWLIST:
         if re.search(rf"(?<![a-z0-9_.-]){re.escape(dirname)}/", normalized):
             return True
