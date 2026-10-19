@@ -37,7 +37,8 @@ BUNDLED_ROOT_FILE_ALLOWLIST = {
 
 _URL_RE = re.compile(r"https?://\S+")
 _ABSOLUTE_PATH_RE = re.compile(
-    r"""(?<![a-z0-9_.~-])(?:~?/|[a-z]:/)[^\s`"'<>()\[\]]*"""
+    r"""(?<![a-z0-9_.~${})/\\-])(?:"(?:~?/|[a-z]:[\\/])[^"\n]*"|'(?:~?/|[a-z]:[\\/])[^'\n]*'|(?:~?/|[a-z]:[\\/])(?:\\[^\n]|[^\s`"'<>()\[\]&|;])*)""",
+    re.IGNORECASE,
 )
 
 
@@ -51,8 +52,7 @@ def requires_complete_bundled_archive(skill_content: str) -> bool:
     relative to the skill directory.
     """
     without_urls = _URL_RE.sub("", skill_content or "")
-    normalized = without_urls.lower().replace("\\", "/")
-    normalized = _ABSOLUTE_PATH_RE.sub("", normalized)
+    normalized = _ABSOLUTE_PATH_RE.sub("", without_urls).lower().replace("\\", "/")
     for dirname in BUNDLED_DIR_ALLOWLIST:
         if re.search(rf"(?<![a-z0-9_.-]){re.escape(dirname)}/", normalized):
             return True

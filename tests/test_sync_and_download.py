@@ -1901,6 +1901,9 @@ def test_skill_source_dir_resolves_skill_parent():
     "/usr/local/bin/agent-chain-doctor",
     "/opt/tool/scripts/check.py",
     r"C:\Tools\scripts\check.py",
+    r'"C:\Program Files\Tool\scripts\check.py"',
+    '"~/Library/Application Support/tool/scripts/check.py"',
+    r"~/Library/Application\ Support/tool/scripts/check.py",
 ])
 def test_external_absolute_prerequisite_is_not_a_bundled_asset(path):
     support = load_support_module()
@@ -1913,6 +1916,19 @@ def test_explicit_relative_support_path_still_requires_bundle():
     support = load_support_module()
     assert support.requires_complete_bundled_archive("Run ./scripts/check.py") is True
     assert support.requires_complete_bundled_archive("Run scripts/check.py") is True
+
+
+@pytest.mark.parametrize("content", [
+    "/usr/local/bin/tool&&scripts/setup.sh",
+    "/usr/local/bin/tool|scripts/setup.sh",
+    "/usr/local/bin/tool;scripts/setup.sh",
+    "${CLAUDE_PLUGIN_ROOT}/scripts/check.py",
+    "${SKILL_DIR}/references/guide.md",
+    "$(pwd)/scripts/check.py",
+])
+def test_absolute_prerequisites_preserve_following_bundled_dependencies(content):
+    support = load_support_module()
+    assert support.requires_complete_bundled_archive(content) is True
 
 
 def test_bounded_reader_uses_decoded_size_for_compressed_responses():
