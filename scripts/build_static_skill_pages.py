@@ -565,6 +565,8 @@ def _update_homepage(output_dir: Path, records: list[dict[str, Any]]) -> None:
 def _write_sitemap(output_dir: Path, entries: list[tuple[str, str | None]]) -> None:
     if (output_dir / "guides" / "code-review.html").is_file():
         entries.append((f"{PUBLIC_SITE}guides/code-review.html", None))
+    entries.extend((f"{PUBLIC_SITE}{path.parent.relative_to(output_dir).as_posix()}/", None)
+                   for path in sorted((output_dir / "reports").glob("*/index.html")))
     rows = []
     for url, lastmod in entries:
         extra = f"<lastmod>{lastmod}</lastmod>" if lastmod else ""

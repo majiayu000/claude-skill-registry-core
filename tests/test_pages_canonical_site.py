@@ -3,7 +3,6 @@ from xml.etree import ElementTree
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC_SITE = "https://majiayu000.github.io/claude-skill-registry/"
 
@@ -34,7 +33,10 @@ def test_robots_and_sitemap_publish_only_the_main_registry_url():
         "Allow: /\n"
         f"Sitemap: {PUBLIC_SITE}sitemap.xml\n"
     )
-    assert locations == [PUBLIC_SITE]
+    assert locations == [
+        PUBLIC_SITE,
+        f"{PUBLIC_SITE}reports/skill-drift-2026-10/",
+    ]
 
 
 def test_core_build_generates_artifacts_without_deploying_duplicate_pages():
