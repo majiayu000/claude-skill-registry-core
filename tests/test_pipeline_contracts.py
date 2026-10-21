@@ -637,9 +637,11 @@ def test_publish_sync_without_skills_mirror_builds_from_data_dir(tmp_path, shell
         encoding="utf-8",
     )
 
-    stale_skill = main / "skills/design/stale-skill/SKILL.md"
-    stale_skill.parent.mkdir(parents=True)
-    stale_skill.write_text("# Previous publishing mirror\n", encoding="utf-8")
+    pointer = main / "skills/design/legacy-skill/SKILL.md"
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text("# Frozen legacy URL pointer\n", encoding="utf-8")
+    pointer_readme = main / "skills/README.md"
+    pointer_readme.write_text("# Frozen pointer set\n", encoding="utf-8")
     archive_before = {
         path.relative_to(data): path.read_bytes()
         for path in data.rglob("*") if path.is_file()
@@ -664,7 +666,8 @@ def test_publish_sync_without_skills_mirror_builds_from_data_dir(tmp_path, shell
     assert result.returncode == 0, result.stdout + result.stderr
     assert "Skipping data -> main/skills mirror" in result.stdout
     assert "START: Sync data -> main/skills" not in result.stdout
-    assert not (main / "skills").exists()
+    assert pointer.read_text() == "# Frozen legacy URL pointer\n"
+    assert pointer_readme.read_text() == "# Frozen pointer set\n"
     assert (skill / "SKILL.md").is_file()
     assert {
         path.relative_to(data): path.read_bytes()

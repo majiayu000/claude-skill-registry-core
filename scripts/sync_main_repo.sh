@@ -168,7 +168,8 @@ if [[ "$mirror_skills" -eq 1 ]]; then
   archive_dir="$main_dir/skills"
 else
   log "Skipping data -> main/skills mirror; building from $data_dir"
-  run_step "Remove previous main/skills mirror" rm -rf "$main_dir/skills"
+  # main/skills contains frozen legacy URL pointers. The core rsync excludes
+  # this tree; leave it untouched even when it is absent from sparse checkout.
   archive_dir="$data_dir"
 fi
 
