@@ -43,6 +43,8 @@ def test_pointer_encodes_url_parts():
     "skills//example/SKILL.md\n",
     "skills/design/example/SKILL.md\nskills/design/example/SKILL.md\n",
     "skills/design/example/SKILL.md\nskills/DESIGN/EXAMPLE/SKILL.md\n",
+    "skills/design/a/SKILL.md\nskills/Design/b/SKILL.md\n",
+    "skills/design/pack/a/SKILL.md\nskills/design/Pack/b/SKILL.md\n",
     "skills/design/example/SKILL.md\n\n",
     "skills/design/nu\0l/SKILL.md\n",
 ])
@@ -50,7 +52,7 @@ def test_invalid_paths_fail_before_writing(tmp_path, paths):
     paths_file = tmp_path / "paths.txt"
     paths_file.write_text("skills/design/valid/SKILL.md\n" + paths, encoding="utf-8")
     output = tmp_path / "main"
-    with pytest.raises(ValueError, match="Invalid|Duplicate"):
+    with pytest.raises(ValueError, match="Invalid|Duplicate|Case-colliding"):
         write_pointers(paths_file, SHA, output, check=False)
     assert not output.exists()
 

@@ -61,3 +61,5 @@ bash scripts/sync_main_repo.sh \
   --data ../claude-skill-registry-data \
   --main ../claude-skill-registry
 ```
+
+By default it builds from the data checkout and leaves `main/skills/` (the frozen legacy URL pointers) untouched. `--skills-mirror` copies the archive over `main/skills/` instead and replaces those pointers.

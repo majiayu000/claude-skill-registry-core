@@ -16,6 +16,8 @@ def load_paths(paths_file: Path, output_root: Path) -> list[str]:
     """Validate the complete input before creating any files."""
     paths = paths_file.read_text(encoding="utf-8").splitlines()
     seen: set[str] = set()
+    # Case-insensitive checkouts alias directories that differ only by case.
+    prefixes: dict[str, str] = {}
     skills_root = output_root.resolve() / "skills"
     for number, path in enumerate(paths, 1):
         parts = path.split("/")
@@ -29,6 +31,13 @@ def load_paths(paths_file: Path, output_root: Path) -> list[str]:
         if key in seen:
             raise ValueError(f"Duplicate or case-colliding legacy path on line {number}: {path!r}")
         seen.add(key)
+        for end in range(2, len(parts)):
+            prefix = "/".join(parts[:end])
+            spelling = prefixes.setdefault(prefix.casefold(), prefix)
+            if spelling != prefix:
+                raise ValueError(
+                    f"Case-colliding directory on line {number}: {prefix!r} vs {spelling!r}"
+                )
         if not (output_root / path).resolve().is_relative_to(skills_root):
             raise ValueError(f"Legacy target escapes output skills directory: {path!r}")
     if not (skills_root / "README.md").resolve().is_relative_to(skills_root):

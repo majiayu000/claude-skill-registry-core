@@ -609,8 +609,9 @@ def test_publish_sync_rebuild_steps_read_the_selected_archive_dir():
     assert 'archive_dir="$data_dir"' in selection
 
 
+@pytest.mark.parametrize("mirror_flags", [(), ("--no-skills-mirror",)])
 @pytest.mark.parametrize("shell", ["bash", "/bin/bash"])
-def test_publish_sync_without_skills_mirror_builds_from_data_dir(tmp_path, shell):
+def test_publish_sync_without_skills_mirror_builds_from_data_dir(tmp_path, shell, mirror_flags):
     core, data, main = (tmp_path / name for name in ("core", "data", "main"))
     for path in (core, data, main):
         path.mkdir()
@@ -651,7 +652,7 @@ def test_publish_sync_without_skills_mirror_builds_from_data_dir(tmp_path, shell
         [
             shell, str(core / "scripts/sync_main_repo.sh"),
             "--core", str(core), "--data", str(data), "--main", str(main),
-            "--no-rebuild", "--no-skills-mirror",
+            "--no-rebuild", *mirror_flags,
         ],
         cwd=main,
         env={
@@ -723,7 +724,7 @@ def test_publish_sync_preserves_main_owned_tests_during_repeated_sync(tmp_path):
             [
                 "bash", str(core / "scripts/sync_main_repo.sh"),
                 "--core", str(core), "--data", str(data), "--main", str(main),
-                "--no-rebuild",
+                "--no-rebuild", "--skills-mirror",
             ],
             cwd=main,
             env={
