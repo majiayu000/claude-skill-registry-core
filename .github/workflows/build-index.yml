@@ -354,13 +354,23 @@ jobs:
             --pins install-pins.json \
             --budget 1500
 
+      - name: Record skill content history
+        # Appends an entry only when a guide's scanned files or pin status change.
+        run: |
+          python scripts/skill_content_history.py update \
+            --pins install-pins.json \
+            --archive skills \
+            --history skill-content-history.json \
+            --summary docs/content-history-summary.json
+
       - name: Build static featured skill pages
         run: |
           python scripts/build_static_skill_pages.py \
             --catalog docs/page-catalog.json \
             --output docs \
             --archive-source skills \
-            --install-pins install-pins.json
+            --install-pins install-pins.json \
+            --content-history skill-content-history.json
           rm docs/page-catalog.json
 
       - name: Check generated artifact sizes
@@ -384,6 +394,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: install-pins
-          path: install-pins.json
+          path: |
+            install-pins.json
+            skill-content-history.json
           if-no-files-found: error
           retention-days: 7

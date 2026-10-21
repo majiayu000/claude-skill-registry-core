@@ -478,6 +478,49 @@ def test_publish_static_pages_pass_install_pins_when_core_provides_them(tmp_path
     assert result.stdout.splitlines()[-2:] == ["--install-pins", f"{tmp_path}/install-pins.json"]
 
 
+def test_publish_static_pages_pass_content_history_when_core_provides_it(tmp_path):
+    sync_script = read_repo_file("scripts/sync_main_repo.sh")
+    command = sync_script[sync_script.index('if [[ "$rebuild" -eq 1 ]]') :]
+    command = command.split('\n  run_step "Remove temporary guide catalog"', 1)[0] + '\nfi'
+    (tmp_path / "install-pins.json").write_text('{"pins": {}}', encoding="utf-8")
+    (tmp_path / "skill-content-history.json").write_text('{"schema_version": 1, "skills": {}}', encoding="utf-8")
+    result = subprocess.run(
+        [
+            "bash",
+            "-eu",
+            "-c",
+            f'main_dir="{tmp_path}"\narchive_dir=/tmp/archive\nrebuild=1\nmirror_skills=0\n'
+            'mktemp() { :; }\nmkdir() { :; }\n'
+            'run_step() { if [[ "$1" == "Build static featured skill pages" ]]; then '
+            'printf "%s\\n" "$@"; fi; }\n' + command,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.splitlines()[-4:] == [
+        "--install-pins", f"{tmp_path}/install-pins.json",
+        "--content-history", f"{tmp_path}/skill-content-history.json",
+    ]
+
+
+def test_build_index_records_content_history_between_pins_and_pages():
+    workflow = yaml.safe_load(read_repo_file(".github/workflows/build-index.yml"))
+    steps = next(job["steps"] for job in workflow["jobs"].values()
+                 if any(step.get("name") == "Record skill content history" for step in job["steps"]))
+    names = [step.get("name") for step in steps]
+    pins, history, pages = (names.index(name) for name in (
+        "Resolve install pins", "Record skill content history", "Build static featured skill pages"))
+    record = steps[history]["run"]
+
+    assert pins < history < pages
+    assert "scripts/skill_content_history.py update" in record
+    assert "--archive skills" in record and "--history skill-content-history.json" in record
+    assert "--content-history skill-content-history.json" in steps[pages]["run"]
+    upload = next(step for step in steps if step.get("name") == "Upload install pin cache")
+    assert upload["with"]["path"].split() == ["install-pins.json", "skill-content-history.json"]
+
+
 @pytest.mark.parametrize("mirror_skills", [0, 1])
 def test_publish_static_pages_preserves_data_checkout(tmp_path, mirror_skills):
     """Run the real page generator through the publish shell's rebuild wiring."""

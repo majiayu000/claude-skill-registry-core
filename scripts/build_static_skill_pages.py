@@ -34,6 +34,18 @@ RUNTIME_TARGETS = (
 # Agent Skills well-known discovery index (agentskills.io, discovery schema 0.2.0).
 DISCOVERY_SCHEMA = "https://schemas.agentskills.io/discovery/0.2.0/schema.json"
 WELL_KNOWN_DIR = Path(".well-known") / "agent-skills"
+HISTORY_ENTRY_LIMIT = 10
+# Pin outcomes recorded by skill_content_history.py, worded for readers.
+STATUS_LABELS = {
+    "pinned": "Matches the author's file",
+    "bundled_files": "Matches the author's file; the skill ships extra files",
+    "invalid_frontmatter": "Matches the author's file; frontmatter is not installable",
+    "repo_root": "Matches a repository-root SKILL.md",
+    "upstream_changed": "Author's current file differs from this scanned version",
+    "upstream_unavailable": "Source repository or branch is not reachable",
+    "ambiguous": "Several upstream SKILL.md files match this content",
+    "tree_truncated": "Upstream repository is too large to verify",
+}
 
 
 def group_skill_copies(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -198,7 +210,37 @@ def _discovery_index(pin: dict[str, Any]) -> dict[str, Any]:
     }]}
 
 
-def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[str, Any]], pin: dict[str, Any] | None = None) -> str:
+def _render_content_history(entries: list[dict[str, Any]] | None) -> str:
+    """Periods in which the scanned files and their upstream match stayed the same, newest first."""
+    if not entries:
+        return ""
+
+    def esc(value: Any) -> str:
+        return html.escape(str(value), quote=True)
+
+    items = []
+    for entry in reversed(entries[-HISTORY_ENTRY_LIMIT:]):
+        status = entry.get("status", "")
+        label = esc(STATUS_LABELS.get(status, status.replace("_", " ")))
+        if status == "pinned" and entry.get("repo") and entry.get("commit") and entry.get("path"):
+            url = _pinned_skill_url(entry)
+            label += f' at commit <a href="{esc(url)}">{esc(entry["commit"][:12])}</a>'
+        period = esc(entry["first_seen"][:10]) + ("" if entry["last_seen"][:10] == entry["first_seen"][:10] else " → " + esc(entry["last_seen"][:10]))
+        count = len(entry.get("files") or {})
+        files = f' · {count} file{"s" if count != 1 else ""}' if count else ""
+        items.append(f'<li><span class="period">{period}</span> {label}<span class="digest">{esc(str(entry.get("digest", ""))[:19])}{files}</span></li>')
+    latest = entries[-1]
+    notice = ""
+    if latest.get("status") == "upstream_changed":
+        notice = (f'<p class="notice">The author\'s current SKILL.md no longer matches the version the registry scanned '
+                  f'(change detected {esc(latest["first_seen"][:10])}). Review the source before installing its latest version.</p>')
+    return (f'<section><h2>Content history</h2>{notice}<ol class="history">{"".join(items)}</ol>'
+            '<p class="note">Each entry is a period in which the archived files (SHA-256 per file) and their match against the '
+            'author\'s repository stayed the same. Upstream checks run at most weekly, so detection can lag.</p></section>')
+
+
+def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[str, Any]], pin: dict[str, Any] | None = None,
+                        history: list[dict[str, Any]] | None = None) -> str:
     def esc(value: Any) -> str:
         return html.escape(str(value), quote=True)
 
@@ -283,6 +325,7 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
       <section><h2>Install</h2>{install_details}
       <p class="note">Manual install locations: Claude Code ~/.claude/skills/, Codex ~/.agents/skills/, Cursor ~/.cursor/skills/. Source-path status is inferred from metadata; it does not verify a live download. Scan and quality scores describe registry checks and are not a guarantee of safety.</p></section>
       {scan_details}
+      {_render_content_history(history)}
       <section><h2>Attribution and permissions</h2><p>{esc(license_notice)}</p><p>This guide links to the author’s instructions and includes metadata only.</p>
       <a href="{REMOVAL_URL}">Request removal or correct attribution</a></section>
       <section><h2>For the skill author</h2><p>Add this badge to your README to link readers to the registry home:</p>
@@ -348,6 +391,7 @@ def build_static_skill_pages(
     archive_dir: Path | None = None,
     install_pins: dict[str, dict[str, Any]] | None = None,
     archive_source: Path | None = None,
+    content_history: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     """Write guides, browse links, category archive entrypoints, and sitemap."""
     output_dir = Path(output_dir)
@@ -360,14 +404,16 @@ def build_static_skill_pages(
     categories: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
         categories[str(record.get("category") or "other")].append(record)
-    pinned_count = 0
+    pinned_count = history_count = 0
     for record, slug in zip(records, slugs, strict=True):
         detail_dir = generated_root / slug
         detail_dir.mkdir()
         related = [item for item in categories[str(record.get("category") or "other")] if item is not record][:4]
         pin = (install_pins or {}).get(str(record.get("id") or ""))
         pin = _current_install_pin(record, pin, archive_source)
-        (detail_dir / "index.html").write_text(_render_detail_page(record, slug, related, pin), encoding="utf-8")
+        history = (content_history or {}).get(str(record.get("id") or ""))
+        history_count += bool(history)
+        (detail_dir / "index.html").write_text(_render_detail_page(record, slug, related, pin, history), encoding="utf-8")
         if pin:
             index_path = detail_dir / WELL_KNOWN_DIR / "index.json"
             index_path.parent.mkdir(parents=True)
@@ -400,7 +446,7 @@ def build_static_skill_pages(
                 (directory / "README.md").write_text(f'# {directory.name}\n\nBrowse [skill guides and installation instructions]({PUBLIC_SITE}skills/#{quote(directory.name)}) or [search the full registry]({PUBLIC_SITE}).\n\nArchived files retain their original ownership and license terms. [Request removal]({REMOVAL_URL}).\n', encoding='utf-8')
     _update_homepage(output_dir, records)
     _write_sitemap(output_dir, slugs)
-    return {"generated_count": len(records), "slugs": slugs, "pinned_count": pinned_count}
+    return {"generated_count": len(records), "slugs": slugs, "pinned_count": pinned_count, "history_count": history_count}
 
 
 def main() -> int:
@@ -410,6 +456,7 @@ def main() -> int:
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--install-pins", type=Path, help="install-pins.json from resolve_install_pins.py")
     parser.add_argument("--archive-source", type=Path, help="Read-only current archive used to verify install pins")
+    parser.add_argument("--content-history", type=Path, help="skill-content-history.json from skill_content_history.py")
     args = parser.parse_args()
     payload = json.loads(args.catalog.read_text(encoding="utf-8"))
     records = payload.get("skills") if isinstance(payload, dict) else None
@@ -420,8 +467,15 @@ def main() -> int:
         pins = json.loads(args.install_pins.read_text(encoding="utf-8")).get("pins")
         if not isinstance(pins, dict):
             raise ValueError(f"Install pin artifact has no valid pins map: {args.install_pins}")
-    summary = build_static_skill_pages(records, args.output, args.archive, pins, args.archive_source)
-    print(f"Generated {summary['generated_count']} static skill pages ({summary['pinned_count']} with verified install)")
+    history = None
+    if args.content_history is not None:
+        payload = json.loads(args.content_history.read_text(encoding="utf-8"))
+        history = payload.get("skills") if payload.get("schema_version") == 1 else None
+        if not isinstance(history, dict):
+            raise ValueError(f"Content history artifact is not a schema_version 1 skills map: {args.content_history}")
+    summary = build_static_skill_pages(records, args.output, args.archive, pins, args.archive_source, history)
+    print(f"Generated {summary['generated_count']} static skill pages ({summary['pinned_count']} with verified install, "
+          f"{summary['history_count']} with content history)")
     return 0
 
 

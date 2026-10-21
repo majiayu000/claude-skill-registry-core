@@ -58,13 +58,16 @@ jobs:
       - name: Validate install pin cache
         if: steps.source.outputs.current == 'true'
         run: |
-          python3 - "$RUNNER_TEMP/install-pins/install-pins.json" <<'PY'
-          import json, sys
-          payload = json.load(open(sys.argv[1], encoding="utf-8"))
-          if payload.get("schema_version") != 1 or not isinstance(payload.get("pins"), dict):
-              raise SystemExit("install-pins.json is not a schema_version 1 pins map")
+          python3 - "$RUNNER_TEMP/install-pins" <<'PY'
+          import json, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          for name, key in (("install-pins.json", "pins"), ("skill-content-history.json", "skills")):
+              payload = json.loads((root / name).read_text(encoding="utf-8"))
+              if payload.get("schema_version") != 1 or not isinstance(payload.get(key), dict):
+                  raise SystemExit(f"{name} is not a schema_version 1 {key} map")
           PY
           cp "$RUNNER_TEMP/install-pins/install-pins.json" install-pins.json
+          cp "$RUNNER_TEMP/install-pins/skill-content-history.json" skill-content-history.json
 
       - name: Commit & push install pins
         id: commit
@@ -72,7 +75,7 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add install-pins.json
+          git add install-pins.json skill-content-history.json
           if git diff --staged --quiet; then
             echo "Install pins unchanged"
             git fetch origin main

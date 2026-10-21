@@ -111,7 +111,7 @@ def test_generator_escapes_metadata_and_writes_homepage_links_and_sitemap(tmp_pa
         node.text for node in sitemap.findall("sm:url/sm:loc", namespace)
     ]
 
-    assert summary == {"generated_count": 1, "slugs": [slug], "pinned_count": 0}
+    assert summary == {"generated_count": 1, "slugs": [slug], "pinned_count": 0, "history_count": 0}
     assert "<script>" not in detail
     assert "&lt;script&gt;" in detail
     assert "&lt;tag&gt;" in detail
@@ -489,4 +489,60 @@ def test_cli_rejects_install_pin_file_without_pins_map(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["build-pages", "--catalog", str(catalog), "--output", str(tmp_path / "docs"),
                                       "--install-pins", str(pins)])
     with pytest.raises(ValueError, match="pins map"):
+        main()
+
+
+def history_entry(status, first, last, **extra):
+    return {"status": status, "first_seen": first, "last_seen": last, "digest": "sha256:" + "a" * 64, **extra}
+
+
+def test_guide_shows_content_history_and_flags_upstream_change(tmp_path):
+    record = skill("pdf")
+    history = {record["id"]: [
+        history_entry("pinned", "2026-10-17T00:00:00+00:00", "2026-10-18T00:00:00+00:00", repo="acme/skills",
+                      commit="c" * 40, path="skills/pdf/SKILL.md", files={"SKILL.md": "sha256:x", "run.sh": "sha256:y"}),
+        history_entry("upstream_changed", "2026-10-19T00:00:00+00:00", "2026-10-19T00:00:00+00:00", repo="<script>"),
+    ]}
+
+    summary = build_static_skill_pages([record], tmp_path, content_history=history)
+    detail = (tmp_path / "skills" / skill_page_slug(record) / "index.html").read_text()
+
+    assert summary["history_count"] == 1
+    assert "<h2>Content history</h2>" in detail
+    assert "no longer matches the version the registry scanned (change detected 2026-10-19)" in detail
+    assert detail.index("2026-10-19</span> Author&#x27;s current file differs") < detail.index("2026-10-17 → 2026-10-18")
+    assert f'commit <a href="https://raw.githubusercontent.com/acme/skills/{"c" * 40}/skills/pdf/SKILL.md">cccccccccccc</a>' in detail
+    assert "sha256:aaaaaaaaaaaa · 2 files" in detail
+    assert "<script>" not in detail
+
+
+def test_guide_without_history_has_no_history_section(tmp_path):
+    record = skill("pdf")
+    pinned_only = {record["id"]: [history_entry("pinned", "2026-10-17T00:00:00+00:00", "2026-10-17T00:00:00+00:00")]}
+    for history, expected in ((None, False), ({"other": []}, False), (pinned_only, True)):
+        build_static_skill_pages([record], tmp_path, content_history=history)
+        detail = (tmp_path / "skills" / skill_page_slug(record) / "index.html").read_text()
+        assert ("Content history" in detail) is expected
+        assert "no longer matches" not in detail
+        # A pinned entry without upstream coordinates must not render a dangling commit label.
+        assert "at commit" not in detail
+
+
+def test_cli_reads_content_history_and_rejects_invalid_schema(tmp_path, monkeypatch, capsys):
+    import json
+
+    from build_static_skill_pages import main
+
+    record = skill("cli")
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"skills": [record]}))
+    history = tmp_path / "skill-content-history.json"
+    history.write_text(json.dumps({"schema_version": 1, "skills": {record["id"]: [
+        history_entry("pinned", "2026-10-17T00:00:00+00:00", "2026-10-17T00:00:00+00:00")]}}))
+    argv = ["build-pages", "--catalog", str(catalog), "--output", str(tmp_path / "docs"), "--content-history", str(history)]
+    monkeypatch.setattr(sys, "argv", argv)
+    assert main() == 0
+    assert "1 with content history" in capsys.readouterr().out
+    history.write_text('{"schema_version": 1, "skills": []}')
+    with pytest.raises(ValueError, match="Content history artifact"):
         main()

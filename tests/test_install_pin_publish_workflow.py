@@ -79,6 +79,8 @@ def test_commit_and_unchanged_cache_both_emit_actual_remote_core_sha(sandbox):
     git('config', 'user.email', 'test@example.invalid')
     git('checkout', '-b', 'main')
     (work / 'install-pins.json').write_text('{"pins": {}}')
+    # The validation step copies both cache files into the checkout before this step runs.
+    (work / 'skill-content-history.json').write_text('{"schema_version": 1, "skills": {}}')
     git('add', '.')
     git('commit', '-m', 'initial')
     git('push', '-u', 'origin', 'main')
@@ -120,3 +122,28 @@ def test_dispatch_uses_exact_committed_core_and_resolved_data_and_surfaces_error
             'event_type': 'publish_from_core', 'client_payload': {
                 'core_repo': 'majiayu000/claude-skill-registry-core', 'core_sha': 'c' * 40,
                 'data_repo': 'majiayu000/claude-skill-registry-data', 'data_sha': 'd' * 40}}
+
+
+@pytest.mark.parametrize(('history', 'ok'), [
+    ('{"schema_version": 1, "skills": {}}', True),
+    (None, False),
+    ('{"schema_version": 1, "skills": []}', False),
+])
+def test_validation_requires_pins_and_content_history_before_copying(sandbox, history, ok):
+    directory, env = sandbox
+    artifact = directory / 'install-pins'
+    artifact.mkdir()
+    (artifact / 'install-pins.json').write_text('{"schema_version": 1, "pins": {}}')
+    if history is not None:
+        (artifact / 'skill-content-history.json').write_text(history)
+    work = directory / 'work'
+    work.mkdir()
+    result = run_step('Validate install pin cache', work, env)
+    assert (result.returncode == 0) is ok, result.stderr
+    assert (work / 'skill-content-history.json').exists() is ok
+    if ok:
+        assert (work / 'install-pins.json').read_text() == '{"schema_version": 1, "pins": {}}'
+
+
+def test_commit_stages_content_history_with_pins():
+    assert 'git add install-pins.json skill-content-history.json' in STEPS['Commit & push install pins']['run']

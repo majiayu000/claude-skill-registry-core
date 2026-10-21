@@ -210,6 +210,9 @@ if [[ "$rebuild" -eq 1 ]]; then
   if [[ -f "$main_dir/install-pins.json" ]]; then
     page_args+=(--install-pins "$main_dir/install-pins.json")
   fi
+  if [[ -f "$main_dir/skill-content-history.json" ]]; then
+    page_args+=(--content-history "$main_dir/skill-content-history.json")
+  fi
   run_step "Build static featured skill pages" python "$main_dir/scripts/build_static_skill_pages.py" "${page_args[@]}"
   run_step "Remove temporary guide catalog" rm "$main_dir/docs/page-catalog.json"
   rm -f "$security_report_path"
