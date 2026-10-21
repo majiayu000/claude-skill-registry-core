@@ -112,11 +112,19 @@ def test_generator_escapes_metadata_and_writes_homepage_links_and_sitemap(tmp_pa
     ]
 
     assert summary == {"generated_count": 1, "slugs": [slug], "pinned_count": 0, "history_count": 0}
-    assert "<script>" not in detail
+    assert "<script>alert" not in detail
+    assert detail.count("<script") == 1
+    assert 'type="application/ld+json"' in detail
     assert "&lt;script&gt;" in detail
     assert "&lt;tag&gt;" in detail
     assert f'href="skills/{slug}/"' in homepage
-    assert locations == [PUBLIC_SITE, f"{PUBLIC_SITE}choose-a-skill.html", f"{PUBLIC_SITE}skills/", f"{PUBLIC_SITE}skills/{slug}/"]
+    assert locations == [
+        PUBLIC_SITE,
+        f"{PUBLIC_SITE}choose-a-skill.html",
+        f"{PUBLIC_SITE}skills/",
+        f"{PUBLIC_SITE}skills/category/development/",
+        f"{PUBLIC_SITE}skills/{slug}/",
+    ]
     assert re.search(r'<link rel="canonical" href="[^\"]+/">', detail)
 
 
@@ -161,6 +169,7 @@ def test_generator_includes_code_review_guide_in_regenerated_sitemap(tmp_path):
             PUBLIC_SITE,
             f"{PUBLIC_SITE}choose-a-skill.html",
             f"{PUBLIC_SITE}skills/",
+            f"{PUBLIC_SITE}skills/category/development/",
             f"{PUBLIC_SITE}skills/{skill_page_slug(record)}/",
             guide_url,
         ]
@@ -546,3 +555,75 @@ def test_cli_reads_content_history_and_rejects_invalid_schema(tmp_path, monkeypa
     history.write_text('{"schema_version": 1, "skills": []}')
     with pytest.raises(ValueError, match="Content history artifact"):
         main()
+
+
+def test_guide_jsonld_breadcrumb_star_and_unique_description(tmp_path):
+    import json
+
+    record = skill("pdf", description="A" * 180 + " tail", category="Design Tools")
+    build_static_skill_pages([record], tmp_path)
+    slug = skill_page_slug(record)
+    detail = (tmp_path / "skills" / slug / "index.html").read_text()
+    match = re.search(r'<script type="application/ld\+json">(.*?)</script>', detail)
+    payload = json.loads(match.group(1))
+    types = {node["@type"] for node in payload["@graph"]}
+    description = re.search(r'<meta name="description" content="([^"]*)"', detail).group(1)
+
+    assert types == {"SoftwareSourceCode", "BreadcrumbList"}
+    assert payload["@graph"][0]["codeRepository"].endswith("/SKILL.md")
+    assert payload["@graph"][1]["itemListElement"][-1]["item"].endswith(f"/skills/{slug}/")
+    assert 'href="../category/design-tools/"' in detail
+    assert "Star on GitHub" in detail
+    assert 'id="install"' in detail
+    assert "Verified install" not in detail
+    assert len(description) <= 160
+    assert description.endswith("Install pdf for Claude Code.")
+    assert (tmp_path / "skills" / "category" / "design-tools" / "index.html").is_file()
+
+
+def test_sitemap_lastmod_uses_history_then_scan_date(tmp_path):
+    record = skill("pdf")
+    history = {record["id"]: [
+        history_entry("pinned", "2026-10-17T00:00:00+00:00", "2026-10-19T00:00:00+00:00"),
+        history_entry("upstream_changed", "not-a-date", "2026-13-40T00:00:00+00:00"),
+    ]}
+    build_static_skill_pages([record], tmp_path, content_history=history)
+    sitemap = ElementTree.parse(tmp_path / "sitemap.xml")
+    namespace = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    by_loc = {
+        node.find("sm:loc", namespace).text: node.find("sm:lastmod", namespace)
+        for node in sitemap.findall("sm:url", namespace)
+    }
+    slug = skill_page_slug(record)
+    assert by_loc[f"{PUBLIC_SITE}skills/{slug}/"].text == "2026-10-19"
+    assert by_loc[f"{PUBLIC_SITE}skills/category/development/"].text == "2026-10-19"
+    assert by_loc[PUBLIC_SITE] is None
+
+    scan_only = skill("scan-only")
+    build_static_skill_pages([scan_only], tmp_path)
+    sitemap = ElementTree.parse(tmp_path / "sitemap.xml")
+    by_loc = {
+        node.find("sm:loc", namespace).text: node.find("sm:lastmod", namespace).text
+        for node in sitemap.findall("sm:url", namespace)
+        if node.find("sm:lastmod", namespace) is not None
+    }
+    assert by_loc[f"{PUBLIC_SITE}skills/{skill_page_slug(scan_only)}/"] == "2026-10-15"
+
+
+def test_archive_readme_links_category_hub_and_guide_pages(tmp_path):
+    docs = tmp_path / "docs"
+    archive = tmp_path / "archive"
+    (archive / "development").mkdir(parents=True)
+    (archive / "notes").mkdir()
+    records = [skill("pdf", archive_path="development/pdf/SKILL.md"), skill("other", category="notes")]
+    build_static_skill_pages(records, docs, archive)
+    readme = (archive / "development" / "README.md").read_text()
+    notes = (archive / "notes" / "README.md").read_text()
+    pdf_url = f"{PUBLIC_SITE}skills/{skill_page_slug(records[0])}/"
+
+    assert f"{PUBLIC_SITE}skills/category/development/" in readme
+    assert pdf_url in readme
+    assert "Star the registry on GitHub" in readme
+    assert "Search and install skills" in readme
+    assert f"{PUBLIC_SITE}skills/category/notes/" in notes
+    assert "removal-request.yml" in readme

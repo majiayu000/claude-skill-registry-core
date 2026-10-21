@@ -250,11 +250,11 @@ function updateRegistryCountDisplay() {
     }
     elements.totalCount.title = titleParts.join(' · ');
 
-    document.title = `Claude Skills Registry - Search ${formattedDeduped} Skills`;
+    document.title = `Claude Skills Registry — Search ${formattedDeduped} Claude Code Skills`;
     if (elements.metaDescription) {
         elements.metaDescription.setAttribute(
             'content',
-            `Search and discover ${formattedDeduped} Claude Code skills for Claude Code, Codex CLI, and ChatGPT.`
+            `Search and discover ${formattedDeduped} Claude Code skills with source-linked install guides and scan signals.`
         );
     }
 }
@@ -299,6 +299,11 @@ async function init() {
         populateLeaderboardCategoryFilter();
 
         showFeatured();
+        const initialQuery = new URLSearchParams(globalThis.location?.search || '').get('q');
+        if (initialQuery) {
+            elements.searchInput.value = initialQuery;
+            search(initialQuery);
+        }
 
         elements.loading.classList.add('hidden');
         state.isLoading = false;
@@ -498,6 +503,9 @@ function search(query) {
 
     state.currentQuery = query.trim().toLowerCase();
     state.displayedCount = 0;
+    document.querySelectorAll('.featured-static').forEach((node) => {
+        node.hidden = Boolean(state.currentQuery);
+    });
 
     if (!state.currentQuery) {
         switchView('featured');

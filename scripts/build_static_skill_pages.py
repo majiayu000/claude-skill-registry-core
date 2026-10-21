@@ -11,6 +11,7 @@ import re
 import shlex
 import shutil
 from collections import defaultdict
+from datetime import date
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import quote
@@ -18,7 +19,10 @@ from urllib.parse import quote
 from security_rules import SECURITY_CHECK_GROUPS
 
 PUBLIC_SITE = "https://majiayu000.github.io/claude-skill-registry/"
+REGISTRY_REPO_URL = "https://github.com/majiayu000/claude-skill-registry"
 STATIC_PAGE_LIMIT = 5800
+README_GUIDE_LIMIT = 40
+_DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 FEATURED_START = "<!-- static-featured:start -->"
 FEATURED_END = "<!-- static-featured:end -->"
 GENERATED_MARKER = ".generated-static-skill-pages"
@@ -239,6 +243,191 @@ def _render_content_history(entries: list[dict[str, Any]] | None) -> str:
             'author\'s repository stayed the same. Upstream checks run at most weekly, so detection can lag.</p></section>')
 
 
+def _plain(value: Any) -> str:
+    return " ".join(str(value or "").split())
+
+
+def _category_slug(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", str(name or "").casefold()).strip("-")
+    return slug or "other"
+
+
+def _category_page_url(slug: str) -> str:
+    return f"{PUBLIC_SITE}skills/category/{slug}/"
+
+
+def _meta_description(record: dict[str, Any]) -> str:
+    """Install-oriented snippet that stays unique when descriptions share a prefix."""
+    name = _plain(record.get("name")) or "this skill"
+    body = _plain(record.get("description"))
+    tail = f" Install {name} for Claude Code."
+    if len(tail) > 90:
+        tail = " Install this Claude Code skill."
+    room = 160 - len(tail)
+    if len(body) > room:
+        trimmed = body[:room].rsplit(" ", 1)[0].rstrip(" ,;:-")
+        body = trimmed or body[:room].rstrip()
+    return (f"{body}{tail}" if body else tail.strip())[:160]
+
+
+def _iso_day(value: Any) -> str | None:
+    day = str(value or "")[:10]
+    if not _DAY.fullmatch(day):
+        return None
+    try:
+        date.fromisoformat(day)
+    except ValueError:
+        return None
+    return day
+
+
+def _page_lastmod(record: dict[str, Any], history: list[dict[str, Any]] | None) -> str | None:
+    """Latest calendar day from content history, otherwise the registry scan day."""
+    days = [day for entry in history or [] for day in (_iso_day(entry.get("last_seen")), _iso_day(entry.get("first_seen"))) if day]
+    scanned = _iso_day((record.get("security_scan") or {}).get("scanned_at") if isinstance(record.get("security_scan"), dict) else None)
+    if scanned:
+        days.append(scanned)
+    return max(days) if days else None
+
+
+def _json_script(payload: dict[str, Any]) -> str:
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
+    return f'<script type="application/ld+json">{encoded}</script>'
+
+
+def _guide_structured_data(record: dict[str, Any], slug: str, canonical: str, category_name: str, category_url: str) -> dict[str, Any]:
+    code: dict[str, Any] = {
+        "@type": "SoftwareSourceCode",
+        "name": str(record.get("name") or slug),
+        "description": _plain(record.get("description")) or f"{record.get('name') or slug} skill",
+        "url": canonical,
+        "codeRepository": _source_url(record),
+        "runtimePlatform": "Claude Code",
+        "isPartOf": {"@type": "WebSite", "name": "Claude Skills Registry", "url": PUBLIC_SITE},
+    }
+    license_name = record.get("license")
+    if license_name and license_name != "NOASSERTION":
+        code["license"] = str(license_name)
+    author = _plain(record.get("author"))
+    if author:
+        code["author"] = {"@type": "Person", "name": author}
+    crumbs = [
+        ("Claude Skills Registry", PUBLIC_SITE),
+        ("Skill guides", f"{PUBLIC_SITE}skills/"),
+        (category_name, category_url),
+        (str(record.get("name") or slug), canonical),
+    ]
+    return {"@context": "https://schema.org", "@graph": [code, {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": index, "name": name, "item": url}
+            for index, (name, url) in enumerate(crumbs, start=1)
+        ],
+    }]}
+
+
+def _md_text(value: Any) -> str:
+    return _plain(value).replace("[", "(").replace("]", ")")
+
+
+def _matching_archive_records(directory_name: str, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    slug = _category_slug(directory_name)
+    prefix = f"{directory_name.strip('/')}/"
+    matched = []
+    for record in records:
+        category = str(record.get("category") or "")
+        archive_path = str(record.get("archive_path") or "").replace("\\", "/").lstrip("/")
+        if category == directory_name or _category_slug(category) == slug or archive_path.startswith(prefix):
+            matched.append(record)
+    return matched
+
+
+def _render_archive_readme(directory_name: str, records: list[dict[str, Any]], category_slugs: set[str]) -> str:
+    """Point GitHub archive visitors at the Pages guides for this category."""
+    slug = _category_slug(directory_name)
+    label = _md_text(directory_name)
+    lines = [
+        f"# {label}",
+        "",
+        "These files are archived snapshots. Install from the Claude Skills Registry, which publishes source-linked guides and scan signals.",
+        "",
+        f"- **[Search and install skills]({PUBLIC_SITE})**",
+    ]
+    if slug in category_slugs:
+        lines.append(f"- **[{label} skill guides]({_category_page_url(slug)})**")
+    else:
+        lines.append(f"- **[Browse skill guides]({PUBLIC_SITE}skills/#{quote(directory_name)})**")
+    lines.append(f"- **[Star the registry on GitHub]({REGISTRY_REPO_URL})**")
+    lines.append("")
+    shown = records[:README_GUIDE_LIMIT]
+    if shown:
+        lines.append("## Guides for skills in this folder")
+        lines.append("")
+        for record in shown:
+            lines.append(f"- [{_md_text(record.get('name') or 'skill')}]({PUBLIC_SITE}skills/{skill_page_slug(record)}/)")
+        remaining = len(records) - len(shown)
+        if remaining:
+            target = _category_page_url(slug) if slug in category_slugs else f"{PUBLIC_SITE}skills/"
+            lines.extend(["", f"{remaining} more guides are listed on the [category page]({target})."])
+        lines.append("")
+    lines.append("Archived files retain their original ownership and license terms. " f"[Request removal]({REMOVAL_URL}).")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _render_category_page(category: str, slug: str, items: list[dict[str, Any]]) -> str:
+    label = html.escape(category, quote=True)
+    canonical = _category_page_url(slug)
+    description = f"Install {category} skills for Claude Code. Browse source-linked guides, scan signals, and installation commands."
+    meta = html.escape(description[:160], quote=True)
+    structured = _json_script({"@context": "https://schema.org", "@graph": [
+        {"@type": "CollectionPage", "name": f"{category} skills", "description": description[:160], "url": canonical,
+         "isPartOf": {"@type": "WebSite", "name": "Claude Skills Registry", "url": PUBLIC_SITE}},
+        {"@type": "BreadcrumbList", "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Claude Skills Registry", "item": PUBLIC_SITE},
+            {"@type": "ListItem", "position": 2, "name": "Skill guides", "item": f"{PUBLIC_SITE}skills/"},
+            {"@type": "ListItem", "position": 3, "name": category, "item": canonical},
+        ]},
+    ]})
+    links = "".join(
+        f'<li><a href="../../{skill_page_slug(item)}/">{html.escape(str(item["name"]))}</a></li>' for item in items
+    )
+    return f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{label} skills — Claude Skills Registry</title>
+  <meta name="description" content="{meta}">
+  <link rel="canonical" href="{canonical}">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{label} skills — Claude Skills Registry">
+  <meta property="og:description" content="{meta}">
+  <meta property="og:url" content="{canonical}">
+  <meta property="og:image" content="{PUBLIC_SITE}assets/registry-social-preview.png">
+  <meta property="og:image:alt" content="Claude Skills Registry — source-linked skill guides">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{label} skills — Claude Skills Registry">
+  <meta name="twitter:description" content="{meta}">
+  <meta name="twitter:image" content="{PUBLIC_SITE}assets/registry-social-preview.png">
+  <meta name="twitter:image:alt" content="Claude Skills Registry — source-linked skill guides">
+  {structured}
+  <link rel="stylesheet" href="../../../css/skill-detail.css">
+</head>
+<body>
+<header><a class="brand" href="{PUBLIC_SITE}">◈ Skill Registry</a><nav class="header-links"><a href="{PUBLIC_SITE}skills/">All guides</a><a class="star" href="{REGISTRY_REPO_URL}">Star on GitHub</a></nav></header>
+<main>
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="{PUBLIC_SITE}">Registry</a> · <a href="{PUBLIC_SITE}skills/">Guides</a> · <span aria-current="page">{label}</span></nav>
+  <h1>{label} skills</h1>
+  <p class="intro">{meta}</p>
+  <ul class="guide-index">{links}</ul>
+</main>
+<footer><a href="{PUBLIC_SITE}">Claude Skills Registry</a> · <a href="{REGISTRY_REPO_URL}">Star on GitHub</a></footer>
+</body>
+</html>
+'''
+
+
 def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[str, Any]], pin: dict[str, Any] | None = None,
                         history: list[dict[str, Any]] | None = None) -> str:
     def esc(value: Any) -> str:
@@ -247,7 +436,13 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
     name = esc(record["name"])
     description = esc(record.get("description") or "No description provided.")
     canonical = f"{PUBLIC_SITE}skills/{slug}/"
-    meta_description = esc(" ".join(str(record.get("description") or "").split())[:160])
+    category_name = str(record.get("category") or "other")
+    category_slug = _category_slug(category_name)
+    category_url = _category_page_url(category_slug)
+    meta_description = esc(_meta_description(record))
+    structured = _json_script(_guide_structured_data(record, slug, canonical, category_name, category_url))
+    install_heading = "Verified install" if pin else "Install"
+    cta_attr = ' class="cta"' if pin else ""
     repo = esc(record.get("repo") or "")
     tags = "".join(f'<span class="tag">{esc(tag)}</span>' for tag in record.get("tags", []))
     copies = record.get("copies", [record])
@@ -297,12 +492,15 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
   <meta name="twitter:description" content="{meta_description}">
   <meta name="twitter:image" content="{PUBLIC_SITE}assets/registry-social-preview.png">
   <meta name="twitter:image:alt" content="Claude Skills Registry — source-linked skill guides">
+  {structured}
   <link rel="stylesheet" href="../../css/skill-detail.css">
 </head>
 <body>
-<header><a class="brand" href="{PUBLIC_SITE}">◈ Skill Registry</a><a href="{PUBLIC_SITE}">Explore skills</a></header>
+<header><a class="brand" href="{PUBLIC_SITE}">◈ Skill Registry</a><nav class="header-links"><a href="{PUBLIC_SITE}">Explore skills</a><a class="star" href="{REGISTRY_REPO_URL}">Star on GitHub</a></nav></header>
 <main>
-  <a class="back" href="{PUBLIC_SITE}">← Back to search</a>
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="{PUBLIC_SITE}">Registry</a> · <a href="{PUBLIC_SITE}skills/">Guides</a> · <a href="../category/{category_slug}/">{esc(category_name)}</a> · <span aria-current="page">{name}</span></nav>
+  <div class="kicker">Found in {esc(record.get('repository_count', 1))} repositories</div>
+  <h1>{name}</h1><p class="intro">{description}</p>
   <div class="layout">
     <aside>
       <div class="terminal">&gt;_</div>
@@ -318,11 +516,9 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
       <dt>License</dt><dd>{esc(license_name)}</dd></dl>
     </aside>
     <article>
-      <div class="kicker">{esc(record.get('category', 'other'))} · Found in {esc(record.get('repository_count', 1))} repositories</div>
-      <h1>{name}</h1><p class="intro">{description}</p>
       <div class="tags">{tags}</div>
       <a class="source" href="{esc(_source_url(record))}">View source: {repo} ↗</a>
-      <section><h2>Install</h2>{install_details}
+      <section{cta_attr} id="install"><h2>{install_heading}</h2>{install_details}
       <p class="note">Manual install locations: Claude Code ~/.claude/skills/, Codex ~/.agents/skills/, Cursor ~/.cursor/skills/. Source-path status is inferred from metadata; it does not verify a live download. Scan and quality scores describe registry checks and are not a guarantee of safety.</p></section>
       {scan_details}
       {_render_content_history(history)}
@@ -332,11 +528,11 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
       <p><img src="{BADGE_URL}" alt="Listed on Claude Skills Registry" width="140" height="20"></p>
       <code>{esc(badge_markdown)}</code></section>
       <section><h2>Copies with matching content</h2><p>Exact Markdown body copies across {esc(record.get('repository_count', 1))} repositories. This count does not identify the original author.</p><ul>{copy_links}</ul></section>
-      <section><h2>More in {esc(record.get('category', 'other'))}</h2><div class="related-grid">{similar}</div></section>
+      <section><h2>More in <a href="../category/{category_slug}/">{esc(category_name)}</a></h2><div class="related-grid">{similar}</div></section>
     </article>
   </div>
 </main>
-<footer><a href="{PUBLIC_SITE}">Claude Skills Registry</a> · <a href="{REMOVAL_URL}">Removal requests</a></footer>
+<footer><a href="{PUBLIC_SITE}">Claude Skills Registry</a> · <a href="{REGISTRY_REPO_URL}">Star on GitHub</a> · <a href="{REMOVAL_URL}">Removal requests</a></footer>
 </body>
 </html>
 '''
@@ -366,12 +562,18 @@ def _update_homepage(output_dir: Path, records: list[dict[str, Any]]) -> None:
     homepage_path.write_text(homepage[:start] + _render_homepage_links(records) + homepage[end + len(FEATURED_END):], encoding="utf-8")
 
 
-def _write_sitemap(output_dir: Path, slugs: list[str]) -> None:
-    urls = [PUBLIC_SITE, f"{PUBLIC_SITE}choose-a-skill.html", f"{PUBLIC_SITE}skills/", *(f"{PUBLIC_SITE}skills/{slug}/" for slug in slugs)]
+def _write_sitemap(output_dir: Path, entries: list[tuple[str, str | None]]) -> None:
     if (output_dir / "guides" / "code-review.html").is_file():
-        urls.append(f"{PUBLIC_SITE}guides/code-review.html")
-    rows = "\n".join(f"  <url><loc>{html.escape(url)}</loc></url>" for url in urls)
-    (output_dir / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + rows + '\n</urlset>\n', encoding="utf-8")
+        entries.append((f"{PUBLIC_SITE}guides/code-review.html", None))
+    rows = []
+    for url, lastmod in entries:
+        extra = f"<lastmod>{lastmod}</lastmod>" if lastmod else ""
+        rows.append(f"  <url><loc>{html.escape(url)}</loc>{extra}</url>")
+    (output_dir / "sitemap.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + "\n".join(rows) + "\n</urlset>\n",
+        encoding="utf-8",
+    )
 
 
 def _prepare_generated_root(output_dir: Path) -> Path:
@@ -405,6 +607,7 @@ def build_static_skill_pages(
     for record in records:
         categories[str(record.get("category") or "other")].append(record)
     pinned_count = history_count = 0
+    lastmods: dict[str, str | None] = {}
     for record, slug in zip(records, slugs, strict=True):
         detail_dir = generated_root / slug
         detail_dir.mkdir()
@@ -413,12 +616,38 @@ def build_static_skill_pages(
         pin = _current_install_pin(record, pin, archive_source)
         history = (content_history or {}).get(str(record.get("id") or ""))
         history_count += bool(history)
-        (detail_dir / "index.html").write_text(_render_detail_page(record, slug, related, pin, history), encoding="utf-8")
+        lastmods[slug] = _page_lastmod(record, history if isinstance(history, list) else None)
+        (detail_dir / "index.html").write_text(_render_detail_page(record, slug, related, pin, history if isinstance(history, list) else None), encoding="utf-8")
         if pin:
             index_path = detail_dir / WELL_KNOWN_DIR / "index.json"
             index_path.parent.mkdir(parents=True)
             index_path.write_text(json.dumps(_discovery_index(pin), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
             pinned_count += 1
+    hub_items: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    hub_labels: dict[str, str] = {}
+    for category, items in categories.items():
+        hub_slug = _category_slug(category)
+        hub_items[hub_slug].extend(items)
+        hub_labels.setdefault(hub_slug, category)
+    category_root = generated_root / "category"
+    category_lastmod: dict[str, str | None] = {}
+    for hub_slug, items in sorted(hub_items.items()):
+        page_dir = category_root / hub_slug
+        page_dir.mkdir(parents=True)
+        (page_dir / "index.html").write_text(_render_category_page(hub_labels[hub_slug], hub_slug, items), encoding="utf-8")
+        dates = [day for item in items if (day := lastmods.get(skill_page_slug(item)))]
+        category_lastmod[hub_slug] = max(dates) if dates else None
+    browse_structured = _json_script({"@context": "https://schema.org", "@graph": [
+        {"@type": "CollectionPage", "name": "Skill guides", "url": f"{PUBLIC_SITE}skills/",
+         "isPartOf": {"@type": "WebSite", "name": "Claude Skills Registry", "url": PUBLIC_SITE}},
+        {"@type": "BreadcrumbList", "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Claude Skills Registry", "item": PUBLIC_SITE},
+            {"@type": "ListItem", "position": 2, "name": "Skill guides", "item": f"{PUBLIC_SITE}skills/"},
+        ]},
+    ]})
+    category_nav = "".join(
+        f'<a href="category/{hub_slug}/">{html.escape(hub_labels[hub_slug])}</a>' for hub_slug in sorted(hub_items)
+    )
     browse = f'''<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Skill guides — Claude Skills Registry</title>
@@ -435,17 +664,31 @@ def build_static_skill_pages(
 <meta name="twitter:description" content="Browse source-linked skill guides and installation instructions by category.">
 <meta name="twitter:image" content="{PUBLIC_SITE}assets/registry-social-preview.png">
 <meta name="twitter:image:alt" content="Claude Skills Registry — source-linked skill guides">
-<link rel="stylesheet" href="../css/skill-detail.css"></head><body><header><a href="{PUBLIC_SITE}">← Search skills</a></header><main><h1>Browse skill guides</h1>'''
+{browse_structured}
+<link rel="stylesheet" href="../css/skill-detail.css"></head><body>
+<header><a class="brand" href="{PUBLIC_SITE}">◈ Skill Registry</a><nav class="header-links"><a href="{PUBLIC_SITE}">Search</a><a class="star" href="{REGISTRY_REPO_URL}">Star on GitHub</a></nav></header>
+<main><h1>Browse skill guides</h1><nav class="category-nav" aria-label="Categories">{category_nav}</nav>'''
     for category, items in sorted(categories.items()):
-        browse += f'<section id="{html.escape(category, quote=True)}"><h2>{html.escape(category)}</h2><ul>'
+        hub_slug = _category_slug(category)
+        browse += f'<section id="{html.escape(category, quote=True)}"><h2><a href="category/{hub_slug}/">{html.escape(category)}</a></h2><ul>'
         browse += ''.join(f'<li><a href="{skill_page_slug(item)}/">{html.escape(str(item["name"]))}</a></li>' for item in items) + '</ul></section>'
     (generated_root / "index.html").write_text(browse + '</main></body></html>', encoding="utf-8")
     if archive_dir is not None:
         for directory in sorted(Path(archive_dir).iterdir()):
             if directory.is_dir() and not directory.name.startswith('.'):
-                (directory / "README.md").write_text(f'# {directory.name}\n\nBrowse [skill guides and installation instructions]({PUBLIC_SITE}skills/#{quote(directory.name)}) or [search the full registry]({PUBLIC_SITE}).\n\nArchived files retain their original ownership and license terms. [Request removal]({REMOVAL_URL}).\n', encoding='utf-8')
+                matched = _matching_archive_records(directory.name, records)
+                (directory / "README.md").write_text(
+                    _render_archive_readme(directory.name, matched, set(hub_items)), encoding="utf-8"
+                )
     _update_homepage(output_dir, records)
-    _write_sitemap(output_dir, slugs)
+    sitemap_entries: list[tuple[str, str | None]] = [
+        (PUBLIC_SITE, None),
+        (f"{PUBLIC_SITE}choose-a-skill.html", None),
+        (f"{PUBLIC_SITE}skills/", None),
+        *[( _category_page_url(hub_slug), category_lastmod[hub_slug]) for hub_slug in sorted(hub_items)],
+        *[(f"{PUBLIC_SITE}skills/{slug}/", lastmods.get(slug)) for slug in slugs],
+    ]
+    _write_sitemap(output_dir, sitemap_entries)
     return {"generated_count": len(records), "slugs": slugs, "pinned_count": pinned_count, "history_count": history_count}
 
 

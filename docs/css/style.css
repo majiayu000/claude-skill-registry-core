@@ -20,7 +20,7 @@
     /* Text hierarchy */
     --text-primary: #ffffff;
     --text-secondary: #a0a0b0;
-    --text-muted: #606070;
+    --text-muted: #8a8a9c;
     --text-glow: #00fff2;
 
     /* Accents */
@@ -54,7 +54,7 @@
 
     --text-primary: #1a1a2e;
     --text-secondary: #4a4a5a;
-    --text-muted: #8a8a9a;
+    --text-muted: #6a6a7a;
     --text-glow: #0066cc;
 
     --accent-primary: #0066cc;
@@ -819,6 +819,38 @@ body::after {
 
 #search-time {
     color: var(--neon-purple);
+}
+
+/* Server-rendered guides stay visible before the search index loads. */
+.featured-static {
+    margin: 0 0 1.25rem;
+    padding: 0.9rem 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-glow);
+    border-radius: var(--radius-lg);
+}
+
+.featured-static h2 {
+    margin: 0 0 0.35rem;
+    font-size: 1.05rem;
+}
+
+.featured-static p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.featured-static ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.9rem;
+    margin: 0.7rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.featured-static a {
+    color: var(--accent-primary);
 }
 
 /* ═══════════════════════════════════════════════════════════

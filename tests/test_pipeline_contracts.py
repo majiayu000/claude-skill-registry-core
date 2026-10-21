@@ -584,7 +584,11 @@ run_step() {
         assert (docs / "sitemap.xml").is_file()
         if mirror_skills:
             for category in ("development", "design"):
-                assert "Browse [skill guides" in (archive / category / "README.md").read_text()
+                readme = (archive / category / "README.md").read_text()
+                assert "Search and install skills" in readme
+                assert "Star the registry on GitHub" in readme
+            assert "skills/category/development/" in (archive / "development" / "README.md").read_text()
+            assert "skills/#design" in (archive / "design" / "README.md").read_text()
         else:
             assert not (main / "skills").exists()
 

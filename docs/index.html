@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claude Skills Registry - Search Skills</title>
-    <meta name="description" content="Search and discover Claude Code skills, browse source-linked installation guides, and inspect registry metadata and scan signals.">
+    <title>Claude Skills Registry — Install Claude Code Skills</title>
+    <meta name="description" content="Search and discover Claude Code skills with source-linked install guides, quality scores, and scan signals for Claude Code, Codex, and Cursor.">
     <link rel="canonical" href="https://majiayu000.github.io/claude-skill-registry/">
     <meta property="og:type" content="website">
     <meta property="og:title" content="Claude Skills Registry">
-    <meta property="og:description" content="Search and discover Claude Code skills, browse source-linked installation guides, and inspect registry metadata and scan signals.">
+    <meta property="og:description" content="Search and discover Claude Code skills with source-linked install guides, quality scores, and scan signals for Claude Code, Codex, and Cursor.">
     <meta property="og:url" content="https://majiayu000.github.io/claude-skill-registry/">
     <meta property="og:image" content="https://majiayu000.github.io/claude-skill-registry/assets/registry-social-preview.png">
     <meta property="og:image:alt" content="Claude Skills Registry — search skills and inspect source links">
@@ -16,7 +16,29 @@
     <meta name="twitter:image" content="https://majiayu000.github.io/claude-skill-registry/assets/registry-social-preview.png">
     <meta name="twitter:image:alt" content="Claude Skills Registry — search skills and inspect source links">
     <meta name="twitter:title" content="Claude Skills Registry">
-    <meta name="twitter:description" content="Search and discover Claude Code skills, browse source-linked installation guides, and inspect registry metadata and scan signals.">
+    <meta name="twitter:description" content="Search and discover Claude Code skills with source-linked install guides, quality scores, and scan signals for Claude Code, Codex, and Cursor.">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "name": "Claude Skills Registry",
+          "url": "https://majiayu000.github.io/claude-skill-registry/",
+          "description": "Search and discover Claude Code skills with source-linked install guides, quality scores, and scan signals.",
+          "sameAs": ["https://github.com/majiayu000/claude-skill-registry"],
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://majiayu000.github.io/claude-skill-registry/?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
+        }
+      ]
+    }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600;700&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'">
@@ -38,8 +60,21 @@
                 </button>
             </div>
             <p class="tagline">Search <span id="total-count">skills</span> for Claude Code</p>
-            <p><a href="choose-a-skill.html">How to choose and install one skill</a> · <a href="skills/">Browse source-linked guides</a></p>
+            <p><a href="choose-a-skill.html">How to choose and install one skill</a> · <a href="skills/">Browse source-linked guides</a> · <a href="https://github.com/majiayu000/claude-skill-registry">Star on GitHub</a></p>
         </header>
+
+        <section class="featured-static" aria-labelledby="getting-started-heading">
+            <h2 id="getting-started-heading">Start with a working setup</h2>
+            <p><a href="guides/code-review.html">Add a code review skill to your project</a>
+                — choose a skill, install it, and try it on your next diff.</p>
+        </section>
+
+        <!-- static-featured:start -->
+        <section class="featured-static" aria-labelledby="featured-static-heading">
+            <h2 id="featured-static-heading">Featured skill guides</h2>
+            <p>Generated during the index build.</p>
+        </section>
+        <!-- static-featured:end -->
 
         <section class="study-panel hidden" id="study-panel" aria-live="polite">
             <div class="study-copy">
@@ -69,6 +104,7 @@
                     placeholder="Search skills… Press Enter to search the full catalog"
                     autocomplete="off"
                     autofocus
+                    aria-label="Search Claude Code skills"
                 >
                 <kbd class="search-hint">Enter</kbd>
             </div>
@@ -168,19 +204,6 @@
             <span id="result-count" role="status" aria-atomic="true"></span>
             <span id="search-time"></span>
         </div>
-
-        <section class="featured-static" aria-labelledby="getting-started-heading">
-            <h2 id="getting-started-heading">Start with a working setup</h2>
-            <p><a href="guides/code-review.html">Add a code review skill to your project</a>
-                — choose a skill, install it, and try it on your next diff.</p>
-        </section>
-
-        <!-- static-featured:start -->
-        <section class="featured-static" aria-labelledby="featured-static-heading">
-            <h2 id="featured-static-heading">Featured skill guides</h2>
-            <p>Generated during the index build.</p>
-        </section>
-        <!-- static-featured:end -->
 
         <!-- Results -->
         <div class="results" id="results">
@@ -302,7 +325,7 @@
     <div class="modal hidden" id="skill-modal">
         <div class="modal-backdrop"></div>
         <div class="modal-content">
-            <button class="modal-close" id="modal-close">&times;</button>
+            <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
             <div id="modal-body"></div>
         </div>
     </div>
