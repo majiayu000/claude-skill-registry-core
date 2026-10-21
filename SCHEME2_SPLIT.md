@@ -26,6 +26,7 @@ Contains:
 
 Contains:
 - merged tree built from `core + data` for browsing/compatibility consumers
+- frozen, non-installable legacy URL pointers under `skills/`; the full archive stays in `registry-data`
 
 Policy:
 - `main` is not canonical for pipeline behavior.
@@ -53,7 +54,10 @@ Avoid:
 
 ## Local Merge (core + data -> main)
 
-Use the merge script to rebuild the main repo from core + data:
+Use the merge script to rebuild the main repo from core + data. By default,
+artifacts read the data checkout directly and the frozen `main/skills/` pointers
+are left untouched. Rebuild steps may prune orphan `metadata.json` files in the
+data checkout.
 
 ```bash
 bash scripts/sync_main_repo.sh \
@@ -61,3 +65,9 @@ bash scripts/sync_main_repo.sh \
   --data ../claude-skill-registry-data \
   --main ../claude-skill-registry
 ```
+
+`--no-skills-mirror` explicitly selects this default. For a separate output
+directory that intentionally needs the full archive, `--skills-mirror` opts in
+to replacing `main/skills/`, including deleting or overwriting frozen pointers.
+Do not use that option for the normal pointer-based main checkout. If both mirror
+flags are provided, the last one takes effect.

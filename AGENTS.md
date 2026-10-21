@@ -1,7 +1,7 @@
 ## Repository Policy (Core-First)
 - **Core repo is the source of truth** for scripts, workflows, index generation, site outputs, and pipeline docs.
 - **Data repo** stores the archived skill tree in category-at-root layout: `<category>/<skill>/SKILL.md` + `<category>/<skill>/metadata.json`.
-- **Main repo** is a merged publishing artifact (`core + data`). During publish, the archive is mirrored under `main/skills/**`.
+- **Main repo** is a merged publishing artifact (`core + data`). During publish, the archive is read from the data checkout; `main/skills/**` contains frozen, non-installable legacy URL pointers.
 - If behavior or docs conflict across repos, follow **core** implementation and sync others to match.
 
 ## Repo Identity Map

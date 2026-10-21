@@ -723,7 +723,7 @@ def test_publish_sync_preserves_main_owned_tests_during_repeated_sync(tmp_path):
             [
                 "bash", str(core / "scripts/sync_main_repo.sh"),
                 "--core", str(core), "--data", str(data), "--main", str(main),
-                "--no-rebuild",
+                "--no-rebuild", "--skills-mirror",
             ],
             cwd=main,
             env={

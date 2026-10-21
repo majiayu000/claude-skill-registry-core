@@ -16,6 +16,7 @@ def load_paths(paths_file: Path, output_root: Path) -> list[str]:
     """Validate the complete input before creating any files."""
     paths = paths_file.read_text(encoding="utf-8").splitlines()
     seen: set[str] = set()
+    directory_spellings: dict[str, str] = {}
     skills_root = output_root.resolve() / "skills"
     for number, path in enumerate(paths, 1):
         parts = path.split("/")
@@ -29,6 +30,14 @@ def load_paths(paths_file: Path, output_root: Path) -> list[str]:
         if key in seen:
             raise ValueError(f"Duplicate or case-colliding legacy path on line {number}: {path!r}")
         seen.add(key)
+        for end in range(1, len(parts)):
+            prefix = "/".join(parts[:end])
+            previous = directory_spellings.setdefault(prefix.casefold(), prefix)
+            if previous != prefix:
+                raise ValueError(
+                    f"Duplicate or case-colliding legacy directory on line {number}: "
+                    f"{prefix!r} conflicts with {previous!r}"
+                )
         if not (output_root / path).resolve().is_relative_to(skills_root):
             raise ValueError(f"Legacy target escapes output skills directory: {path!r}")
     if not (skills_root / "README.md").resolve().is_relative_to(skills_root):

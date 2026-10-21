@@ -6,13 +6,16 @@ usage() {
 Sync main repo from core + data (merge artifact).
 
 Usage:
-  scripts/sync_main_repo.sh --core <core_dir> --data <data_dir> --main <main_dir> [--no-rebuild] [--no-skills-mirror]
+  scripts/sync_main_repo.sh --core <core_dir> --data <data_dir> --main <main_dir> [--no-rebuild] [--skills-mirror | --no-skills-mirror]
 
 Options:
-  --no-skills-mirror  Build every artifact directly from <data_dir> and do not
-                      copy the archive into <main_dir>/skills. The data repo is
-                      the canonical archive; the mirror only duplicates it.
-                      Rebuild steps may prune orphan metadata.json files there.
+  --no-skills-mirror  Default: build artifacts directly from <data_dir>, leaving
+                      frozen pointers in <main_dir>/skills untouched.
+                      Rebuild steps may prune orphan metadata.json in <data_dir>.
+  --skills-mirror     Opt in to replacing <main_dir>/skills with the data archive,
+                      including deleting or overwriting any frozen pointers.
+                      Use only for a separate archive-mirror output directory.
+  If both mirror flags are provided, the last one takes effect.
 
 Example:
   scripts/sync_main_repo.sh \
@@ -26,7 +29,7 @@ core_dir=""
 data_dir=""
 main_dir=""
 rebuild=1
-mirror_skills=1
+mirror_skills=0
 security_report_path=""
 
 while [[ $# -gt 0 ]]; do
@@ -35,6 +38,7 @@ while [[ $# -gt 0 ]]; do
     --data) data_dir="$2"; shift 2;;
     --main) main_dir="$2"; shift 2;;
     --no-rebuild) rebuild=0; shift;;
+    --skills-mirror) mirror_skills=1; shift;;
     --no-skills-mirror) mirror_skills=0; shift;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1"; usage; exit 2;;
