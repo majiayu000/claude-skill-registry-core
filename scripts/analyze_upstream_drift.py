@@ -305,7 +305,7 @@ class CachedFetcher:
                     return response.read()
             except urllib.error.HTTPError as exc:
                 raise GitHubApiError(exc.code, f"HTTP {exc.code}: {url}") from exc
-            except OSError as exc:
+            except (http.client.HTTPException, OSError) as exc:
                 raise GitHubApiError(0, f"Transport failure: {exc}") from exc
 
         return self._cached(url, fetch, cache_404=True)

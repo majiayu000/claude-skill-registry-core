@@ -578,3 +578,49 @@ def test_persistent_transport_failure_surfaces_as_api_error(tmp_path, monkeypatc
     with pytest.raises(GitHubApiError, match="Transport failure"):
         fetcher.api("/repos/acme/skills/git/trees/abc?recursive=1")
     assert not list((tmp_path / "cache").glob("*.json"))
+
+
+def test_truncated_raw_body_is_retried_and_cached(tmp_path, monkeypatch):
+    import http.client
+    from contextlib import nullcontext
+    from unittest.mock import Mock
+
+    fetcher = CachedFetcher(tmp_path / "cache", "")
+    response = Mock()
+    response.read.side_effect = [http.client.IncompleteRead(b"partial", 20), b"complete"]
+    urlopen = Mock(side_effect=lambda *args, **kwargs: nullcontext(response))
+    monkeypatch.setattr("analyze_upstream_drift.urllib.request.urlopen", urlopen)
+    monkeypatch.setattr("analyze_upstream_drift.time.sleep", lambda _: None)
+
+    assert fetcher.raw("acme/skills", COMMIT, "example/SKILL.md") == b"complete"
+    assert fetcher.raw("acme/skills", COMMIT, "example/SKILL.md") == b"complete"
+    assert urlopen.call_count == 2
+    assert response.read.call_count == 2
+    records = list((tmp_path / "cache").glob("*.json"))
+    assert len(records) == 1
+    assert bytes.fromhex(json.loads(records[0].read_text())["body"]) == b"complete"
+
+
+def test_persistent_raw_truncation_is_not_cached(tmp_path, monkeypatch):
+    import http.client
+    from contextlib import nullcontext
+    from unittest.mock import Mock
+
+    fetcher = CachedFetcher(tmp_path / "cache", "")
+    response = Mock()
+    response.read.side_effect = http.client.IncompleteRead(b"partial", 20)
+    urlopen = Mock(side_effect=lambda *args, **kwargs: nullcontext(response))
+    monkeypatch.setattr("analyze_upstream_drift.urllib.request.urlopen", urlopen)
+    monkeypatch.setattr("analyze_upstream_drift.time.sleep", lambda _: None)
+
+    with pytest.raises(GitHubApiError, match="Transport failure") as error:
+        fetcher.raw("acme/skills", COMMIT, "example/SKILL.md")
+    assert error.value.status == 0
+    assert isinstance(error.value.__cause__, http.client.IncompleteRead)
+    assert urlopen.call_count == 3
+    assert not list((tmp_path / "cache").glob("*.json"))
+
+    response.read.side_effect = None
+    response.read.return_value = b"recovered"
+    assert fetcher.raw("acme/skills", COMMIT, "example/SKILL.md") == b"recovered"
+    assert urlopen.call_count == 4
