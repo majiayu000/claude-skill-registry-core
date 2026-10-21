@@ -99,7 +99,12 @@ def summarize(history: dict[str, list[dict[str, Any]]], pins: dict[str, dict[str
         1 for entries in tracked.values()
         if entries[-1]["status"] == "upstream_unavailable" and "404" in entries[-1].get("error", "")
     )
-    rescanned = sum(1 for entries in tracked.values() if len({e.get("digest") for e in entries}) > 1)
+    # Keep hash types separate: adding a tree hash to legacy history is not a change.
+    rescanned = sum(
+        1 for entries in tracked.values()
+        if any(len({e[key] for e in entries if e.get(key)}) > 1
+               for key in ("digest", "tree_digest"))
+    )
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at": generated_at,
