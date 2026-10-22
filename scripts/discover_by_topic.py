@@ -26,6 +26,8 @@ from utils import (
     ensure_unique_dir,
     extract_frontmatter,
     is_registry_repo,
+    is_unresolved_license,
+    normalize_license,
     normalize_name,
     skill_semantic_fields,
 )
@@ -110,6 +112,22 @@ class GitHubTopicDiscovery:
         self.code_query_stats = defaultdict(
             lambda: {"repo_hits": 0, "path_hits": 0, "downloaded_skills": 0}
         )
+        self.repo_licenses = {}
+
+    def _repo_license(self, repo: str) -> str:
+        """Return GitHub's detected root license for a repo, or NOASSERTION if none."""
+        if repo not in self.repo_licenses:
+            try:
+                payload = self._request(f"{GITHUB_API}/repos/{repo}/license")
+            except requests.RequestException as exc:
+                # Optional enrichment must not lose a successfully fetched skill.
+                # DiscoveryBudgetExpired deliberately still propagates.
+                logger.warning("Repository license lookup failed for %s: %s", repo, exc)
+                payload = None
+            license_info = payload.get('license') if isinstance(payload, dict) else None
+            license_info = license_info if isinstance(license_info, dict) else {}
+            self.repo_licenses[repo] = normalize_license(str(license_info.get('spdx_id') or ''))
+        return self.repo_licenses[repo]
 
     def _ensure_repo_candidate(self, repo: str) -> dict:
         candidate = self.repo_candidates.get(repo)
@@ -571,10 +589,14 @@ class GitHubTopicDiscovery:
                     category = str(classification["category"])
                     key = build_skill_key(repo, path, name=skill_dir, category=category)
 
+                    license_name = frontmatter.get('license')
+                    if is_unresolved_license(license_name):
+                        license_name = self._repo_license(repo)
                     legal_meta = build_legal_metadata(
                         repo=repo,
                         path=path,
                         branch=branch,
+                        license_name=license_name,
                     )
                     metadata = {
                         'name': semantics["name"],

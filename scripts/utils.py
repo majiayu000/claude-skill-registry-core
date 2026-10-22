@@ -92,6 +92,31 @@ def normalize_license(license_name: str) -> str:
     return text
 
 
+# Values meaning "nobody declared a license here", as opposed to a declared restriction.
+UNRESOLVED_LICENSE_VALUES = {"", "NOASSERTION", "UNKNOWN", "NONE", "NULL", "N/A", "NA", "TBD"}
+
+
+def is_unresolved_license(license_name: str | None) -> bool:
+    """Return True when a license value carries no declaration to classify."""
+    if not isinstance(license_name, str):
+        return True
+    return normalize_license(license_name).upper() in UNRESOLVED_LICENSE_VALUES
+
+
+def resolve_license(*candidates: str | None) -> str:
+    """
+    Return the most specific declared license, normalized.
+
+    Candidates are ordered from most to least specific (skill-level declaration first,
+    repository license last). A skill-level value that is declared but unrecognized is
+    kept rather than replaced by the repository license, so it stays restricted.
+    """
+    for candidate in candidates:
+        if not is_unresolved_license(candidate):
+            return normalize_license(candidate)
+    return "NOASSERTION"
+
+
 def classify_license(license_name: str) -> str:
     """
     Classify license compatibility for main MIT-like artifact.
@@ -198,6 +223,21 @@ def build_legal_metadata(
         "distribution": distribution,
         "license_class": license_class,
     }
+
+
+def with_resolved_license(entry: dict, license_name: str) -> dict:
+    """
+    Apply the resolved declaration, filling absent legal fields and replacing
+    defaults derived from the previous license. Hand-written values stay.
+    """
+    previous_defaults = build_legal_metadata(license_name=resolve_license(entry.get("license")))
+    derived = build_legal_metadata(license_name=license_name)
+    resolved = dict(entry)
+    for key in ("distribution", "permission_note", "license_class"):
+        if not resolved.get(key) or resolved[key] == previous_defaults[key]:
+            resolved[key] = derived[key]
+    resolved["license"] = derived["license"]
+    return resolved
 
 
 def is_valid_https_url(url: str) -> bool:
