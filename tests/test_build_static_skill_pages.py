@@ -12,6 +12,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from build_static_skill_pages import (  # noqa: E402
     PUBLIC_SITE,
+    _meta_description,
     _source_url,
     attach_security_scans,
     build_static_skill_pages,
@@ -579,6 +580,23 @@ def test_guide_jsonld_breadcrumb_star_and_unique_description(tmp_path):
     assert len(description) <= 160
     assert description.endswith("Install pdf for Claude Code.")
     assert (tmp_path / "skills" / "category" / "design-tools" / "index.html").is_file()
+
+
+def test_meta_description_keeps_complete_first_sentence_before_install_text():
+    record = skill(
+        "frontend-design",
+        description=(
+            "Create distinctive, production-grade frontend interfaces with high design quality. "
+            "Use this skill when the user asks to build web pages."
+        ),
+    )
+
+    description = _meta_description(record)
+
+    assert description == (
+        "Create distinctive, production-grade frontend interfaces with high design quality. "
+        "Install frontend-design for Claude Code."
+    )
 
 
 def test_sitemap_lastmod_uses_history_then_scan_date(tmp_path):

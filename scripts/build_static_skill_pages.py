@@ -257,7 +257,7 @@ def _category_page_url(slug: str) -> str:
 
 
 def _meta_description(record: dict[str, Any]) -> str:
-    """Install-oriented snippet that stays unique when descriptions share a prefix."""
+    """Install-oriented snippet that stays unique without cutting a sentence in half."""
     name = _plain(record.get("name")) or "this skill"
     body = _plain(record.get("description"))
     tail = f" Install {name} for Claude Code."
@@ -265,8 +265,13 @@ def _meta_description(record: dict[str, Any]) -> str:
         tail = " Install this Claude Code skill."
     room = 160 - len(tail)
     if len(body) > room:
-        trimmed = body[:room].rsplit(" ", 1)[0].rstrip(" ,;:-")
-        body = trimmed or body[:room].rstrip()
+        first_sentence = re.search(r"[.!?](?=\s|$)", body)
+        if first_sentence and first_sentence.end() <= room:
+            body = body[: first_sentence.end()]
+        else:
+            candidate = body[: room - 1]
+            trimmed = candidate.rsplit(" ", 1)[0].rstrip(" ,;:-")
+            body = f"{trimmed or candidate.rstrip()}…"
     return (f"{body}{tail}" if body else tail.strip())[:160]
 
 
