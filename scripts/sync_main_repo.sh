@@ -53,6 +53,7 @@ fi
 core_dir="$(cd "$core_dir" && pwd)"
 data_dir="$(cd "$data_dir" && pwd)"
 main_dir="$(cd "$main_dir" && pwd)"
+cd "$main_dir"
 
 timestamp() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"

@@ -76,7 +76,7 @@ class LegacyPointerSyncTests(unittest.TestCase):
         archived = data / "design/example/SKILL.md"
         archived.parent.mkdir(parents=True)
         archived.write_text("---\nname: example\n---\nArchived body\n", encoding="utf-8")
-        wrapper = '''python() { printf 'TRACE_PYTHON'; printf ' %q' "$@"; printf '\\n'; }
+        wrapper = '''python() { printf 'TRACE_PYTHON_CWD %s\\n' "$PWD"; printf 'TRACE_PYTHON'; printf ' %q' "$@"; printf '\\n'; }
 '''
         if not real_rsync:
             wrapper += '''rsync() { printf 'TRACE_RSYNC'; printf ' %q' "$@"; printf '\\n'; }
@@ -89,6 +89,11 @@ class LegacyPointerSyncTests(unittest.TestCase):
             capture_output=True, text=True, check=False, env=os.environ.copy(),
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        working_directories = [line.removeprefix("TRACE_PYTHON_CWD ")
+                               for line in result.stdout.splitlines()
+                               if line.startswith("TRACE_PYTHON_CWD ")]
+        self.assertTrue(working_directories)
+        self.assertEqual({Path(path).resolve() for path in working_directories}, {main.resolve()})
         return result, data, main, pointer, readme, archived
 
     def test_default_and_explicit_no_mirror_read_data_without_mirroring(self):
