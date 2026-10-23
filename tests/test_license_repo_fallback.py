@@ -161,6 +161,33 @@ def test_fetch_repo_license_reports_copyleft_spdx(monkeypatch):
     )
 
 
+@pytest.mark.parametrize(
+    "declared,expected_class",
+    [("Proprietary", "restricted"), ("GPL-3.0", "restricted"), ("See LICENSE.txt", "unknown")],
+)
+def test_backfill_reads_archived_skill_before_repo_fallback(
+    tmp_path, monkeypatch, declared, expected_class
+):
+    module = load_script("backfill_legal_metadata")
+    skill_dir = tmp_path / "skills" / "demo"
+    skill_dir.mkdir(parents=True)
+    metadata_path = skill_dir / "metadata.json"
+    metadata_path.write_text(json.dumps(archived_restricted_metadata("acme/repo", "demo")))
+    skill_text = f"---\nname: demo\nlicense: {declared}\n---\n# Demo\n"
+    (skill_dir / "SKILL.md").write_text(skill_text)
+    (tmp_path / "cache.json").write_text(json.dumps({"acme/repo": {"license": "MIT"}}))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["backfill", "--cache", "cache.json", "--apply"])
+
+    assert module.main() == 0
+
+    updated = json.loads(metadata_path.read_text())
+    assert updated["license"] == declared
+    assert updated["license_class"] == expected_class
+    assert updated["distribution"] == "restricted"
+    assert (skill_dir / "SKILL.md").read_text() == skill_text
+
+
 def test_with_resolved_license_rederives_only_generated_restricted_fields():
     entry = {"name": "demo", **utils.build_legal_metadata(repo="acme/repo", license_name="")}
     resolved = utils.with_resolved_license(entry, "MIT")
