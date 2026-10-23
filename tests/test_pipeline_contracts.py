@@ -921,6 +921,12 @@ def test_build_index_runs_generated_guards_without_deploying_pages():
 
 
 def test_build_index_root_rebuild_commands_are_executable(tmp_path):
+    # Keep production listed sources out of this one-skill archive fixture.
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    script = scripts / "rebuild_registry.py"
+    shutil.copyfile(ROOT / "scripts/rebuild_registry.py", script)
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "scripts")}
     skill_dir = tmp_path / "skills" / "development" / "demo"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("# Demo\n\nGenerated fixture.\n", encoding="utf-8")
@@ -934,12 +940,13 @@ def test_build_index_root_rebuild_commands_are_executable(tmp_path):
     summary = tmp_path / "registry_summary.json"
     subprocess.run(
         [
-            sys.executable, str(ROOT / "scripts/rebuild_registry.py"),
+            sys.executable, str(script),
             "--skills-dir", str(tmp_path / "skills"), "--registry", str(registry),
             "--manifest", str(manifest), "--shards-dir", str(shards),
             "--skip-categories", "--compat-manifest-pointer",
         ],
         cwd=ROOT,
+        env=env,
         check=True,
         capture_output=True,
         text=True,
@@ -951,6 +958,7 @@ def test_build_index_root_rebuild_commands_are_executable(tmp_path):
             "--output", str(summary),
         ],
         cwd=ROOT,
+        env=env,
         check=True,
         capture_output=True,
         text=True,
