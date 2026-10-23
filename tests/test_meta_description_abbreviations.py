@@ -96,6 +96,24 @@ class MetaDescriptionAbbreviationTests(unittest.TestCase):
         self.assertTrue(description.endswith("… Install guide for Claude Code."))
         self.assertLessEqual(len(description), 160)
 
+    def test_legal_citation_abbreviations_do_not_end_metadata(self):
+        sentence = "Apply Rev. Proc. 2003-42 and Treas. Reg. §25.2702-5(c) to the trust."
+        self.assertEqual(
+            _meta_description({"name": "qprt", "description": sentence + MORE_DETAIL}),
+            sentence + " Install qprt for Claude Code.",
+        )
+        description = _meta_description({
+            "name": "qprt",
+            "description": (
+                "Drafts an IRC §2702-compliant Qualified Personal Residence Trust agreement "
+                "with safe harbor provisions under Rev. Proc. 2003-42 and Treas. Reg. "
+                "§25.2702-5(c). Generates trust instrument, signature/not"
+            ),
+        })
+        self.assertIn("Rev. Proc. 2003-42", description)
+        self.assertTrue(description.endswith("… Install qprt for Claude Code."))
+        self.assertLessEqual(len(description), 160)
+
     def test_ordinary_sentence_endings_still_stop_the_snippet(self):
         for sentence in ("Use the CLI.", "Need a PDF?", "Export now!", "Use v1.2 and example.com tools."):
             with self.subTest(sentence=sentence):

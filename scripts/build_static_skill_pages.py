@@ -25,8 +25,9 @@ README_GUIDE_LIMIT = 40
 _DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # Keep dotted initialisms intact: a following capital can be a proper noun.
 # Ambiguous sentence-final initialisms fall through to a later stop or ellipsis.
+# Titles and legal citation markers also introduce following text.
 _NONTERMINAL_ABBREVIATION_END = re.compile(
-    r"\b(?:(?i:(?:[a-z]\.){2,})|(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)\.)$"
+    r"\b(?:(?i:(?:[a-z]\.){2,})|(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Rev|Proc|Treas|Reg)\.)$"
 )
 # Other abbreviations can end a sentence; keep that boundary before a capital letter.
 _ABBREVIATION_END = re.compile(r"\b(?:vs|etc)\.$", re.IGNORECASE)
