@@ -23,14 +23,13 @@ REGISTRY_REPO_URL = "https://github.com/majiayu000/claude-skill-registry"
 STATIC_PAGE_LIMIT = 5800
 README_GUIDE_LIMIT = 40
 _DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-# These forms normally introduce more text, even when the next word is capitalized.
+# Keep dotted initialisms intact: a following capital can be a proper noun.
+# Ambiguous sentence-final initialisms fall through to a later stop or ellipsis.
 _NONTERMINAL_ABBREVIATION_END = re.compile(
-    r"\b(?:(?i:e\.g|i\.e)|Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)\.$"
+    r"\b(?:(?i:(?:[a-z]\.){2,})|(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)\.)$"
 )
 # Other abbreviations can end a sentence; keep that boundary before a capital letter.
-_ABBREVIATION_END = re.compile(
-    r"\b(?:[a-z]\.){2,}$|\b(?:vs|etc)\.$", re.IGNORECASE
-)
+_ABBREVIATION_END = re.compile(r"\b(?:vs|etc)\.$", re.IGNORECASE)
 FEATURED_START = "<!-- static-featured:start -->"
 FEATURED_END = "<!-- static-featured:end -->"
 GENERATED_MARKER = ".generated-static-skill-pages"

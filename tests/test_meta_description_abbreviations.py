@@ -62,13 +62,39 @@ class MetaDescriptionAbbreviationTests(unittest.TestCase):
                 )
 
     def test_contextual_abbreviations_can_end_a_sentence(self):
-        for sentence in ("Export PDFs, CSVs, etc.", "Create charts for the U.S.", "Set a timeout of 500 ms."):
+        for sentence in ("Export PDFs, CSVs, etc.", "Set a timeout of 500 ms."):
             for continuation in (MORE_DETAIL, " Additional details " + "for the workflow " * 20):
                 with self.subTest(sentence=sentence, continuation=continuation):
                     self.assertEqual(
                         _meta_description({"name": "guide", "description": sentence + continuation}),
                         sentence + " Install guide for Claude Code.",
                     )
+
+    def test_dotted_initialisms_preserve_capitalized_continuations(self):
+        for sentence in (
+            "Query the U.S. Treasury Fiscal Data API for reports.",
+            "Drafts enforceable U.S. Terms of Service for businesses.",
+            "Review D.E. Shaw research for the workflow.",
+            "Use e.U. TypeScript examples for the workflow.",
+        ):
+            with self.subTest(sentence=sentence):
+                description = _meta_description({"name": "guide", "description": sentence + MORE_DETAIL})
+                self.assertEqual(description, sentence + " Install guide for Claude Code.")
+                self.assertLessEqual(len(description), 160)
+
+    def test_ambiguous_initialism_boundary_keeps_useful_bounded_text(self):
+        sentence = "Create charts for the U.S. Export them as PDFs."
+        self.assertEqual(
+            _meta_description({"name": "guide", "description": sentence + MORE_DETAIL}),
+            sentence + " Install guide for Claude Code.",
+        )
+        description = _meta_description({
+            "name": "guide",
+            "description": "Query the U.S. Treasury Fiscal Data API " + "for detailed reports " * 20,
+        })
+        self.assertTrue(description.startswith("Query the U.S. Treasury Fiscal Data API "))
+        self.assertTrue(description.endswith("… Install guide for Claude Code."))
+        self.assertLessEqual(len(description), 160)
 
     def test_ordinary_sentence_endings_still_stop_the_snippet(self):
         for sentence in ("Use the CLI.", "Need a PDF?", "Export now!", "Use v1.2 and example.com tools."):
