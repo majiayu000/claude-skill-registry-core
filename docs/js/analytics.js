@@ -36,7 +36,7 @@
 
     function outboundEvent(href) {
         if (/github\.com\/majiayu000\/spellbook/i.test(href)) return 'outbound-spellbook';
-        if (/github\.com\/majiayu000\/caude-skill-manager/i.test(href)) return 'outbound-sk';
+        if (/github\.com\/majiayu000\/c(l)?aude-skill-manager/i.test(href)) return 'outbound-sk';
         if (/github\.com\//i.test(href)) return 'outbound-source';
         return '';
     }
