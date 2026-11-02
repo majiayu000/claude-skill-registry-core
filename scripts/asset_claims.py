@@ -8,6 +8,7 @@ BUNDLED_DIR_ALLOWLIST = {
     "bin",
     "connectors",
     "references",
+    "resources",
     "reference",
     "scripts",
     "assets",

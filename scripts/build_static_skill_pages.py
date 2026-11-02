@@ -23,6 +23,14 @@ REGISTRY_REPO_URL = "https://github.com/majiayu000/claude-skill-registry"
 STATIC_PAGE_LIMIT = 5800
 README_GUIDE_LIMIT = 40
 _DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# Keep dotted initialisms intact: a following capital can be a proper noun.
+# Ambiguous sentence-final initialisms fall through to a later stop or ellipsis.
+# Titles and legal citation markers also introduce following text.
+_NONTERMINAL_ABBREVIATION_END = re.compile(
+    r"\b(?:(?i:(?:[a-z]\.){2,})|(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Rev|Proc|Treas|Reg)\.)$"
+)
+# Other abbreviations can end a sentence; keep that boundary before a capital letter.
+_ABBREVIATION_END = re.compile(r"\b(?:vs|etc)\.$", re.IGNORECASE)
 FEATURED_START = "<!-- static-featured:start -->"
 FEATURED_END = "<!-- static-featured:end -->"
 GENERATED_MARKER = ".generated-static-skill-pages"
@@ -289,7 +297,7 @@ def _category_page_url(slug: str) -> str:
 
 
 def _meta_description(record: dict[str, Any]) -> str:
-    """Install-oriented snippet that stays unique when descriptions share a prefix."""
+    """Install-oriented snippet that stays unique without cutting a sentence in half."""
     name = _plain(record.get("name")) or "this skill"
     body = _plain(record.get("description"))
     tail = f" Install {name} for Claude Code."
@@ -297,8 +305,26 @@ def _meta_description(record: dict[str, Any]) -> str:
         tail = " Install this Claude Code skill."
     room = 160 - len(tail)
     if len(body) > room:
-        trimmed = body[:room].rsplit(" ", 1)[0].rstrip(" ,;:-")
-        body = trimmed or body[:room].rstrip()
+        first_sentence = None
+        for ending in re.finditer(r"[.!?](?=\s|$)", body):
+            if ending.end() > room:
+                break
+            if ending.group() == ".":
+                prefix = body[: ending.end()]
+                # _plain normalizes the separating whitespace to one space.
+                next_letter = body[ending.end() + 1 : ending.end() + 2]
+                if _NONTERMINAL_ABBREVIATION_END.search(prefix) or (
+                    _ABBREVIATION_END.search(prefix) and not next_letter.isupper()
+                ):
+                    continue
+            first_sentence = ending
+            break
+        if first_sentence:
+            body = body[: first_sentence.end()]
+        else:
+            candidate = body[: room - 1]
+            trimmed = candidate.rsplit(" ", 1)[0].rstrip(" ,;:-")
+            body = f"{trimmed or candidate.rstrip()}…"
     return (f"{body}{tail}" if body else tail.strip())[:160]
 
 
@@ -456,6 +482,7 @@ def _render_category_page(category: str, slug: str, items: list[dict[str, Any]])
   {structured}
   {FONTS_LINK}
   <link rel="stylesheet" href="../../../css/skill-detail.css">
+  <script defer src="../../../js/analytics.js"></script>
 </head>
 <body>
 {_site_header("All guides", f"{PUBLIC_SITE}skills/")}
@@ -545,6 +572,7 @@ def _render_detail_page(record: dict[str, Any], slug: str, related: list[dict[st
   {structured}
   {FONTS_LINK}
   <link rel="stylesheet" href="../../css/skill-detail.css">
+  <script defer src="../../js/analytics.js"></script>
 </head>
 <body>
 {_site_header("Explore skills", PUBLIC_SITE)}
@@ -721,7 +749,7 @@ def build_static_skill_pages(
 <meta name="twitter:image:alt" content="Claude Skills Registry — source-linked skill guides">
 {browse_structured}
 {FONTS_LINK}
-<link rel="stylesheet" href="../css/skill-detail.css"></head><body>
+<link rel="stylesheet" href="../css/skill-detail.css"><script defer src="../js/analytics.js"></script></head><body>
 {_site_header("Search", PUBLIC_SITE)}
 <main><nav class="crumbs" aria-label="Breadcrumb"><a href="{PUBLIC_SITE}">Registry</a> / <span aria-current="page">Guides</span></nav>
 <p class="kicker">{total:,} guides · {len(categories)} categories</p>

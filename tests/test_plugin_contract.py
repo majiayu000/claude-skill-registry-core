@@ -1,5 +1,7 @@
 import gzip
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -826,6 +828,12 @@ def test_write_registry_shards_repairs_invalid_or_future_timestamp(tmp_path, pre
 
 
 def test_registry_rebuild_does_not_modify_archive_orphan_metadata(tmp_path):
+    # Keep production listed sources out of this one-skill archive fixture.
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    script = scripts / "rebuild_registry.py"
+    shutil.copyfile(SCRIPTS_DIR / "rebuild_registry.py", script)
+    env = {**os.environ, "PYTHONPATH": str(SCRIPTS_DIR)}
     archive = tmp_path / "archive"
     skill = archive / "design/real"
     skill.mkdir(parents=True)
@@ -835,10 +843,10 @@ def test_registry_rebuild_does_not_modify_archive_orphan_metadata(tmp_path):
     orphan.parent.mkdir()
     orphan.write_bytes(b'{"name":"orphan"}\n')
     before = {str(p.relative_to(archive)): p.read_bytes() for p in archive.rglob("*") if p.is_file()}
-    result = subprocess.run([sys.executable, str(SCRIPTS_DIR / "rebuild_registry.py"),
+    result = subprocess.run([sys.executable, str(script),
         "--skills-dir", str(archive), "--registry", str(tmp_path / "registry.json"),
         "--manifest", str(tmp_path / "manifest.json"), "--shards-dir", str(tmp_path / "shards"),
-        "--skip-categories"], capture_output=True, text=True)
+        "--skip-categories"], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stdout + result.stderr
     assert {str(p.relative_to(archive)): p.read_bytes() for p in archive.rglob("*") if p.is_file()} == before
     manifest = json.loads((tmp_path / "manifest.json").read_text())

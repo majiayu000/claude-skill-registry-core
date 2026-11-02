@@ -67,8 +67,12 @@ from sync_pipeline_support import (
 from utils import (
     build_skill_key,
     ensure_unique_dir,
+    extract_frontmatter,
+    is_unresolved_license,
     normalize_license,
     normalize_name,
+    resolve_license,
+    with_resolved_license,
 )
 
 
@@ -302,6 +306,30 @@ async def download_skills(
     commit_sha_cache: dict[tuple[str, str], str] = {}
     repo_identity_cache: dict[str, str] = {}
     tree_cache: dict[tuple[str, str], list[dict]] = {}
+    repo_license_tasks: dict[str, asyncio.Task] = {}
+
+    async def fetch_repo_license(session: aiohttp.ClientSession, repo: str) -> str:
+        """Return GitHub's detected root license for a repo, or NOASSERTION if none."""
+        url = f"{GITHUB_API_BASE}/repos/{repo}/license"
+        try:
+            async with session.get(url, timeout=request_timeout) as resp:
+                if resp.status != 200:
+                    return "NOASSERTION"
+                payload = await resp.json()
+        except Exception as exc:
+            logger.warning("Repository license lookup failed for %s: %s", repo, exc)
+            return "NOASSERTION"
+        license_info = payload.get("license") if isinstance(payload, dict) else None
+        spdx_id = license_info.get("spdx_id") if isinstance(license_info, dict) else ""
+        return normalize_license(str(spdx_id or ""))
+
+    async def repo_license(session: aiohttp.ClientSession, repo: str) -> str:
+        # Skills of one repo download concurrently; share a single lookup per repo.
+        task = repo_license_tasks.get(repo)
+        if task is None:
+            task = asyncio.ensure_future(fetch_repo_license(session, repo))
+            repo_license_tasks[repo] = task
+        return await task
 
     async def fetch_contents_listing(
         session: aiohttp.ClientSession,
@@ -350,7 +378,6 @@ async def download_skills(
         repo = normalize_download_repo(skill.get("repo", ""))
         path = normalize_repo_path(skill.get("path", ""), repo)
         category = sanitize_category(skill.get("category", "other"))
-        require_license = normalize_license(skill.get("license", "")) in GPL_SOURCE_LICENSES
         candidate_key = skill_key(skill)
         failure_source = download_source_label(
             {**skill, "repo": repo, "path": path, "github_commit_sha": ""}
@@ -412,6 +439,7 @@ async def download_skills(
         if not relative_candidates:
             add_observation(skill, outcome="skipped", failure_reason="listed_source")
             return None
+        source_entry = skill
         attempts = 0
         commit_resolution_failed = False
         attempt_history = []
@@ -471,7 +499,6 @@ async def download_skills(
                                     relative_path,
                                     timeout=request_timeout,
                                     tree_cache=tree_cache,
-                                    include_license=require_license,
                                 )
                                 if pin_commit_sha
                                 else None
@@ -501,6 +528,15 @@ async def download_skills(
                                     source_text = raw_content.decode("utf-8-sig")
                                 else:
                                     source_text = await resp.text()
+                                license_name = resolve_license(
+                                    extract_frontmatter(source_text).get("license"),
+                                    source_entry.get("license"),
+                                )
+                                if is_unresolved_license(license_name):
+                                    # This request shares the surrounding download semaphore.
+                                    license_name = await repo_license(session, repo)
+                                skill = with_resolved_license(source_entry, license_name)
+                                require_license = license_name in GPL_SOURCE_LICENSES
                                 content = (
                                     source_text
                                     if require_license
@@ -575,7 +611,9 @@ async def download_skills(
                                             timeout=request_timeout,
                                             tree_cache=tree_cache,
                                             contents_collector=collect_bundled_file_entries,
-                                            pinned_tree_result=pinned_tree_result,
+                                            # GPL adds root-license and complete-source checks
+                                            # to the already cached immutable tree.
+                                            pinned_tree_result=(None if require_license else pinned_tree_result),
                                             require_license=require_license,
                                         )
                                         if redistribution_approved

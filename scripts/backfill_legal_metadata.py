@@ -23,7 +23,14 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from utils import build_legal_metadata, normalize_license, normalize_repo
+from utils import (
+    build_legal_metadata,
+    extract_frontmatter,
+    is_unresolved_license,
+    normalize_license,
+    normalize_repo,
+    resolve_license,
+)
 
 LEGAL_FIELDS = (
     "author",
@@ -53,7 +60,9 @@ def is_missing(value: Any) -> bool:
 
 
 def needs_backfill(metadata: dict[str, Any]) -> bool:
-    return any(is_missing(metadata.get(field)) for field in LEGAL_FIELDS)
+    return is_unresolved_license(metadata.get("license")) or any(
+        is_missing(metadata.get(field)) for field in LEGAL_FIELDS
+    )
 
 
 def skill_source_path(metadata: dict[str, Any]) -> str:
@@ -178,28 +187,31 @@ def load_or_fetch_license(
     return result
 
 
-def backfill_metadata(metadata: dict[str, Any], repo_license: dict[str, str]) -> dict[str, Any]:
+def backfill_metadata(
+    metadata: dict[str, Any], repo_license: dict[str, str], *, skill_license: str | None = None
+) -> dict[str, Any]:
     repo = normalize_repo(str(metadata.get("repo") or ""))
     current_license = metadata.get("license")
     current_copyright = metadata.get("copyright")
-    license_name = (
-        current_license
-        if not is_missing(current_license)
-        else repo_license.get("license") or "NOASSERTION"
-    )
+    # A skill-level declaration wins; the repository license only fills an absent one.
+    license_name = resolve_license(skill_license, current_license, repo_license.get("license"))
+    license_changed = resolve_license(current_license) != license_name
     copyright_text = (
         current_copyright
         if not is_missing(current_copyright)
         else repo_license.get("copyright") or ""
     )
 
+    source = {
+        "repo": repo,
+        "path": skill_source_path(metadata),
+        "branch": skill_branch(metadata),
+        "source_url": str(metadata.get("source_url") or ""),
+        "author": str(metadata.get("author") or ""),
+    }
     legal = build_legal_metadata(
-        repo=repo,
-        path=skill_source_path(metadata),
-        branch=skill_branch(metadata),
-        source_url=str(metadata.get("source_url") or ""),
-        author=str(metadata.get("author") or ""),
-        license_name=str(license_name),
+        **source,
+        license_name=license_name,
         copyright_text=str(copyright_text),
         permission_note=str(metadata.get("permission_note") or ""),
         distribution=str(metadata.get("distribution") or ""),
@@ -209,6 +221,21 @@ def backfill_metadata(metadata: dict[str, Any], repo_license: dict[str, str]) ->
     for key, value in legal.items():
         if is_missing(updated.get(key)):
             updated[key] = value
+
+    if license_changed:
+        # Stored class/distribution were derived from the old license; re-derive them, and
+        # replace generated notes, but keep notes someone wrote by hand.
+        stale = build_legal_metadata(**source, license_name=resolve_license(current_license))
+        fresh = build_legal_metadata(
+            **source,
+            license_name=license_name,
+            copyright_text=repo_license.get("copyright") or "",
+        )
+        for key in ("license", "license_class", "distribution"):
+            updated[key] = fresh[key]
+        for key in ("permission_note", "copyright"):
+            if updated.get(key) == stale[key]:
+                updated[key] = fresh[key]
     return updated
 
 
@@ -292,7 +319,13 @@ def main() -> int:
         )
         if not had_cache:
             write_json(cache_path, durable_license_cache(cache))
-        updated = backfill_metadata(metadata, repo_license)
+        skill_path = metadata_path.with_name("SKILL.md")
+        skill_license = None
+        if skill_path.exists():
+            skill_license = extract_frontmatter(skill_path.read_text(encoding="utf-8")).get(
+                "license"
+            )
+        updated = backfill_metadata(metadata, repo_license, skill_license=skill_license)
         if updated == metadata:
             stats["unchanged"] += 1
             continue

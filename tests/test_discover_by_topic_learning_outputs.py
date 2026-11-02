@@ -34,6 +34,11 @@ class FakeSession:
         return self.response
 
 
+def skip_repo_license_lookup(monkeypatch, module):
+    """Keep request-sequence tests focused on SKILL.md fetches."""
+    monkeypatch.setattr(module.GitHubTopicDiscovery, "_repo_license", lambda self, repo: "NOASSERTION")
+
+
 def test_write_candidates_jsonl_emits_repo_and_path_rows(tmp_path):
     module = load_module()
     discovery = module.GitHubTopicDiscovery(request_delay=0.0)
@@ -434,6 +439,7 @@ def test_full_cycle_resumes_snapshot_and_only_completes_after_last_repo(tmp_path
 
 def test_budget_mid_repo_keeps_cursor_and_resumes_unarchived_files(tmp_path, monkeypatch):
     module = load_module()
+    skip_repo_license_lookup(monkeypatch, module)
     clock = [0]
     monkeypatch.setattr(module.time, "monotonic", lambda: clock[0])
     fake_inventory(monkeypatch, module, ["acme/demo"])
@@ -525,6 +531,7 @@ def test_rate_limit_wait_cannot_overrun_batch_budget(monkeypatch):
 @pytest.mark.parametrize("target", ["api", "raw"])
 def test_transient_github_failure_retries_the_same_request(tmp_path, monkeypatch, failure, target):
     module = load_module()
+    skip_repo_license_lookup(monkeypatch, module)
     discovery = module.GitHubTopicDiscovery(request_delay=0)
     discovery.checkpointed = True
     response = module.requests.Response()
@@ -628,6 +635,7 @@ def test_transient_retry_wait_cannot_overrun_batch_budget(tmp_path, monkeypatch,
 
 def test_raw_missing_main_tries_master_without_retrying(tmp_path, monkeypatch):
     module = load_module()
+    skip_repo_license_lookup(monkeypatch, module)
     discovery = module.GitHubTopicDiscovery()
     discovery.checkpointed = True
     calls = []
@@ -1120,6 +1128,7 @@ def test_raw_retry_wait_cannot_overrun_existing_budget(tmp_path, monkeypatch):
 
 def test_noncheckpointed_raw_http_failure_keeps_branch_fallback(tmp_path, monkeypatch):
     module = load_module()
+    skip_repo_license_lookup(monkeypatch, module)
     discovery = module.GitHubTopicDiscovery(request_delay=0)
     calls = []
 

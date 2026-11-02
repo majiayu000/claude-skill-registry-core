@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated_at": "2026-10-19T17:36:46.742704Z",
-  "total_count": 1712,
+  "updated_at": "2026-10-30T09:27:56.185263Z",
+  "total_count": 1718,
   "entries": {
     "Xquik-dev/x-twitter-scraper": {
       "repo": "Xquik-dev/x-twitter-scraper",
@@ -10189,106 +10189,128 @@
       "repo": "elfovo/agent-chain-doctor",
       "branch": "main",
       "relative_path": "skill/SKILL.md",
-      "commit_sha": "874e9076074a7e468fe11c6040c6815ed8d1e0a8",
       "updated_at": "2026-10-19T17:36:29.873326Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-search/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-search/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:31.805927Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-batch-backup/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-batch-backup/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:31.823862Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-task-guardian/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-task-guardian/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:31.849270Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-magnet-pipeline/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-magnet-pipeline/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:31.871748Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-telegram-bot/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-telegram-bot/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:31.905006Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-storage-report/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-storage-report/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:31.922683Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-dedup/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-dedup/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:31.947247Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-webdav-guide/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-webdav-guide/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:31.961902Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-share-manager/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-share-manager/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:31.975283Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-ad-cleaner/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-ad-cleaner/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:31.995646Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-save/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-save/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:32.029452Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-media-index/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-media-index/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:32.043842Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-onboarding/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-onboarding/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:32.072326Z"
     },
     "pipiguai87-alt/pikpak-skills:skills/pikpak-speed-guide/SKILL.md": {
       "repo": "pipiguai87-alt/pikpak-skills",
       "branch": "main",
       "relative_path": "skills/pikpak-speed-guide/SKILL.md",
-      "commit_sha": "168aebf61d65b25c44029525e891f56b84d8982d",
       "updated_at": "2026-10-19T17:36:32.168366Z"
+    },
+    "cis2042/ux3-product-design-harness:skills/product-design-harness": {
+      "repo": "cis2042/ux3-product-design-harness",
+      "branch": "main",
+      "relative_path": "skills/product-design-harness/SKILL.md",
+      "updated_at": "2026-10-23T13:54:26.498092Z"
+    },
+    "yumaheymans/carejobs-mcp:skills/healthcare-job-search/SKILL.md": {
+      "repo": "yumaheymans/carejobs-mcp",
+      "branch": "main",
+      "relative_path": "skills/healthcare-job-search/SKILL.md",
+      "updated_at": "2026-10-23T14:13:56.436235Z"
+    },
+    "aeonfun/aeon:name:aeon": {
+      "repo": "aeonfun/aeon",
+      "branch": "main",
+      "relative_path": ".claude/skills/aeon/SKILL.md",
+      "updated_at": "2026-10-24T04:23:27.661309Z"
+    },
+    "nikhils4/ui-beats:skills/ui-beats": {
+      "repo": "nikhils4/ui-beats",
+      "branch": "main",
+      "relative_path": "skills/ui-beats/SKILL.md",
+      "updated_at": "2026-10-24T04:23:32.706620Z"
+    },
+    "f-o-x11/deed-page-skill:skills/deed-page/SKILL.md": {
+      "repo": "f-o-x11/deed-page-skill",
+      "branch": "main",
+      "relative_path": "skills/deed-page/SKILL.md",
+      "updated_at": "2026-10-27T03:29:36.531812Z"
+    },
+    "kasovy/neverapply-mcp:skills/find-jobs/SKILL.md": {
+      "repo": "kasovy/neverapply-mcp",
+      "branch": "main",
+      "relative_path": "skills/find-jobs/SKILL.md",
+      "commit_sha": "d4e6d02aa0eea588e78a468df254d7e8b7a269f4",
+      "updated_at": "2026-10-30T09:27:46.137407Z"
     }
   }
 }

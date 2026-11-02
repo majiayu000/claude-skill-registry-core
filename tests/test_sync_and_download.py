@@ -505,8 +505,9 @@ def test_download_removes_skill_that_fails_security_scan(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("source_ref", ["release/v1", "a" * 40])
+@pytest.mark.parametrize("support_path", ["scripts/setup.py", "resources/scripts/setup.py"])
 def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(
-    tmp_path, monkeypatch, source_ref
+    tmp_path, monkeypatch, source_ref, support_path
 ):
     module = load_module()
     registry_path = tmp_path / "registry.json"
@@ -531,7 +532,7 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(
     )
     sha = "a" * 40
     skill_body = (
-        b"---\nname: demo\ndescription: A pinned demo skill.\n---\n# Demo\nRun scripts/setup.py.\n"
+        f"---\nname: demo\ndescription: A pinned demo skill.\n---\n# Demo\nRun {support_path}.\n".encode()
     )
     script_body = b"print('ok')\n"
     install_fake_aiohttp(
@@ -544,7 +545,7 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(
                 [
                     git_blob_entry("skills/demo folder/skill.md", skill_body),
                     {
-                        "path": "skills/demo folder/scripts/setup.py",
+                        "path": f"skills/demo folder/{support_path}",
                         "type": "blob",
                         "mode": "100755",
                         "size": len(script_body),
@@ -558,7 +559,7 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(
                     body=skill_body,
                 )
             ),
-            f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo%20folder/scripts/setup.py": (
+            f"https://raw.githubusercontent.com/acme/demo/{sha}/skills/demo%20folder/{support_path}": (
                 FakeResponse(200, body=script_body)
             ),
         },
@@ -577,7 +578,7 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(
 
     assert stats["downloaded"] == 1
     skill_dir = next(output_dir.glob("development/*"))
-    setup_path = skill_dir / "scripts" / "setup.py"
+    setup_path = skill_dir / support_path
     assert setup_path.read_text() == "print('ok')\n"
     if os.name != "nt":
         assert setup_path.stat().st_mode & 0o111
@@ -585,7 +586,7 @@ def test_exact_download_pins_skill_and_bundled_files_to_commit_sha(
     assert metadata["github_branch"] == source_ref
     assert metadata["github_commit_sha"] == sha
     assert metadata["assets_verified_at"].endswith("Z")
-    assert metadata["bundled_file_blobs"] == {"scripts/setup.py": git_blob_sha(script_body)}
+    assert metadata["bundled_file_blobs"] == {support_path: git_blob_sha(script_body)}
 
 
 def test_exact_download_allows_standalone_skill_with_empty_support_listing(
