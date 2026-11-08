@@ -60,6 +60,14 @@ GPL downloads fail if any source file falls outside the supported archive
 scope. License provenance records the selected upstream path so liveness
 checks cannot substitute a different license when the original disappears.
 
+Community rows whose `source_url` cites a specific commit
+(`/blob/<40-hex-sha>/` or `/tree/<40-hex-sha>/`) are archived at that exact
+commit: sync verifies the commit still exists and fails closed rather than
+substituting the branch head. Rows citing a branch (or no URL) are archived
+at the probed branch head at acquisition time; for those, intake review is a
+point-in-time review. Existing archives are never re-downloaded by sync; a
+pin change only affects new acquisitions.
+
 ## Upstream-only listings
 
 For a source that should be discoverable without mirroring its instruction body,
