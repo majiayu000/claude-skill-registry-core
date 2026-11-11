@@ -17,7 +17,7 @@ ROOT_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from listed_skills import load_listed_skills, source_identity
+from listed_skills import load_listed_skills, source_identity  # noqa: I001  # line budget: paired resolver imports share one line below
 from security_blocklist import blocked_metadata_source, load_security_blocklist
 from sync_download_support import (
     GPL_SOURCE_LICENSES,
@@ -31,7 +31,7 @@ from sync_download_support import (
     download_source_label,
     exact_source_branch,
     read_response_bytes_limited,
-    resolve_exact_commit_sha,
+    resolve_exact_commit_sha, resolve_reviewed_commit_ref,
 )
 from sync_pipeline_support import (
     DEFAULT_LEARNING_PRIORS_PATH,
@@ -464,11 +464,11 @@ async def download_skills(
                 })
                 if pin_commit_sha:
                     try:
-                        download_ref = await resolve_exact_commit_sha(
+                        download_ref = await resolve_reviewed_commit_ref(
                             session,
                             repo,
-                            branch,
-                            timeout=request_timeout,
+                            branch, source_entry, resolve_exact_commit_sha,
+                            exact_paths_only=exact_paths_only, timeout=request_timeout,
                             security_blocklist=security_blocklist,
                             repo_cache=repo_identity_cache,
                             commit_cache=commit_sha_cache,

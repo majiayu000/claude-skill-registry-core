@@ -26,6 +26,9 @@ from sync_pipeline_support import MAX_BUNDLED_FILE_BYTES as MAX_BUNDLED_FILE_BYT
 from utils import build_legal_metadata, classify_license, normalize_license
 
 SHA_PATTERN = re.compile(r"[0-9a-fA-F]{40}")
+GITHUB_COMMIT_URL_RE = re.compile(
+    r"^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(?:blob|tree)/([0-9a-fA-F]{40})(?:/|$)"
+)
 MAX_SKILL_FILE_BYTES = 1_000_000
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com"
 GPL_SOURCE_LICENSES = {"GPL-3.0", "GPL-3.0-only", "GPL-3.0-or-later"}
@@ -151,6 +154,21 @@ async def collect_contents_bundled_file_entries(
     return selected, truncated or incomplete
 
 
+def reviewed_commit_pin(skill: dict, repo: str) -> str:
+    """Return the reviewed commit SHA cited by a GitHub source_url, or ''.
+
+    Only blob/tree URLs at a full 40-hex SHA for the same repository count;
+    branch-name URLs stay unpinned (point-in-time intake).
+    """
+    match = GITHUB_COMMIT_URL_RE.match(str(skill.get("source_url") or "").strip())
+    if not match:
+        return ""
+    url_repo, sha = match.group(1), match.group(2)
+    if url_repo.casefold() != repo.casefold():
+        return ""
+    return sha.lower()
+
+
 def exact_source_branch(skill: dict) -> str:
     """Return a safe recorded source branch for immutable exact downloads."""
     branches = []
@@ -223,6 +241,51 @@ async def resolve_exact_commit_sha(
         raise RuntimeError("branch resolution returned an invalid commit SHA")
     commit_cache[cache_key] = commit_sha.lower()
     return commit_sha.lower()
+
+
+async def resolve_reviewed_commit_ref(
+    session: Any,
+    repo: str,
+    branch: str,
+    skill: dict,
+    resolve: Any,
+    *,
+    exact_paths_only: bool,
+    timeout: Any,
+    security_blocklist: dict,
+    repo_cache: dict[str, str],
+    commit_cache: dict[tuple[str, str], str],
+) -> str:
+    """Resolve the download SHA, honoring an intake-reviewed commit pin.
+
+    Community rows whose source_url cites a specific commit are archived at
+    that reviewed commit instead of the moving branch head. Exact/backfill
+    mode keeps its recorded-branch semantics. Resolution failures propagate
+    so the caller fails closed when the reviewed commit is gone. ``resolve``
+    is the caller's commit resolver (resolve_exact_commit_sha), injected so
+    the caller's failure-injection seams keep intercepting resolution.
+    """
+    download_ref = await resolve(
+        session,
+        repo,
+        branch,
+        timeout=timeout,
+        security_blocklist=security_blocklist,
+        repo_cache=repo_cache,
+        commit_cache=commit_cache,
+    )
+    reviewed_pin = reviewed_commit_pin(skill, repo) if not exact_paths_only else ""
+    if reviewed_pin and download_ref != reviewed_pin:
+        download_ref = await resolve(
+            session,
+            repo,
+            reviewed_pin,
+            timeout=timeout,
+            security_blocklist=security_blocklist,
+            repo_cache=repo_cache,
+            commit_cache=commit_cache,
+        )
+    return download_ref
 
 
 async def collect_pinned_tree_entries(
