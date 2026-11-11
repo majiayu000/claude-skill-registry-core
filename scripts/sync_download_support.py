@@ -383,10 +383,7 @@ async def collect_pinned_tree_entries(
         f"{source_dir}/{name}" if source_dir else name for name in LICENSE_FILENAMES
     }
     has_local_license = any(entry.get("path") in local_license_paths for entry in entries)
-    local_notice_paths = {
-        f"{source_dir}/{name}" if source_dir else name for name in NOTICE_FILENAMES
-    }
-    has_local_notice = any(entry.get("path") in local_notice_paths for entry in entries)
+    entry_paths = {entry.get("path") for entry in entries}
     candidates = []
     omitted_eligible_file = False
     for entry in entries:
@@ -399,11 +396,14 @@ async def collect_pinned_tree_entries(
         # Keep-when-present root legal fallback: unlike the GPL path above, an
         # invalid root file is skipped instead of failing the whole archive.
         root_legal_fallback = False
-        if include_root_legal and not rel_path:
-            if repo_path in LICENSE_FILENAMES and not has_local_license:
-                rel_path, root_legal_fallback = repo_path, True
-            elif repo_path in NOTICE_FILENAMES and not has_local_notice:
-                rel_path, root_legal_fallback = repo_path, True
+        # Local precedence is per filename, matching the Contents collector.
+        if (
+            include_root_legal
+            and not rel_path
+            and repo_path in LICENSE_FILENAMES | NOTICE_FILENAMES
+            and f"{source_dir}/{repo_path}" not in entry_paths
+        ):
+            rel_path, root_legal_fallback = repo_path, True
         if not rel_path:
             continue
         try:

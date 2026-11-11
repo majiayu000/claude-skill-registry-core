@@ -229,6 +229,35 @@ def test_apache_root_notice_variants_are_retained(tmp_path, monkeypatch, pinned,
     assert metadata["bundled_files"] == ["LICENSE", notice_name, "references/guide.md"]
 
 
+@pytest.mark.parametrize("pinned", [False, True])
+@pytest.mark.parametrize("local_name,root_name", [
+    ("NOTICE.md", "NOTICE"), ("LICENSE.md", "LICENSE"),
+])
+def test_apache_local_legal_precedence_is_per_filename(
+    tmp_path, monkeypatch, pinned, local_name, root_name
+):
+    # A differently named local legal file must not suppress the root file.
+    local_body = LOCAL_NOTICE_BODY if local_name.startswith("NOTICE") else LOCAL_LICENSE_BODY
+    root_body = ROOT_NOTICE_BODY if root_name == "NOTICE" else ROOT_LICENSE_BODY
+    files = {
+        SOURCE_PATH: SKILL_BODY,
+        REFERENCE_PATH: REFERENCE_BODY,
+        f"{SOURCE_DIR}/{local_name}": local_body,
+        root_name: root_body,
+    }
+    stats, output_dir = run_apache_download(tmp_path, monkeypatch, files, pinned=pinned)
+    assert stats["downloaded"] == 1
+    assert stats["failed"] == 0
+    archive = next(output_dir.glob("development/*"))
+    assert (archive / local_name).read_bytes() == local_body
+    assert (archive / root_name).read_bytes() == root_body
+    metadata = json.loads((archive / "metadata.json").read_text())
+    assert metadata["license_source_paths"][root_name] == root_name
+    assert sorted(metadata["bundled_files"]) == sorted(
+        [local_name, root_name, "references/guide.md"]
+    )
+
+
 @pytest.mark.parametrize("notice_name", ["NOTICE", "NOTICE.md", "NOTICE.txt"])
 @pytest.mark.parametrize("upstream_has_root_notice", [True, False])
 def test_apache_root_notice_liveness_uses_provenance(tmp_path, notice_name, upstream_has_root_notice):
