@@ -415,6 +415,14 @@ jobs:
               raise SystemExit(f"Archive layout normalization left non-standard paths: {remaining}")
           PY
 
+      - name: Refresh official skill licenses
+        run: python scripts/refresh_official_licenses.py --skills-dir skills --apply
+
+      - name: Withhold archive bodies without redistribution approval
+        run: |
+          python scripts/withheld_archives.py --skills-dir skills --apply
+          python scripts/withheld_archives.py --skills-dir skills --check
+
       - name: Upload archive layout normalization report
         if: always()
         uses: actions/upload-artifact@v7
