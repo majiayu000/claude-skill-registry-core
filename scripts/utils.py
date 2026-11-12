@@ -118,6 +118,8 @@ _LICENSE_ALIASES = {
     "apache-license-v2.0": "Apache-2.0",
     "bsd-2-clause": "BSD-2-Clause",
     "bsd-3-clause": "BSD-3-Clause",
+    "2-clause-bsd": "BSD-2-Clause",
+    "3-clause-bsd": "BSD-3-Clause",
     "gplv2": "GPL-2.0",
     "gpl-v2": "GPL-2.0",
     "gplv3": "GPL-3.0",

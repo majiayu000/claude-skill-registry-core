@@ -59,6 +59,7 @@ def utils():
         ("CC-BY", "CC-BY-4.0"),
         ("Apache-2.0 license", "Apache-2.0"),
         ("BSD-3-Clause license", "BSD-3-Clause"),
+        ("3-clause BSD license", "BSD-3-Clause"),
         ("The MIT License.", "MIT"),
         ("  mit   LICENSE ", "MIT"),
         ("apache-2.0", "Apache-2.0"),
