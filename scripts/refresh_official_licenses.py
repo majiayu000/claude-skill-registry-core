@@ -7,8 +7,8 @@ never reach the registry. For every archive whose repo is listed in
 files from raw.githubusercontent.com (no API quota) and applies the upstream
 license when the archived Markdown body still matches the upstream body. An
 older archived version keeps the terms it was published under, unless it is a
-single-file archive without redistribution approval and upstream now permits
-redistribution: then the archived SKILL.md is replaced with the current upstream file.
+single-file archive without an open-source license and upstream now has one:
+then the archived SKILL.md is replaced with the current upstream file.
 
 Dry-run is the default; ``--apply`` writes changes. Fetch errors exit nonzero.
 """
@@ -27,7 +27,7 @@ from urllib.parse import quote
 
 from audit_skill_assets import canonical_source_identity_from_metadata
 from official_sources import is_official_repo
-from sync_download_support import asset_redistribution_approved, exact_source_branch
+from sync_download_support import exact_source_branch
 from utils import (
     classify_license,
     extract_frontmatter,
@@ -36,7 +36,7 @@ from utils import (
     resolve_license,
     with_resolved_license,
 )
-from withheld_archives import body_fingerprint, iter_archive_dirs, read_metadata
+from withheld_archives import body_allowed, body_fingerprint, iter_archive_dirs, read_metadata
 
 RAW_BASE = "https://raw.githubusercontent.com"
 LICENSE_FILENAMES = ("LICENSE.txt", "LICENSE", "LICENSE.md")
@@ -121,9 +121,7 @@ def refresh_archives(skills_dir: Path, *, apply: bool, fetch: Fetcher = fetch_ra
         refreshed["author"] = infer_author(repo, str(metadata.get("author") or ""))
         if archived_fingerprint(skill_dir, metadata) != body_fingerprint(upstream_text):
             single_file = not metadata.get("bundled_files") and not metadata.get("github_commit_sha")
-            relicensed = not asset_redistribution_approved(metadata) and asset_redistribution_approved(
-                refreshed
-            )
+            relicensed = not body_allowed(metadata) and body_allowed(refreshed)
             if not (single_file and relicensed):
                 summary["body_differs"].append(label)
                 continue

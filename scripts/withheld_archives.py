@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Keep only metadata for archives whose license does not permit redistribution.
+"""Keep only metadata for archives whose license is not an open-source license.
 
-An archive may carry its SKILL.md body and bundled files only when its metadata
-passes ``asset_redistribution_approved`` (an approved compatible license, or the
-documented GPL-3.0 exception). Every other archive is "withheld": the directory
-keeps ``metadata.json`` with its source link and no upstream content.
+An archive keeps its SKILL.md body when its metadata license is in
+``utils.OPEN_SOURCE_LICENSES`` (OSI-approved, including copyleft, or an open
+content license such as CC-BY/CC-BY-SA). Every other archive (no license,
+NOASSERTION, proprietary, non-commercial or no-derivatives) is "withheld": the
+directory keeps ``metadata.json`` with its source link and no upstream content.
 
 Dry-run is the default; ``--apply`` removes bodies and ``--check`` fails when any
 withheld archive still carries files.
@@ -19,8 +20,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from sync_download_support import asset_redistribution_approved
-from utils import extract_description, split_frontmatter_content
+from utils import extract_description, is_open_source_license, split_frontmatter_content
 
 METADATA_FILENAME = "metadata.json"
 
@@ -51,15 +51,18 @@ def iter_archive_dirs(skills_dir: Path):
                 yield skill_dir
 
 
+def body_allowed(metadata: dict) -> bool:
+    """Return whether the archive may keep the skill body under its recorded license."""
+    return is_open_source_license(metadata.get("license"))
+
+
 def is_withheld_metadata(metadata: dict) -> bool:
-    """A withheld archive links to an upstream repo but lacks redistribution approval.
+    """A withheld archive links to an upstream repo but has no open-source license.
 
     Metadata without a repo has no source link to list; once its body is removed it
     is orphan metadata and is not indexed.
     """
-    return bool(str(metadata.get("repo") or "").strip()) and not asset_redistribution_approved(
-        metadata
-    )
+    return bool(str(metadata.get("repo") or "").strip()) and not body_allowed(metadata)
 
 
 def iter_withheld_metadata_only_dirs(skills_dir: Path):
@@ -114,14 +117,14 @@ def withhold_archive(skill_dir: Path, metadata: dict) -> None:
 def plan_withholding(skills_dir: Path) -> dict:
     """Return counts and the withheld archives that still carry content."""
     archives = 0
-    redistributable = 0
+    body_kept = 0
     withheld_clean = 0
     pending: list[tuple[Path, dict]] = []
     for skill_dir in iter_archive_dirs(skills_dir):
         archives += 1
         metadata = read_metadata(skill_dir)
-        if asset_redistribution_approved(metadata):
-            redistributable += 1
+        if body_allowed(metadata):
+            body_kept += 1
             continue
         if any(child.name != METADATA_FILENAME for child in skill_dir.iterdir()):
             pending.append((skill_dir, metadata))
@@ -129,7 +132,7 @@ def plan_withholding(skills_dir: Path) -> dict:
             withheld_clean += 1
     return {
         "archives": archives,
-        "redistributable": redistributable,
+        "body_kept": body_kept,
         "withheld_metadata_only": withheld_clean,
         "pending": pending,
     }
@@ -160,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(summary, indent=2))
     if args.check and pending:
         print(
-            f"error: {len(pending)} archives without redistribution approval still carry content",
+            f"error: {len(pending)} archives without an open-source license still carry content",
             file=sys.stderr,
         )
         return 1

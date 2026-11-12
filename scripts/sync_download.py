@@ -74,7 +74,7 @@ from utils import (
     resolve_license,
     with_resolved_license,
 )
-from withheld_archives import is_withheld_metadata, read_metadata, withhold_archive
+from withheld_archives import body_allowed, is_withheld_metadata, read_metadata, withhold_archive
 
 
 async def download_skills(
@@ -705,8 +705,8 @@ async def download_skills(
                                             ", ".join(issue_types[:8]),
                                         )
                                         return False
-                                    if not redistribution_approved:
-                                        # Without redistribution approval only metadata is archived.
+                                    if not body_allowed(skill):
+                                        # Without an open-source license only metadata is archived.
                                         withhold_archive(skill_dir, read_metadata(skill_dir))
                                     stats["bundled_files"] += len(bundled_files)
                                     preferred_branch_by_repo[repo] = branch

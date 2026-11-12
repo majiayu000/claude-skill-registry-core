@@ -68,6 +68,15 @@ def test_apply_removes_body_and_keeps_identity_metadata(tmp_path):
         {**restricted_metadata("gnu/skills"), "license": "GPL-3.0"}, skill_md("GPL-3.0"),
         extra=("LICENSE",),
     )
+    agpl = write_archive(tmp_path, "documents/pdf-agpl",
+                         {**restricted_metadata("copyleft/skills"), "license": "AGPL-3.0"},
+                         skill_md("AGPL-3.0"))
+    spelled = write_archive(tmp_path, "documents/pdf-spelled",
+                            {**restricted_metadata("acme/spelled"), "license": "BSD-3-Clause license"},
+                            skill_md("BSD-3-Clause license"))
+    noncommercial = write_archive(tmp_path, "documents/pdf-nc",
+                                  {**restricted_metadata("acme/nc"), "license": "CC-BY-NC-4.0"},
+                                  skill_md("CC-BY-NC-4.0"))
 
     assert withheld_archives.main(["--skills-dir", str(tmp_path), "--check"]) == 1
     assert withheld_archives.main(["--skills-dir", str(tmp_path), "--apply"]) == 0
@@ -79,9 +88,12 @@ def test_apply_removes_body_and_keeps_identity_metadata(tmp_path):
     assert metadata["content_fingerprint"] == withheld_archives.body_fingerprint(skill_md("x"))
     assert metadata["description"] == "Work with PDF files."
     assert metadata["bundled_files"] == []
-    # Approved licenses, including the documented GPL-3.0 exception, keep their files.
+    # Open-source licenses keep their files.
     assert (kept / "SKILL.md").exists() and (kept / "scripts" / "x.py").exists()
     assert (gpl / "SKILL.md").exists() and (gpl / "LICENSE").exists()
+    # Copyleft and odd spellings of open-source licenses keep the body; NC does not.
+    assert (agpl / "SKILL.md").exists() and (spelled / "SKILL.md").exists()
+    assert [p.name for p in noncommercial.iterdir()] == ["metadata.json"]
 
 
 def test_archive_without_legal_metadata_is_withheld(tmp_path):
