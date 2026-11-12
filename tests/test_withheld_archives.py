@@ -159,7 +159,8 @@ def test_refresh_applies_upstream_license_and_current_file(tmp_path):
     current = write_archive(tmp_path, "documents/pdf-anthropics-skills-2", official,
                             skill_md("Proprietary. LICENSE.txt has complete terms"))
     old_text = skill_md("Proprietary").replace("PDF files.\n", "PDFs (old).\n")
-    older = write_archive(tmp_path, "documents/pdf-anthropics-skills", official, old_text)
+    unattributed = {key: value for key, value in official.items() if key != "author"}
+    older = write_archive(tmp_path, "documents/pdf-anthropics-skills", unattributed, old_text)
     bundled = write_archive(tmp_path, "documents/pdf", {**official, "bundled_files": ["scripts/x.py"]},
                             old_text, extra=("scripts/x.py",))
     third_party = write_archive(tmp_path, "documents/pdf-moessimple", restricted_metadata("moessimple/dotfiles"),
@@ -180,6 +181,7 @@ def test_refresh_applies_upstream_license_and_current_file(tmp_path):
     assert (current / "SKILL.md").read_text() == skill_md("Proprietary. LICENSE.txt has complete terms")
     assert (older / "SKILL.md").read_text() == upstream_text
     assert json.loads((older / "metadata.json").read_text())["downloaded_at"].endswith("Z")
+    assert json.loads((older / "metadata.json").read_text())["author"] == "anthropics"
     assert json.loads((bundled / "metadata.json").read_text())["license"] == "NOASSERTION"
     assert json.loads((third_party / "metadata.json").read_text())["license"] == "NOASSERTION"
     assert not any("moessimple" in url for url in upstream.requested)

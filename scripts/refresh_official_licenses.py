@@ -31,6 +31,7 @@ from sync_download_support import asset_redistribution_approved, exact_source_br
 from utils import (
     classify_license,
     extract_frontmatter,
+    infer_author,
     is_unresolved_license,
     resolve_license,
     with_resolved_license,
@@ -39,7 +40,7 @@ from withheld_archives import body_fingerprint, iter_archive_dirs, read_metadata
 
 RAW_BASE = "https://raw.githubusercontent.com"
 LICENSE_FILENAMES = ("LICENSE.txt", "LICENSE", "LICENSE.md")
-LEGAL_KEYS = ("license", "distribution", "permission_note", "license_class")
+LEGAL_KEYS = ("license", "distribution", "permission_note", "license_class", "author")
 
 Fetcher = Callable[[str], "str | None"]
 
@@ -117,6 +118,7 @@ def refresh_archives(skills_dir: Path, *, apply: bool, fetch: Fetcher = fetch_ra
             summary["upstream_missing"].append(label)
             continue
         refreshed = with_resolved_license(metadata, license_name)
+        refreshed["author"] = infer_author(repo, str(metadata.get("author") or ""))
         if archived_fingerprint(skill_dir, metadata) != body_fingerprint(upstream_text):
             single_file = not metadata.get("bundled_files") and not metadata.get("github_commit_sha")
             relicensed = not asset_redistribution_approved(metadata) and asset_redistribution_approved(
