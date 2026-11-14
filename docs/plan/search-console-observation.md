@@ -42,6 +42,24 @@ exclude the homepage, browse page and GitHub repository traffic.
 | Week 3 | Pending | Pending | Pending | Pending | Pending |
 | Week 4 | Pending | Pending | Pending | Pending | Pending |
 
+## Public crawl check, 2026-11-15 (Asia/Shanghai)
+
+- The production sitemap returned HTTP 200 with `application/xml`. It parsed as
+  a sitemap with 5,845 distinct HTTPS URLs, including 5,800 skill detail URLs.
+  The site's published stats also reported 5,800 detail pages.
+- The project robots.txt returned HTTP 200 and advertised the sitemap. The
+  sampled documentation-updater guide returned HTTP 200, pointed its canonical
+  tag to its clean detail URL, and had no observed `noindex` tag or header.
+- The browser session reached the Search Console sign-in page. Current sitemap
+  acceptance, Google coverage, impressions and clicks are still unverified.
+  The HTTP checks above only verify the public crawl surface.
+
+For [#429](https://github.com/majiayu000/claude-skill-registry-core/issues/429),
+record the sitemap status and the Pages report for the existing URL-prefix
+property. Export the performance report filtered to skill detail URLs and
+compare it with site analytics before the 2026-11-26 decision. Keep these
+owner-side measurements separate from the public crawl checks above.
+
 Compare equal weekly windows. Record indexing coverage using the submitted
 skill-guide sitemap URLs and indexing reports, not impressions as a substitute
 for indexed pages. Search Console may show limited indexing examples; document
