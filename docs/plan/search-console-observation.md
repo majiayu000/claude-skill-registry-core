@@ -60,6 +60,20 @@ property. Export the performance report filtered to skill detail URLs and
 compare it with site analytics before the 2026-11-26 decision. Keep these
 owner-side measurements separate from the public crawl checks above.
 
+## Search Console checkpoint, 2026-11-15 (Asia/Shanghai)
+
+- The existing URL-prefix property reports “Couldn't fetch” for the full sitemap.
+  Its detail page shows a last read on 2026-10-29 and zero discovered URLs.
+- Page indexing data updated on 2026-11-09 shows one indexed URL, the homepage,
+  and zero reported as not indexed.
+- The unfiltered Web performance chart covers 2026-10-06 to 2026-11-11 and
+  shows seven impressions and zero clicks for the property.
+
+Submit `sitemap-probe.xml` after publication. It contains ten canonical URLs
+selected from the same production sitemap. Compare Google's read status and
+discovered count for the probe and the full sitemap before changing sitemap
+structure.
+
 Compare equal weekly windows. Record indexing coverage using the submitted
 skill-guide sitemap URLs and indexing reports, not impressions as a substitute
 for indexed pages. Search Console may show limited indexing examples; document
