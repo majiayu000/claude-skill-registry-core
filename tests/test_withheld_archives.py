@@ -224,6 +224,35 @@ def test_refresh_dry_run_writes_nothing_and_cli_fails_on_fetch_errors(tmp_path, 
     assert refresh_archives(tmp_path, apply=False, fetch=lambda url: None)["no_source_path"]
 
 
+def test_refresh_keeps_recorded_license_when_upstream_license_is_unidentified(tmp_path):
+    undeclared = skill_md("x").replace("license: x\n", "")
+    kept = write_archive(tmp_path, "documents/pdf",
+                         compatible_metadata("anthropics/skills", "BSD-3-Clause"), undeclared)
+    bsd_text = "BSD 3-Clause License\n\nRedistribution and use in source and binary forms ...\n"
+
+    # A license file this script cannot name is not a relicense.
+    summary = refresh_archives(
+        tmp_path, apply=True, fetch=FakeUpstream({"skills/pdf/SKILL.md": undeclared, "LICENSE": bsd_text})
+    )
+    refreshed = json.loads((kept / "metadata.json").read_text(encoding="utf-8"))
+    assert (refreshed["license"], refreshed["distribution"]) == ("BSD-3-Clause", "compatible")
+    assert summary["license_unidentified"] == ["documents/pdf"]
+    # Neither is a license file under a name this script does not look for.
+    summary = refresh_archives(tmp_path, apply=True, fetch=FakeUpstream({"skills/pdf/SKILL.md": undeclared}))
+    assert summary["updated"] == [] and summary["unchanged"] == 1
+    assert summary["license_unidentified"] == ["documents/pdf"]
+    withheld_archives.main(["--skills-dir", str(tmp_path), "--apply"])
+    assert (kept / "SKILL.md").exists()
+
+    # An explicit upstream declaration still replaces the recorded license.
+    declared = FakeUpstream({"skills/pdf/SKILL.md": skill_md("Proprietary"), "LICENSE": bsd_text})
+    summary = refresh_archives(tmp_path, apply=True, fetch=declared)
+    assert summary["updated"] == ["documents/pdf: BSD-3-Clause -> Proprietary"]
+    assert summary["license_unidentified"] == []
+    withheld_archives.main(["--skills-dir", str(tmp_path), "--apply"])
+    assert [p.name for p in kept.iterdir()] == ["metadata.json"]
+
+
 def test_detect_license_text():
     assert detect_license_text(APACHE_TEXT) == "Apache-2.0"
     assert detect_license_text(
