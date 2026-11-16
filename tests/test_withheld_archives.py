@@ -269,3 +269,46 @@ def test_sync_archives_metadata_only_and_never_readds_the_body(tmp_path, monkeyp
     assert second["downloaded"] == 0
     assert [path.name for path in skill_dir.iterdir()] == ["metadata.json"]
     assert len(list(output_dir.glob("development/*"))) == 1
+
+
+def test_blocklist_purge_covers_withheld_listings(tmp_path):
+    module = load_sync_module()
+    blocklist = {"evil/skills": {"repo": "evil/skills", "reason": "test", "action": "reject"}}
+    blocked = write_archive(tmp_path, "security/pdf-evil", restricted_metadata("Evil/Skills"),
+                            skill_md("Proprietary"))
+    blocked_by_url = write_archive(
+        tmp_path, "security/pdf-mirror",
+        {**restricted_metadata("mirror/skills"),
+         "source_url": "https://github.com/evil/skills/blob/main/skills/pdf/SKILL.md"},
+        skill_md("Proprietary"),
+    )
+    listed = write_archive(tmp_path, "documents/pdf-brixtonpham", restricted_metadata(),
+                           skill_md("Proprietary"))
+    # A bundled data file named metadata.json is not an archive record.
+    kept = write_archive(tmp_path, "documents/pdf-acme", compatible_metadata(), skill_md("MIT"),
+                         extra=("assets/metadata.json",))
+    withheld_archives.main(["--skills-dir", str(tmp_path), "--apply"])
+    for skill_dir in (blocked, blocked_by_url, listed):
+        assert [p.name for p in skill_dir.iterdir()] == ["metadata.json"]
+
+    with pytest.raises(RuntimeError, match="Existing archive contains blocked source repos"):
+        module.validate_existing_archive_sources(tmp_path, blocklist)
+    removed = module.validate_existing_archive_sources(tmp_path, blocklist, remove_blocked=True)
+
+    assert len(removed) == 2
+    assert not blocked.exists() and not blocked_by_url.exists()
+    assert (listed / "metadata.json").exists()
+    assert (kept / "SKILL.md").exists() and (kept / "assets" / "metadata.json").exists()
+    indexed = {"brixtonpham/claude-config", "acme/skills"}
+    assert {record["repo"] for record in scan_registry_skills(tmp_path)} == indexed
+    assert {record["repo"] for record in scan_skills_v2(tmp_path)} == indexed
+
+
+def test_blocklist_validation_fails_closed_on_unreadable_listing_metadata(tmp_path):
+    module = load_sync_module()
+    listing = write_archive(tmp_path, "documents/pdf-brixtonpham", restricted_metadata())
+    (listing / "metadata.json").write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Cannot validate existing archive metadata"):
+        module.validate_existing_archive_sources(tmp_path, {}, remove_blocked=True)
+    assert (listing / "metadata.json").exists()
