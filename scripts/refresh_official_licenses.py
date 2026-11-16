@@ -11,7 +11,9 @@ the recorded license is kept and the archive is reported as
 ``license_unidentified``. An
 older archived version keeps the terms it was published under, unless it is a
 single-file archive without an open-source license and upstream now has one:
-then the archived SKILL.md is replaced with the current upstream file.
+then the archived SKILL.md is replaced with the current upstream file. A
+withheld archive (metadata only) whose stored body fingerprint matches upstream
+gets the upstream SKILL.md back as soon as its license allows the body.
 
 Dry-run is the default; ``--apply`` writes changes. Fetch errors exit nonzero.
 """
@@ -128,10 +130,15 @@ def refresh_archives(skills_dir: Path, *, apply: bool, fetch: Fetcher = fetch_ra
             license_name = resolve_license(metadata.get("license"))
         refreshed = with_resolved_license(metadata, license_name)
         refreshed["author"] = infer_author(repo, str(metadata.get("author") or ""))
-        if archived_fingerprint(skill_dir, metadata) != body_fingerprint(upstream_text):
+        body_matches = archived_fingerprint(skill_dir, metadata) == body_fingerprint(upstream_text)
+        # A withheld archive holds metadata.json alone. Once its license allows the
+        # body, a metadata-only update would leave it neither archived nor listed, so
+        # the matching upstream SKILL.md is written back.
+        restore = body_matches and not (skill_dir / "SKILL.md").is_file() and body_allowed(refreshed)
+        if restore or not body_matches:
             single_file = not metadata.get("bundled_files") and not metadata.get("github_commit_sha")
             relicensed = not body_allowed(metadata) and body_allowed(refreshed)
-            if not (single_file and relicensed):
+            if not restore and not (single_file and relicensed):
                 summary["body_differs"].append(label)
                 continue
             summary["body_refreshed"].append(f"{label}: {metadata.get('license')} -> {refreshed['license']}")

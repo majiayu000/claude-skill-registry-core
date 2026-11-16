@@ -19,6 +19,7 @@ from rebuild_registry import cleanup_orphan_metadata  # noqa: E402
 from rebuild_registry import scan_skills as scan_registry_skills  # noqa: E402
 from refresh_official_licenses import detect_license_text, refresh_archives  # noqa: E402
 from search_sources import scan_skills_v2  # noqa: E402
+from security_scope import resolve_scan_paths  # noqa: E402
 from test_sync_and_download import FakeResponse, install_fake_aiohttp  # noqa: E402
 from test_sync_and_download import load_module as load_sync_module  # noqa: E402
 
@@ -251,6 +252,41 @@ def test_refresh_keeps_recorded_license_when_upstream_license_is_unidentified(tm
     assert summary["license_unidentified"] == []
     withheld_archives.main(["--skills-dir", str(tmp_path), "--apply"])
     assert [p.name for p in kept.iterdir()] == ["metadata.json"]
+
+
+def test_refresh_restores_withheld_body_when_upstream_license_allows_it(tmp_path):
+    undeclared = skill_md("x").replace("license: x\n", "")
+    withheld = write_archive(tmp_path, "documents/pdf", restricted_metadata("anthropics/skills"), undeclared)
+    withheld_archives.main(["--skills-dir", str(tmp_path), "--apply"])
+    assert [p.name for p in withheld.iterdir()] == ["metadata.json"]
+    before = (withheld / "metadata.json").read_bytes()
+    # Upstream keeps the body and adds a license: the stored fingerprint still matches.
+    upstream_text = undeclared.replace("Work with PDF files.", "Read and write PDF files.")
+    upstream = FakeUpstream({"skills/pdf/SKILL.md": upstream_text, "LICENSE": APACHE_TEXT})
+
+    dry_run = refresh_archives(tmp_path, apply=False, fetch=upstream)
+    assert dry_run["body_refreshed"] == ["documents/pdf: NOASSERTION -> Apache-2.0"]
+    assert {p.name: p.read_bytes() for p in withheld.iterdir()} == {"metadata.json": before}
+
+    summary = refresh_archives(tmp_path, apply=True, fetch=upstream)
+
+    assert summary["body_refreshed"] == dry_run["body_refreshed"] and summary["updated"] == []
+    assert (withheld / "SKILL.md").read_text(encoding="utf-8") == upstream_text
+    metadata = json.loads((withheld / "metadata.json").read_text(encoding="utf-8"))
+    assert (metadata["license"], metadata["distribution"]) == ("Apache-2.0", "compatible")
+    assert "content_fingerprint" not in metadata
+    assert withheld_archives.main(["--skills-dir", str(tmp_path), "--apply"]) == 0
+    assert (withheld / "SKILL.md").exists()
+    # The relicensed skill stays in the registry and the search index, now as an archive.
+    [registered] = scan_registry_skills(tmp_path)
+    [searchable] = scan_skills_v2(tmp_path)
+    assert registered["repo"] == searchable["repo"] == "anthropics/skills"
+    assert "tier" not in registered and "tier" not in searchable
+    # The incremental security scope maps the changed metadata to the restored body.
+    assert resolve_scan_paths(tmp_path, ["documents/pdf/metadata.json"], fail_unmapped=True) == [
+        withheld / "SKILL.md"
+    ]
+    assert refresh_archives(tmp_path, apply=True, fetch=upstream)["unchanged"] == 1
 
 
 def test_detect_license_text():
