@@ -97,6 +97,16 @@ def test_apply_removes_body_and_keeps_identity_metadata(tmp_path):
     assert [p.name for p in noncommercial.iterdir()] == ["metadata.json"]
 
 
+def test_apply_keeps_body_for_formal_license_names(tmp_path):
+    formal = "Apache License, Version 2.0"
+    kept = write_archive(tmp_path, "documents/pdf-formal",
+                         {**restricted_metadata("acme/formal"), "license": formal}, skill_md(formal))
+
+    assert withheld_archives.main(["--skills-dir", str(tmp_path), "--check"]) == 0
+    assert withheld_archives.main(["--skills-dir", str(tmp_path), "--apply"]) == 0
+    assert (kept / "SKILL.md").exists()
+
+
 def test_archive_without_legal_metadata_is_withheld(tmp_path):
     skill_dir = write_archive(tmp_path, "documents/pdf", {"name": "pdf", "repo": "anthropics/skills"},
                               skill_md("Proprietary"))
@@ -334,6 +344,46 @@ def test_sync_archives_metadata_only_and_never_readds_the_body(tmp_path, monkeyp
     assert second["downloaded"] == 0
     assert [path.name for path in skill_dir.iterdir()] == ["metadata.json"]
     assert len(list(output_dir.glob("development/*"))) == 1
+
+
+def test_withheld_archive_with_accepted_license_stays_listed_until_archived_again(tmp_path, monkeypatch):
+    module = load_sync_module()
+    registry_path = tmp_path / "registry.json"
+    output_dir = tmp_path / "skills"
+    registry_path.write_text(json.dumps({"skills": [{
+        "name": "demo", "repo": "acme/demo", "path": "SKILL.md", "category": "development",
+    }]}), encoding="utf-8")
+    routes = {
+        "https://raw.githubusercontent.com/acme/demo/main/SKILL.md": FakeResponse(
+            200, text="---\nname: demo\ndescription: Standalone skill.\n---\n# Demo\n\nUse it for archive demos.\n",
+        ),
+        "https://api.github.com/repos/acme/demo/license": FakeResponse(404),
+    }
+    install_fake_aiohttp(monkeypatch, routes)
+    asyncio.run(module.download_skills(registry_path, output_dir, manifest_path=None))
+    [skill_dir] = output_dir.glob("development/*")
+    assert [path.name for path in skill_dir.iterdir()] == ["metadata.json"]
+
+    # The license is accepted afterwards: a corrected value or a newly recognized spelling.
+    metadata = json.loads((skill_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["content_fingerprint"]
+    (skill_dir / "metadata.json").write_text(json.dumps({**metadata, "license": "MIT"}), encoding="utf-8")
+
+    assert [record.get("tier") for record in scan_registry_skills(output_dir)] == ["listed"]
+    assert [record.get("tier") for record in scan_skills_v2(output_dir)] == ["listed"]
+    assert cleanup_orphan_metadata(output_dir) == 0
+    assert withheld_archives.main(["--skills-dir", str(output_dir), "--check"]) == 0
+
+    # It is not an existing archive: the next download of its source brings the body back.
+    routes["https://api.github.com/repos/acme/demo/license"] = FakeResponse(
+        200, json_payload={"license": {"spdx_id": "MIT"}}
+    )
+    stats = asyncio.run(module.download_skills(registry_path, output_dir, manifest_path=None))
+    assert stats["downloaded"] == 1
+    assert sorted(path.name for path in skill_dir.iterdir()) == ["SKILL.md", "metadata.json"]
+    assert len(list(output_dir.glob("development/*"))) == 1
+    [record] = scan_registry_skills(output_dir)
+    assert "tier" not in record and record["license"] == "MIT"
 
 
 def test_blocklist_purge_covers_withheld_listings(tmp_path):
