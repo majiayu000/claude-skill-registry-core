@@ -183,8 +183,8 @@ curl https://majiayu000.github.io/claude-skill-registry/categories/development.j
 ┌─────────────────────────────────────────────────────────────────┐
 │  Layer 3: Consumption                                           │
 │  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐    │
-│  │ Web UI         │  │ sk CLI         │  │ API            │    │
-│  │ (GitHub Pages) │  │ (Go)           │  │ (JSON)         │    │
+│  │ Web UI         │  │ Skills CLI     │  │ API            │    │
+│  │ (GitHub Pages) │  │ (npx)          │  │ (JSON)         │    │
 │  └────────────────┘  └────────────────┘  └────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -310,7 +310,7 @@ Common category codes include:
 - [x] **Archive size:** tracked by badge (raw `SKILL.md` count from `stats.json`)
 - [x] **Daily auto-update** via GitHub Actions
 - [x] **Security scanning** for all skills
-- [x] **sk CLI** for installation
+- [x] **Skills CLI** installation guidance
 
 ### In Progress
 
